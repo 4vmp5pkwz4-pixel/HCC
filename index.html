@@ -25679,7 +25679,7 @@ function dscRouteDeep(R,b,anchor,level){ for(const L of DSC.deep) level(L);
 
 /* ── below the quark: the scales no experiment has reached, and the mathematics below the Planck length ──────────────
    These are not objects of a size; they are regimes, drawn beside the point the reader follows, at the size of the view. */
-function dscScreen(rx,ry,out){ const h=DSC_D0*Math.tan(camera.fov*Math.PI/360), r=new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld,0), u=new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld,1);
+function dscScreen(rx,ry,out){ const h=DSC_D0*Math.tan(camera.fov*Math.PI/360), r=new THREE.Vector3(1,0,0).applyQuaternion(camera.quaternion), u=new THREE.Vector3(0,1,0).applyQuaternion(camera.quaternion);   /* the camera's turn of this frame (its matrixWorld is last frame's until the render) */
   return (out||new THREE.Vector3()).copy(r).multiplyScalar(rx*h*camera.aspect).addScaledVector(u,ry*h); }
 /* the fibres of the Hopf map S³ → S²: over each point of the sphere a great circle of S³, stereographically projected —
    the circles over one latitude fill a torus and every two of them are linked once */
@@ -25743,7 +25743,7 @@ void main(){ float b=inst.x, ph=inst.y, wr=inst.z, ps=6.28318531*tmpl.x, e=0.012
   vP=Q; vPs=ps; vCol=icol; vGain=inst.w; vN=normalMatrix*nr; vec4 mv=modelViewMatrix*vec4(Q,1.0); vV=-mv.xyz; vZ=mv.z; gl_Position=projectionMatrix*mv;
 #include <logdepthbuf_vertex>
 }`;
-const DSC_TUBE_F=`uniform float uT,uAz,uWedge,uFade,uC,uZ0,uZs; varying vec3 vN; varying vec3 vV; varying vec3 vP; varying vec3 vCol; varying float vPs; varying float vGain; varying float vZ;
+const DSC_TUBE_F=`uniform float uT,uAz,uWedge,uFade,uC,uZ0,uZs,uZm,uNear; varying vec3 vN; varying vec3 vV; varying vec3 vP; varying vec3 vCol; varying float vPs; varying float vGain; varying float vZ;
 void main(){
 #include <logdepthbuf_fragment>
   float r=length(vP); if(r>uC) discard; float cw=cos(atan(vP.y,vP.x)-uAz); if(cw>uWedge) discard;
@@ -25751,19 +25751,19 @@ void main(){
   vec3 L1=normalize(vec3(-0.5,0.72,0.55)), L2=normalize(vec3(0.75,0.15,0.6)), L3=normalize(vec3(0.15,-0.25,-1.0));
   float d1=max(dot(N,L1),0.0), d2=max(dot(N,L2),0.0), d3=max(dot(N,L3),0.0), ndv=max(dot(N,V),0.0);
   float sp=pow(max(dot(N,normalize(L1+V)),0.0),70.0)+0.35*pow(max(dot(N,normalize(L2+V)),0.0),40.0), fr=pow(1.0-ndv,3.0);
-  float p=0.5+0.5*cos(2.0*(vPs-uT)), pk=p*p; pk*=pk; pk*=pk; pk*=p;
+  float p=0.5+0.5*cos(2.0*(vPs-uT)), pk=p*p; pk*=pk; pk*=pk; pk*=p; float nf=smoothstep(0.0,uNear,length(vV)); sp*=nf; pk*=nf;
   vec3 c=vCol*(0.13+0.6*d1+0.2*d2)+vec3(1.0,0.96,0.88)*sp*0.6+vCol*fr*0.35+vec3(0.55,0.65,1.0)*d3*fr*0.6+vCol*pk*vGain*1.6;
   if(!gl_FrontFacing) c=vCol*0.42+vCol*0.25*smoothstep(uWedge-0.15,uWedge,cw);
-  float depth=clamp(1.0-(uZ0-vZ)*uZs,0.45,1.15);
+  float depth=clamp(1.0-(uZ0-vZ)*uZs,uZm,1.15);
   gl_FragColor=vec4(c*depth*uFade,1.0); }`;
 /* the template: rings along the fibre, sides round it; a closed tube */
 function dscTubeMesh(n,S,M){ const g=new THREE.InstancedBufferGeometry(), V=new Float32Array((S+1)*M*2), I=[]; let q=0;
   for(let i=0;i<=S;i++) for(let j=0;j<M;j++){ V[q++]=i/S; V[q++]=2*Math.PI*j/M; }
-  for(let i=0;i<S;i++) for(let j=0;j<M;j++){ const a=i*M+j, b=i*M+(j+1)%M, c=a+M, d=b+M; I.push(a,c,b, b,c,d); }
+  for(let i=0;i<S;i++) for(let j=0;j<M;j++){ const a=i*M+j, b=i*M+(j+1)%M, c=a+M, d=b+M; I.push(a,b,c, b,d,c); }   /* counter-clockwise seen from outside: (b−a)×(c−a) is the outward normal (v4.389) */
   g.setAttribute('position',new THREE.Float32BufferAttribute(new Float32Array((S+1)*M*3),3)); g.setAttribute('tmpl',new THREE.Float32BufferAttribute(V,2)); g.setIndex(I);
   g.setAttribute('inst',new THREE.InstancedBufferAttribute(new Float32Array(4*n),4)); g.setAttribute('icol',new THREE.InstancedBufferAttribute(new Float32Array(3*n),3)); g.instanceCount=0;
   g.boundingSphere=new THREE.Sphere(new THREE.Vector3(),1e4);
-  const m=new THREE.Mesh(g,new THREE.ShaderMaterial({side:THREE.DoubleSide,uniforms:{uK:{value:1},uC:{value:3.4},uT:{value:0},uAz:{value:0},uWedge:{value:0.47},uFade:{value:1},uZ0:{value:-10},uZs:{value:0.18}},
+  const m=new THREE.Mesh(g,new THREE.ShaderMaterial({side:THREE.DoubleSide,uniforms:{uK:{value:1},uC:{value:3.4},uT:{value:0},uAz:{value:0},uWedge:{value:0.47},uFade:{value:1},uZ0:{value:-10},uZs:{value:0.18},uZm:{value:0.45},uNear:{value:0}},
     vertexShader:DSC_LOGD_V+DSC_TUBE_V, fragmentShader:DSC_LOGD_F+DSC_TUBE_F})); m.frustumCulled=false; m.userData.noGrade=true; m.userData.cap=n; return m; }
 /* a backdrop for the mathematics: a soft studio glow behind the picture, black at the edge of the view; once the level is
    in it writes depth, so the sky of the descent (its twins of the stars and the Milky Way) goes out behind it */
@@ -26008,51 +26008,89 @@ void main(){
       const R=plain(dscLabel('','#dfe8fb','label')); R.center.set(0.5,1); g.add(R); U.R=R;
       const LF=plain(dscLabel('','#ffd27a','label major')); LF.center.set(0.5,-0.3); F.add(LF); U.LF=LF;
       return g; },
-    tick(f,N){ const g=this.obj, U=g.userData, F=U.F, vh=dscVH(), asp=camera.aspect||1, t=DSC.t*0.55, b=dscHopfB(N), a=Math.sqrt(Math.max(0,1-b*b)), k=dscDiveK(N);
+    tick(f,N,_u,dt){ const g=this.obj, U=g.userData, F=U.F, vh=dscVH(), asp=camera.aspect||1, t=DSC.t*0.55, b=dscHopfB(N), a=Math.sqrt(Math.max(0,1-b*b)), k=dscDiveK(N);
       g.position.copy(DSC.rel[DSC.qi]); g.quaternion.identity(); g.scale.setScalar(1);
       /* square to the view when it appears; the reader's drag turns it, the clock's co-rotation does not; idle, the
          elevation breathes and the fibration turns slowly about its axis (a symmetry: the shells hold, the fibres pass) */
-      if(!U.rel||DSC.t-U.seen>0.3){ U.rel=new THREE.Quaternion().setFromAxisAngle(dscV(1,0,0),0.6-Math.PI/2); U.camPost=null; U.t0=DSC.t; U.az=null; }
-      else if(U.camPost&&DSC.camPre&&U.camQ){ const a0=U.camPost.clone().normalize(), a1=DSC.camPre.clone().normalize();
-        if(a0.distanceToSquared(a1)>1e-14){ const Dq=new THREE.Quaternion().setFromUnitVectors(a0,a1), Dc=U.camQ.clone().invert().multiply(Dq).multiply(U.camQ); U.rel.premultiply(Dc.invert()).normalize(); } }
-      U.seen=DSC.t; const ti=DSC.t-U.t0, breathe=new THREE.Quaternion().setFromAxisAngle(dscV(1,0,0),0.13*Math.sin(0.11*ti)), spin=new THREE.Quaternion().setFromAxisAngle(dscV(0,0,1),0.045*ti);
-      F.quaternion.copy(camera.quaternion).multiply(breathe).multiply(U.rel).multiply(spin); const S=0.2*vh*Math.min(1,asp*1.05); F.scale.setScalar(S);
+      const rel=dscDragFrame(U,0.6-Math.PI/2); if(U.t0===DSC.t) U.ch=null;
+      const ti=DSC.t-U.t0, S=0.2*vh*Math.min(1,asp*1.05), qOut=new THREE.Quaternion().setFromAxisAngle(dscV(1,0,0),0.13*Math.sin(0.11*ti)).multiply(rel).multiply(new THREE.Quaternion().setFromAxisAngle(dscV(0,0,1),0.045*ti));
       /* the backdrop: a soft glow behind the picture, black at the edge of the view */
       { const u=U.bd.material.uniforms; u.uFade.value=f; u.uDir.value.copy(camera.position).sub(g.position).normalize(); U.bd.material.depthWrite=f>0.6; }
-      /* the wedge faces the reader, turning smoothly with the view */
-      g.updateMatrixWorld(true); const cl=F.worldToLocal(camera.position.clone()), hl=Math.hypot(cl.x,cl.y);
-      if(hl>0.15*cl.length()){ const az=Math.atan2(cl.y,cl.x); if(U.az==null) U.az=az; else { let d=az-U.az; d-=2*Math.PI*Math.round(d/(2*Math.PI)); U.az+=d*0.2; } }
-      const az=U.az??-Math.PI/2, wedge=0.47;
+      /* the channel (v4.389). Below N = −2.6 the reader flies to the open end of the last fibre's neighbourhood — the face
+         the cut leaves facing the reader — turns along the fibre and enters it; from N = −8 down to the floor the view is
+         inside: a point at a fixed magnified distance ε from the last fibre (so, unmagnified, φ-fold nearer to it every
+         rung), looking along it, while the tori of the integer rungs come out of the fibre, grow φ-fold a rung and pass
+         outward round the reader — the walls of the channel, every fibre on them winding once round the last fibre per
+         circuit (the Hopf twist). The view glides along the fibre a little every rung and, idle, slowly by itself, as the
+         circle action e^{iψ} carries the points of S³; the reader's drag looks about. Nothing here is a place: the
+         magnification is across the fibre, not along it, and it is stated. */
+      const tc=dscSmooth(-2.6,-8,N), w0=Math.acos(0.47), ER=-0.032, EZ=0.056;
+      if(tc<=0&&U.ch){ U.az=U.ch.a0+U.ch.glide+0.3*Math.max(0,-2.6-N)-w0; U.ch=null; }
+      else if(tc>0&&!U.ch) U.ch={a0:(U.az??-Math.PI/2)+w0, rel0:rel.clone(), glide:0};
+      /* a camera's turn from its axes in the fibration's coordinates: right, up and the way it looks */
+      const look=(fw,upv)=>{ const f0=fw.clone().normalize(), r0=new THREE.Vector3().crossVectors(f0,upv); if(r0.lengthSq()<1e-12) r0.set(1,0,0); r0.normalize(); const u0=new THREE.Vector3().crossVectors(r0,f0);
+        return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(r0,u0,f0.negate())).invert(); };
+      let az, wedge=0.47, ac=0, eye; g.updateMatrixWorld(true);
+      if(!U.ch){ F.quaternion.copy(camera.quaternion).multiply(qOut); F.position.set(0,0,0); F.scale.setScalar(S); F.updateMatrixWorld(true);
+        /* the wedge faces the reader, turning smoothly with the view */
+        const cl=F.worldToLocal(camera.position.clone()), hl=Math.hypot(cl.x,cl.y); eye=cl;
+        if(hl>0.15*cl.length()){ const az0=Math.atan2(cl.y,cl.x); if(U.az==null) U.az=az0; else { let d=az0-U.az; d-=2*Math.PI*Math.round(d/(2*Math.PI)); U.az+=d*0.2; } }
+        az=U.az??-Math.PI/2; U.LF.position.set(hl>1e-6?cl.x/hl:0,hl>1e-6?cl.y/hl:-1,0); }
+      else { const C=U.ch, D=rel.clone().multiply(C.rel0.clone().invert()); C.glide+=Math.min(0.1,dt||0)*0.03*tc*tc*tc; ac=C.a0+C.glide+0.3*Math.max(0,-2.6-N)*tc;
+        const ca=Math.cos(ac), sa=Math.sin(ac), Pc=dscV(ca*(1+ER),sa*(1+ER),EZ), tg=dscV(-sa,ca,0), out=dscV(ca,sa,0), zz=dscV(0,0,1);
+        /* in the channel: looking along the fibre, a little into its bend and down toward it; the drag looks about */
+        const qIn=look(tg.clone().multiplyScalar(Math.cos(0.24)).addScaledVector(out,-Math.sin(0.24)).addScaledVector(zz,-0.1),zz).premultiply(D);
+        /* the flight: a quadratic Bézier from the reader's place to the eye in the channel, arriving along the fibre through the
+           open face; the view turns from the whole to the face it heads for, then along the fibre */
+        const cOff=camera.position.clone().sub(g.position).applyQuaternion(camera.quaternion.clone().invert()), pOut=cOff.applyQuaternion(qOut.clone().invert()).multiplyScalar(1/S);
+        const Pm=Pc.clone().addScaledVector(tg,-0.9), s=tc, p=pOut.clone().multiplyScalar((1-s)*(1-s)).addScaledVector(Pm,2*s*(1-s)).addScaledVector(Pc,s*s);
+        const vel=Pm.clone().sub(pOut).multiplyScalar(2*(1-s)).addScaledVector(Pc.clone().sub(Pm),2*s), upP=dscV(0,1,0).applyQuaternion(qOut.clone().invert()).lerp(zz,s).normalize();
+        const qPath=vel.lengthSq()>1e-12?look(vel,upP).premultiply(D):qIn.clone(), q=qOut.clone().slerp(qPath,dscSmooth(0,0.32,tc)).slerp(qIn,dscSmooth(0.66,1,tc));
+        F.quaternion.copy(camera.quaternion).multiply(q); F.scale.setScalar(S); F.position.copy(camera.position).sub(g.position).sub(p.clone().multiplyScalar(S).applyQuaternion(F.quaternion)); eye=p;
+        az=ac-w0; wedge=0.47+0.6*dscSmooth(0.82,1,tc); U.LF.position.set(Math.cos(ac+0.62),Math.sin(ac+0.62),0); }
+      /* the eye's distance from the last fibre, magnified: a wall passing near it is thinned there, so no thread fills the view */
+      const eyeR=Math.hypot(Math.hypot(eye.x,eye.y)-1,eye.z), thin=(w,tm)=>Math.min(w,Math.max(0.0004,0.018*Math.abs(tm-eyeR)));
       /* the threads: the integer rungs' shells (the largest whose magnified tube is under 0.95, and inward), the reader's
-         torus, and the last fibre itself — written into the instances every frame */
+         torus, and the last fibre itself — written into the instances every frame; in the channel a shell passing the
+         reader is thinned and dimmed there, so no thread ever crosses the eye */
       const tube=n=>{ const bb=dscHopfB(n), aa=Math.sqrt(Math.max(0,1-bb*bb)); return aa>0?bb/aa:Infinity; };
       let nTop=Math.min(-1,Math.floor(Math.log(0.95/k)/LN_PHI)+2); while(nTop<-1&&k*tube(nTop+1)<=0.95) nTop++; while(k*tube(nTop)>0.95) nTop--;
       const G=U.tubes.geometry, I=G.attributes.inst.array, Cc=G.attributes.icol.array, col=U.hue[0]; let q=0;
       const put=(bb,ph,w,gain,r,gr,bl)=>{ I[4*q]=bb; I[4*q+1]=ph; I[4*q+2]=w; I[4*q+3]=gain; Cc[3*q]=r; Cc[3*q+1]=gr; Cc[3*q+2]=bl; q++; };
-      for(let j=0;j<U.ns;j++){ const n=nTop-j, tm=k*tube(n), al=dscSmooth(0.01,0.035,tm)*(1-dscSmooth(0.6,0.95,tm)); if(al<=0.003) continue;
-        const w=Math.max(0.0012,Math.min(0.045,0.068*tm))*al, off=n*GOLDEN_ANGLE, warm=dscSmooth(0.7,0.03,tm);
-        for(let i=0;i<U.Ks;i++){ col.setHSL((i/U.Ks+off/(2*Math.PI))%1,0.36+0.16*warm,0.36+0.1*warm); put(dscHopfB(n),2*Math.PI*i/U.Ks+off,w,0.5,col.r,col.g,col.b); } }
-      if(b<0.995){ const big=a>0?b/a:1e9, tm=k*Math.min(big,50), w=Math.max(0.002,Math.min(0.05,0.17*2*Math.PI*tm/U.Km))*dscSmooth(0.995,0.9,b);
-        for(let i=0;i<U.Km;i++){ col.setHSL(i/U.Km,0.78,0.6); put(Math.min(b,0.995),2*Math.PI*i/U.Km,w,1.25,col.r,col.g,col.b); } }
-      put(0,0,0.02,2.4,1.0,0.74,0.3);
+      const pass=tm=>tc*(1-dscSmooth(0.2*eyeR,0.55*eyeR,Math.abs(tm-eyeR))), pg=1-0.6*tc;
+      for(let j=0;j<U.ns;j++){ const n=nTop-j, tm=k*tube(n), al=dscSmooth(0.01,0.035,tm)*(1-dscSmooth(0.6,0.95,tm))*(1-pass(tm)); if(al<=0.003) continue;
+        const w=thin(Math.max(0.0012,Math.min(0.045,0.068*tm))*al,tm), off=n*GOLDEN_ANGLE, warm=dscSmooth(0.7,0.03,tm);
+        for(let i=0;i<U.Ks;i++){ col.setHSL((i/U.Ks+off/(2*Math.PI))%1,0.36+0.16*warm,0.36+0.1*warm); put(dscHopfB(n),2*Math.PI*i/U.Ks+off,w,0.5*pg,col.r,col.g,col.b); } }
+      if(b<0.995){ const big=a>0?b/a:1e9, tm=k*Math.min(big,50), w=thin(Math.max(0.002,Math.min(0.05,0.17*2*Math.PI*tm/U.Km))*dscSmooth(0.995,0.9,b),tm), dim=1-0.7*pass(tm);
+        for(let i=0;i<U.Km;i++){ col.setHSL(i/U.Km,0.78,0.6*dim); put(Math.min(b,0.995),2*Math.PI*i/U.Km,w,1.25*pg*dim,col.r,col.g,col.b); } }
+      put(0,0,Math.min(0.02,Math.max(0.0008,0.045*eyeR)),2.4*pg,1.0,0.74,0.3);
       G.instanceCount=q; G.attributes.inst.needsUpdate=true; G.attributes.icol.needsUpdate=true;
-      { const u=U.tubes.material.uniforms; u.uK.value=k; u.uT.value=t; u.uAz.value=az; u.uWedge.value=wedge; u.uFade.value=f; u.uZ0.value=-camera.position.distanceTo(g.position); u.uZs.value=0.45/S; }
+      { const u=U.tubes.material.uniforms, z0=-camera.position.distanceTo(g.position); u.uK.value=k; u.uT.value=t; u.uAz.value=az; u.uWedge.value=wedge; u.uFade.value=f;
+        u.uZ0.value=z0+(-0.12*S-z0)*tc; u.uZs.value=(0.45+(0.55-0.45)*tc)/S; u.uZm.value=0.45-0.31*tc; u.uNear.value=0.3*S*tc; }
       dscHopfLight(U.halo,f,t); dscHopfLight(U.core,f,t); dscHopfLight(U.axis,f*(1-dscSmooth(1,1.6,k))*(0.55+0.45*dscSmooth(-0.6,0,N)),t);
-      U.camPost=(U.camPost||new THREE.Vector3()).copy(camera.position).sub(controls.target); U.camQ=(U.camQ||new THREE.Quaternion()).copy(camera.quaternion);
+      dscDragPost(U);
       /* the words */
-      const narrow=innerWidth<=900||matchMedia('(pointer:coarse)').matches, on=f>0.5&&!DSC.quiet&&N<-0.55; U.T.visible=on; U.R.visible=on; U.LF.visible=on;
-      U.T.position.copy(dscScreen(0,0.56)); U.R.position.copy(dscScreen(0,narrow?-0.5:-0.72)); U.LF.position.set(hl>1e-6?cl.x/hl:0,hl>1e-6?cl.y/hl:-1,0);
+      const narrow=innerWidth<=900||matchMedia('(pointer:coarse)').matches, on=f>0.5&&!DSC.quiet&&N<-0.55, inCh=tc>0.5; U.T.visible=on; U.R.visible=on; U.LF.visible=on&&(tc<0.25||tc>0.9);
+      U.T.position.copy(dscScreen(0,0.56)); U.R.position.copy(dscScreen(0,narrow?-0.5:-0.72));
       if(DSC.labT===0&&on){ const ru=state.lang==='ru', dec=s=>ru?s.replace('.',','):s, fx=x=>dec(x>=1e-3?x.toFixed(4):dscSci(x,2)), Ns=dec(N.toFixed(2)), ratio=2*Math.pow(PHI,-2*N), atCl=Math.abs(N-U.Ncl)<0.12, deep=k>1.0005;
-        U.T.element.innerHTML=narrow?esc(TT('the Hopf fibration S³ → S² — mathematics, not a place','расслоение Хопфа S³ → S² — математика, а не место','die Hopf-Faserung S³ → S²'))
-          :`<div style="letter-spacing:1.6px">${esc(TT('THE HOPF FIBRATION  S³ → S²','РАССЛОЕНИЕ ХОПФА  S³ → S²','DIE HOPF-FASERUNG  S³ → S²'))}</div><div style="font-weight:400;font-size:11px;letter-spacing:.3px;color:#c9d3ea;margin-top:4px">${esc(TT('over every point of the sphere one circle, every two linked once (Hopf 1931) · below ℓ_P no length is physical — this is mathematics, not a place','над каждой точкой сферы — одна окружность, любые две сцеплены один раз (Хопф, 1931) · ниже ℓ_P никакая длина не физична — это математика, а не место','über jedem Punkt der Sphäre ein Kreis'))}</div>`;
-        const rs=narrow?'':` · r_s/L = ${dscSci(ratio,2)}`;
-        U.LF.element.textContent=TT(`the last fibre — a probe this sharp would be its own black hole${rs}`,`последнее волокно — столь острый зонд стал бы собственной чёрной дырой${rs}`,'die letzte Faser');
-        const kk=deep?TT(` · magnified ×${dscSci(k,2)} across the last fibre, φ-fold more every rung — the shells keep coming out of it`,` · увеличено ×${dscSci(k,2)} поперёк последнего волокна, с каждой ступенью ещё в φ раз — оболочки всё выходят из него`,''):'';
-        U.R.element.textContent=atCl
-          ?TT(`N = log_φ(1/√2) = ${U.Ncl.toFixed(3)} · the Clifford torus |z₁| = |z₂| = 1/√2, the fibres over the equator · the mirror of the probe’s crossing at +${(-U.Ncl).toFixed(3)}`,
-              `N = log_φ(1/√2) = ${dec(U.Ncl.toFixed(3))} · тор Клиффорда |z₁| = |z₂| = 1/√2, волокна над экватором · зеркало пересечения зонда при +${dec((-U.Ncl).toFixed(3))}`,'der Clifford-Torus')
-          :narrow?TT(`N ${Ns} · its torus |z₂| = φᴺ = ${fx(b)}${deep?` · ×${dscSci(k,2)}`:''}`,`N ${Ns} · её тор |z₂| = φᴺ = ${fx(b)}${deep?` · ×${dscSci(k,2)}`:''}`,'die Sprosse')
-          :TT(`N ${Ns} · the rung’s torus |z₂| = φᴺ = ${fx(b)} — bright, a construction of the atlas · the shells are the integer rungs${kk}`,`N ${Ns} · тор ступени |z₂| = φᴺ = ${fx(b)} — яркий, построение атласа · оболочки — целые ступени${kk}`,'die Sprosse'); } } });
+        const th=2*Math.asin(Math.min(1,b))*180/Math.PI, ths=th>=0.01?dec(th.toFixed(th>=1?2:4))+'°':dscSci(th,2)+'°';
+        if(inCh){ U.T.element.innerHTML=narrow?esc(TT('inside the channel of the last fibre — mathematics, not a place','в канале последнего волокна — математика, а не место','im Kanal der letzten Faser'))
+            :`<div style="letter-spacing:1.6px">${esc(TT('THE CHANNEL OF THE LAST FIBRE','КАНАЛ ПОСЛЕДНЕГО ВОЛОКНА','DER KANAL DER LETZTEN FASER'))}</div><div style="font-weight:400;font-size:11px;letter-spacing:.3px;color:#c9d3ea;margin-top:4px">${esc(TT('the fibres over a small cap round the pole fill a solid torus about it — each winds once round it every circuit (the Hopf twist); the walls are the tori of the integer rungs, born at the fibre, φ-fold wider every rung, passing you','волокна над малой шапкой у полюса заполняют полноторие вокруг него — каждое обвивает его один раз за круг (закрутка Хопфа); стенки — торы целых ступеней: рождаются у волокна, с каждой ступенью шире в φ раз и проходят мимо','die Fasern über einer kleinen Kappe füllen einen Volltorus um sie'))}</div>`;
+          U.LF.element.textContent=TT('the last fibre','последнее волокно','die letzte Faser');
+          U.R.element.textContent=narrow?TT(`N ${Ns} · wall |z₂| = ${fx(b)} · ×${dscSci(k,2)}`,`N ${Ns} · стенка |z₂| = ${fx(b)} · ×${dscSci(k,2)}`,'die Sprosse')
+            :TT(`N ${Ns} · the rung’s wall |z₂| = φᴺ = ${fx(b)} — the fibres over a cap of angular radius 2·arcsin φᴺ = ${ths} · magnified ×${dscSci(k,2)} across the fibre, not along it · the view glides along it with the circle action e^(iψ)`,
+                `N ${Ns} · стенка ступени |z₂| = φᴺ = ${fx(b)} — волокна над шапкой углового радиуса 2·arcsin φᴺ = ${ths} · увеличено ×${dscSci(k,2)} поперёк волокна, не вдоль · взгляд скользит вдоль него с действием окружности e^(iψ)`,'die Sprosse'); }
+        else { U.T.element.innerHTML=narrow?esc(TT('the Hopf fibration S³ → S² — mathematics, not a place','расслоение Хопфа S³ → S² — математика, а не место','die Hopf-Faserung S³ → S²'))
+            :`<div style="letter-spacing:1.6px">${esc(TT('THE HOPF FIBRATION  S³ → S²','РАССЛОЕНИЕ ХОПФА  S³ → S²','DIE HOPF-FASERUNG  S³ → S²'))}</div><div style="font-weight:400;font-size:11px;letter-spacing:.3px;color:#c9d3ea;margin-top:4px">${esc(TT('over every point of the sphere one circle, every two linked once (Hopf 1931) · below ℓ_P no length is physical — this is mathematics, not a place','над каждой точкой сферы — одна окружность, любые две сцеплены один раз (Хопф, 1931) · ниже ℓ_P никакая длина не физична — это математика, а не место','über jedem Punkt der Sphäre ein Kreis'))}</div>`;
+          const rs=narrow?'':` · r_s/L = ${dscSci(ratio,2)}`;
+          U.LF.element.textContent=TT(`the last fibre — a probe this sharp would be its own black hole${rs}`,`последнее волокно — столь острый зонд стал бы собственной чёрной дырой${rs}`,'die letzte Faser');
+          const kk=deep?TT(` · magnified ×${dscSci(k,2)} across the last fibre, φ-fold more every rung — the shells keep coming out of it`,` · увеличено ×${dscSci(k,2)} поперёк последнего волокна, с каждой ступенью ещё в φ раз — оболочки всё выходят из него`,''):'';
+          const go=tc>0.02?TT(' · the view flies into its channel',' · взгляд влетает в его канал',''):'';
+          U.R.element.textContent=atCl
+            ?TT(`N = log_φ(1/√2) = ${U.Ncl.toFixed(3)} · the Clifford torus |z₁| = |z₂| = 1/√2, the fibres over the equator · the mirror of the probe’s crossing at +${(-U.Ncl).toFixed(3)}`,
+                `N = log_φ(1/√2) = ${dec(U.Ncl.toFixed(3))} · тор Клиффорда |z₁| = |z₂| = 1/√2, волокна над экватором · зеркало пересечения зонда при +${dec((-U.Ncl).toFixed(3))}`,'der Clifford-Torus')
+            :narrow?TT(`N ${Ns} · its torus |z₂| = φᴺ = ${fx(b)}${deep?` · ×${dscSci(k,2)}`:''}`,`N ${Ns} · её тор |z₂| = φᴺ = ${fx(b)}${deep?` · ×${dscSci(k,2)}`:''}`,'die Sprosse')
+            :TT(`N ${Ns} · the rung’s torus |z₂| = φᴺ = ${fx(b)} — bright, a construction of the atlas · the shells are the integer rungs${kk}${go}`,`N ${Ns} · тор ступени |z₂| = φᴺ = ${fx(b)} — яркий, построение атласа · оболочки — целые ступени${kk}${go}`,'die Sprosse'); } } } });
 
 
  }
@@ -26276,7 +26314,7 @@ function dscStationAt(N){ const S=DSC.route?DSC.route.st:[]; let b=S[0], d=Infin
 /* one quiet name per level, and only while the reader is at that level */
 const _dscLW=new THREE.Vector3();
 function dscLabelTick(L,f,N){ const u=L.obj.userData; if(!u.L||L.id==='ew'||L.id==='desert'||L.id==='planck'||L.id==='beyond') return; const r=u.labN, vis=!DSC.quiet&&f>0.45&&(!r||(N>r[0]&&N<r[1])); u.L.visible=vis;
-  if(vis&&u.L.parent===L.obj){ L.obj.updateMatrixWorld(true); _dscLW.setFromMatrixColumn(camera.matrixWorld,1).multiplyScalar(0.21*dscVH()); u.L.position.copy(L.obj.worldToLocal(_dscLW)); } }
+  if(vis&&u.L.parent===L.obj){ L.obj.updateMatrixWorld(true); _dscLW.set(0,1,0).applyQuaternion(camera.quaternion).multiplyScalar(0.21*dscVH()); u.L.position.copy(L.obj.worldToLocal(_dscLW)); } }
 /* the scale tunnel, drawn over every level of the descent */
 /* ── THE SCALE TUNNEL (v4.388) ─────────────────────────────────────────────────────────────────────────────────────
    The descent crosses two hundred rungs and more, and a view drawn at its own size hides it: the screen hardly changes.
