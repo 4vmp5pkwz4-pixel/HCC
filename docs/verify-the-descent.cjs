@@ -32,10 +32,14 @@
  *      fibre is a tube laid round that exact curve
  *  15. the holographic bits (v4.387): exactly ⌈(π/ln 2)φ²ᴺ⌉ cells, found by the inverse spherical Fibonacci mapping —
  *      the nearest and the next lattice point equal to a brute-force search; the probe's shadow is √27/2·r_s
- *  16. the object stays (v4.387.1): in the electroweak band and the desert the view keeps the quark — the Higgs field's
- *      phase round it, agreeing above ħc/v and free below (N_v = log_φ(ħc/v/ℓ_P)), its three charges' field lines as
- *      bright as their couplings — and the plots live on an instrument in the strip at the top, whose cursor reads the
- *      couplings at the reader's rung
+ *  16. the object stays (v4.387.1, v4.389): in the electroweak band and the desert the view keeps the quark — the Higgs
+ *      field's phase round it, agreeing above ħc/v and free below (N_v = log_φ(ħc/v/ℓ_P)), its three charges' field lines
+ *      in space at their true scale, every point as bright as its coupling at its own distance, a bead at every
+ *      r = ½·10ᵏ m on the sphere the tunnel's ring outlines, turned by the reader's drag and never by the clock — and the
+ *      plots live on an instrument in the strip at the top, whose cursor reads the couplings at the reader's rung
+ *  18. the channel of the last fibre (v4.389): the thread template counter-clockwise seen from outside; the flight a
+ *      Bézier arriving at the eye along the fibre; the eye φ-fold nearer the last fibre every rung; one Hopf turn a
+ *      circuit on every wall; no thread's surface ever reaching the eye
  *  17. the scale tunnel (v4.388): a ring's diameter on the screen is the size it names over the view's height (s/L), so
  *      every gate shows for some twelve rungs, a point to past the edge; the gates span a kilometre to ℓ_P with every
  *      power of ten between; the motes zoom as φ^(rung − N) in a window that wraps, and their streaks run at the radial
@@ -212,12 +216,19 @@ const cst = name => grab(new RegExp('const ' + name + '=[^\\n]*\\n'), name);
   /* 16 */
   { const ew = SRC.slice(SRC.indexOf("D.push({id:'ew', anchor:'quark'"), SRC.indexOf("D.push({id:'desert', anchor:'quark'")), de = SRC.slice(SRC.indexOf("D.push({id:'desert', anchor:'quark'"), SRC.indexOf("D.push({id:'probe', anchor:'quark'"));
     const noPlots = !/PlaneGeometry|SphereGeometry|dscLabel\(/.test(ew + de), hig = /Nv=levelOf\(DSC_PL\.hbcGeVm\/246\.22\), A=dscSmooth\(Nv\+1\.2,Nv-1\.2,N\)/.test(ew);
-    const lines = /iv=dscInvAlphas2\(Q\), al=iv\.map\(x=>1\/x\), amax=Math\.max\(\.\.\.al\)/.test(de) && /gk=f\*\(0\.1\+0\.9\*Math\.pow\(al\[k\]\/amax,3\)\)/.test(de);
+    /* v4.389: the lines are in space at their true scale — every point as bright as the couplings at its own distance r = ρ·L,
+       a bead on every line at r = ½·10ᵏ m (the sphere the tunnel's ring of diameter 10ᵏ m outlines), turned by the drag only */
+    const lines = /fit=Math\.min\(1,asp\*1\.2\), Lm=levelR\(N\)\*fit/.test(de) && /g\.scale\.setScalar\(vh\*fit\)/.test(de)
+      && /iv=dscInvAlphas2\(dscQofL\(rho\*Lm\)\); s\.rho=rho; s\.r=rho\*Lm;/.test(de) && /gain=\(k,al\)=>0\.08\+0\.92\*Math\.pow\(al\/amax,3\)/.test(de)
+      && /const r=0\.5\*Math\.pow\(10,e\), rho=r\/Lm/.test(de) && /const tu=2\*Math\.PI\*lr\+l\.ph/.test(de)
+      && /g\.quaternion\.copy\(camera\.quaternion\)\.multiply\(rel\)/.test(de) && /const rel=dscDragFrame\(U,0\)/.test(de) && /dscDragPost\(U\); \} \}\);/.test(de);
+    /* the bead's sphere and the tunnel's ring are one: ρ·(vh·fit) = (r/(L·fit))·vh·fit = ½·10ᵏ·vh/L, the ring's radius 0.5·s/L·vh */
+    const beadRing = [1, 0.62, 0.4].every(fit => { const L = 3.7e-27, vh = 10.4, r = 0.5e-27, rho = r / (L * fit); return Math.abs(rho * vh * fit - 0.5 * 1e-27 / L * vh) < 1e-12; });
     const inst = SRC.includes('<div id="dscInst" class="dscInst" hidden></div>') && ['function dscInstDesert(', 'function dscInstEW(', 'function dscInstTick('].every(x => SRC.includes(x)) && /try\{ dscInstTick\(\); \}catch\(e\)\{\}/.test(SRC);
     const L2 = new Function('UC_K', 'DSC', 'levelOf', [grab(/const DSC_PL=\(\(\)=>\{[\s\S]*?\}\)\(\);\n/, 'Planck units'), 'return DSC_PL;'].join('\n'))({ hb: 1.054571817e-34, c: 299792458, lP: 1.616255e-35, mP: 2.176434e-8 }, {}, levelOf);
     const Nv = levelOf(L2.hbcGeVm / 246.22), fwd = Math.abs(L2.hbcGeVm / 246.22 - 8.014e-19) / 8.014e-19 < 1e-3;
-    ok('the object stays: in the electroweak band and the desert the view keeps the quark — the Higgs field’s phase round it, agreeing above ħc/v and free below it, and its three charges’ field lines, each as bright as its coupling at the view’s length — while the plots (V(|φ|); the running couplings with a cursor at the reader’s rung) live on an instrument in the strip at the top',
-      noPlots && hig && lines && inst && fwd && Nv > 79 && Nv < 81, `no plot in the scene ${noPlots ? '✓' : '✗'} · ħc/v = ${(L2.hbcGeVm / 246.22).toExponential(3)} m at N_v = ${Nv.toFixed(2)} · Higgs phases ${hig ? '✓' : '✗'} · field lines by α_i ${lines ? '✓' : '✗'} · instrument ${inst ? '✓' : '✗'}`); }
+    ok('the object stays: in the electroweak band and the desert the view keeps the quark — the Higgs field’s phase round it, agreeing above ħc/v and free below it, and its three charges’ field lines in space at their true scale, every point as bright as its coupling at its own distance, beads at ½·10ᵏ m on the tunnel’s spheres, turned by the reader’s drag and never by the clock — while the plots (V(|φ|); the running couplings with a cursor at the reader’s rung) live on an instrument in the strip at the top',
+      noPlots && hig && lines && beadRing && inst && fwd && Nv > 79 && Nv < 81, `no plot in the scene ${noPlots ? '✓' : '✗'} · ħc/v = ${(L2.hbcGeVm / 246.22).toExponential(3)} m at N_v = ${Nv.toFixed(2)} · Higgs phases ${hig ? '✓' : '✗'} · field lines at true scale, by α_i(ħc/r), turned by the drag ${lines ? '✓' : '✗'} · beads on the tunnel's spheres ${beadRing ? '✓' : '✗'} · instrument ${inst ? '✓' : '✗'}`); }
   /* 17 */
   { const G = new Function('PHI', 'levelOf', grab(/const DSC_GATES=\[[\s\S]*?\]\];\n/, 'the gates') + 'return DSC_GATES;')(PHI, levelOf);
     const tun = fn('dscTunnelTick'), bld = fn('dscTunnelBuild'), mv = grab(/const DSC_MOTE_V=`[\s\S]*?`;\n/, 'the motes');
@@ -229,6 +240,40 @@ const cst = name => grab(new RegExp('const ' + name + '=[^\\n]*\\n'), name);
     const wired = /try\{ dscTunnelTick\(N,dt\); \}catch\(e\)\{/.test(SRC) && /const fade=dscSmooth\(DSC\.top-1,DSC\.top-4,N\)\*dscSmooth\(-0\.3,0\.6,N\)/.test(tun);
     ok('the scale tunnel: a ring’s diameter on the screen is the size it names over the view’s height, so each gate shows for some twelve rungs, a point to past the edge; the gates run from a kilometre to ℓ_P, every power of ten between; the motes zoom as φ^(rung − N) in a wrapping window, their streaks at a zoom’s radial speed r·ln φ·|dN/dt|; it fades at the top and below ℓ_P',
       trueSize && sorted && ends && decades && zoom && wired && span > 11 && span < 14, `true size ${trueSize ? '✓' : '✗'} · ${G.length} named gates, sorted ${sorted ? '✓' : '✗'}, ends ${ends ? '✓' : '✗'} · decades and crossings ${decades ? '✓' : '✗'} · a gate lives ${span.toFixed(1)} rungs · zoom law ${zoom ? '✓' : '✗'} · wired ${wired ? '✓' : '✗'}`); }
+  /* 18 */
+  { /* the thread template: counter-clockwise seen from outside, so the lit side is the outside (v4.389) */
+    const tm = fn('dscTubeMesh'), V = grab(/const DSC_TUBE_V=`[\s\S]*?`;\n/, 'the thread vertex shader');
+    const idx = tm.match(/I\.push\(([a-d]),([a-d]),([a-d]), ([a-d]),([a-d]),([a-d])\)/), frame = /vec3 B=cross\(T,N0\);/.test(V) && /vec3 nr=cos\(tmpl\.y\)\*N0\+sin\(tmpl\.y\)\*B/.test(V);
+    let outward = 0, tri = 0;
+    if (idx) { const S = 6, M = 8, wr = 0.1, at = (i, j) => { const b = 2 * Math.PI * j / M; return [i / S, wr * Math.cos(b), wr * Math.sin(b)]; };   /* T = x̂, N0 = ŷ, B = T×N0 = ẑ */
+      for (let i = 0; i < S; i++) for (let j = 0; j < M; j++) { const v = { a: [i, j], b: [i, (j + 1) % M], c: [i + 1, j], d: [i + 1, (j + 1) % M] };
+        for (const t of [[idx[1], idx[2], idx[3]], [idx[4], idx[5], idx[6]]]) { const [p0, p1, p2] = t.map(k => at(...v[k])), e1 = p1.map((x, q) => x - p0[q]), e2 = p2.map((x, q) => x - p0[q]);
+          const n = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]], cen = [0, 1, 2].map(q => (p0[q] + p1[q] + p2[q]) / 3), rad = [0, cen[1], cen[2]];
+          tri++; if (n[0] * rad[0] + n[1] * rad[1] + n[2] * rad[2] > 0) outward++; } } }
+    /* the channel: the flight is a Bézier that arrives at the eye along the fibre; the eye holds a magnified distance ε from the
+       last fibre, so unmagnified it nears it φ-fold a rung; every fibre on a wall winds exactly once round the last fibre in a
+       circuit (the Hopf twist); a wall passing the eye is hidden there, and no thread's surface ever reaches the eye */
+    const by = SRC.slice(SRC.indexOf("D.push({id:'beyond', anchor:'quark'"), SRC.indexOf('/* ── the globe of any body'));
+    const wired = /const tc=dscSmooth\(-2\.6,-8,N\), w0=Math\.acos\(0\.47\), ER=(-?[\d.]+), EZ=([\d.]+);/.exec(by), ER = wired ? +wired[1] : NaN, EZ = wired ? +wired[2] : NaN, EPS = Math.hypot(ER, EZ);
+    const bez = /Pc=dscV\(ca\*\(1\+ER\),sa\*\(1\+ER\),EZ\)/.test(by) && /const Pm=Pc\.clone\(\)\.addScaledVector\(tg,-0\.9\), s=tc, p=pOut\.clone\(\)\.multiplyScalar\(\(1-s\)\*\(1-s\)\)\.addScaledVector\(Pm,2\*s\*\(1-s\)\)\.addScaledVector\(Pc,s\*s\);/.test(by);
+    const eye = /F\.position\.copy\(camera\.position\)\.sub\(g\.position\)\.sub\(p\.clone\(\)\.multiplyScalar\(S\)\.applyQuaternion\(F\.quaternion\)\)/.test(by) && /const rel=dscDragFrame\(U,0\.6-Math\.PI\/2\)/.test(by) && /dscDragPost\(U\);/.test(by);
+    /* B(s) = (1−s)²p₀ + 2s(1−s)Pm + s²Pc: B(1) = Pc and B′(1) = 2(Pc − Pm) = 1.8·tangent — it arrives along the fibre */
+    const B = (s, p0, pm, pc) => p0.map((x, q) => (1 - s) * (1 - s) * x + 2 * s * (1 - s) * pm[q] + s * s * pc[q]);
+    const ac = 0.7, Pc = [Math.cos(ac) * (1 + ER), Math.sin(ac) * (1 + ER), EZ], tg = [-Math.sin(ac), Math.cos(ac), 0], Pm = Pc.map((x, q) => x - 0.9 * tg[q]), p0 = [3, -2, 4];
+    const end = Math.hypot(...B(1, p0, Pm, Pc).map((x, q) => x - Pc[q])), h = 1e-6, vel = B(1, p0, Pm, Pc).map((x, q) => (x - B(1 - h, p0, Pm, Pc)[q]) / h), along = vel.reduce((t, x, q) => t + x * tg[q], 0) / Math.hypot(...vel);
+    const K = new Function('THREE', 'PHI', 'DSC_LOGD_V', 'DSC_LOGD_F', [cst('dscHopfB'), fn('dscHopfSurf'), grab(/const DSC_DIVE_N1=[^\n]*\n/, 'N₁'), fn('dscDiveK'), 'return {dscHopfB,dscHopfSurf,dscDiveK};'].join('\n'))({}, PHI, '', '');
+    let nearing = 0; for (const N of [-8, -12, -20, -33]) nearing = Math.max(nearing, Math.abs(K.dscDiveK(N - 1) / K.dscDiveK(N) - PHI) / PHI);
+    let twist = 0; for (const N of [-8, -15, -25, -33]) { const b = K.dscHopfB(N), a = Math.sqrt(1 - b * b), k = K.dscDiveK(N), Rc = 1 + k * b * b / (a * (1 + a)); let mu = 0, lon = 0, prev = null;
+      for (let i = 0; i <= 720; i++) { const ps = 2 * Math.PI * i / 720, P = K.dscHopfSurf(ps + 0.3, ps, b, k, 1e9), r = Math.hypot(P[0], P[1]), m = Math.atan2(P[2], r - Rc), l = Math.atan2(P[1], P[0]);
+        if (prev) { let dm = m - prev[0], dl = l - prev[1]; dm -= 2 * Math.PI * Math.round(dm / (2 * Math.PI)); dl -= 2 * Math.PI * Math.round(dl / (2 * Math.PI)); mu += dm; lon += dl; } prev = [m, l]; }
+      twist = Math.max(twist, Math.abs(Math.abs(mu) - 2 * Math.PI), Math.abs(lon - 2 * Math.PI)); }
+    const thinOk = /thin=\(w,tm\)=>Math\.min\(w,Math\.max\(0\.0004,0\.018\*Math\.abs\(tm-eyeR\)\)\)/.test(by) && /const pass=tm=>tc\*\(1-dscSmooth\(0\.2\*eyeR,0\.55\*eyeR,Math\.abs\(tm-eyeR\)\)\)/.test(by);
+    const sm = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+    let clear = true; for (let i = 0; i <= 4000; i++) { const tm = 1e-3 * Math.pow(1000, i / 4000), w = Math.min(0.045, Math.max(0.0004, 0.018 * Math.abs(tm - EPS))), hidden = 1 - sm(0.2 * EPS, 0.55 * EPS, Math.abs(tm - EPS)) >= 1 - 1e-12;
+      if (!hidden && w >= Math.abs(tm - EPS)) clear = false; }
+    ok('the channel of the last fibre: the threads are counter-clockwise seen from outside (the studio light falls on them, not inside them); the flight is a Bézier that arrives at the eye along the fibre; the eye keeps a magnified distance ε from the last fibre, so it nears it φ-fold a rung; on every wall a fibre winds exactly once round the last fibre in a circuit; no thread’s surface ever reaches the eye',
+      idx && frame && outward === tri && tri > 0 && wired && bez && eye && end < 1e-12 && along > 1 - 1e-9 && nearing < 3e-4 && twist < 1e-6 && thinOk && clear,
+      `outward ${outward}/${tri} (${idx ? idx[0] : 'no template'}) · ε = ${EPS.toFixed(4)} · arrives at the eye ${end.toExponential(1)}, along the fibre ${along.toFixed(9)} · nearing ×${PHI.toFixed(4)} a rung to ${nearing.toExponential(1)} · one turn a circuit to ${twist.toExponential(1)} · thinning ${thinOk && clear ? '✓' : '✗'} · wiring ${bez && eye ? '✓' : '✗'}`); }
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 })().catch(e => { console.error('verifier error:', e && e.stack || e); process.exit(1); });
