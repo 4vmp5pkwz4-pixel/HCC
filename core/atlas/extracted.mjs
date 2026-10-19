@@ -5,11 +5,11 @@
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
    declarations: 2295   ·   exported names: 2431
-   extracted physics, sha256 73f795d8a3cfd32d36008c054cde733d4d771da8ec7920eea118c779df75b569 */
+   extracted physics, sha256 48d9411c0d03d97798e962d9bad0a7a837aaa42021565f08d96354238fe6e3c1 */
 
-const HCC_VERSION='4.394.0';
+const HCC_VERSION='4.395.0';
 
-const HCC_BUILD='hopf-raymarch-2026.10.19.114';
+const HCC_BUILD='causal-memory-2026.10.19.115';
 
 const HCC_S3C=Object.freeze({
   c:299792458.0, G:6.67430e-11, kB:1.380649e-23, hbar:1.054571817e-34,
@@ -1092,6 +1092,12 @@ const LAB_DECLARATIONS=Object.freeze([
           de:'Raumformen S³/Γ · ihre Spektren, und ob der Himmel sie zeigen könnte'},
    purpose:'if the universe is a three-sphere it may be one only up to identification — the Poincaré dodecahedral, octahedral, tetrahedral, prism and lens spaces — and the atlas described that only as a concept: here their Laplace spectra are computed exactly from the Spin(4) dictionary by a character sum, the images of the observer are drawn (the 600-cell for the Poincaré space), and whether matched circles could appear in the sky is decided against this atlas\u2019s own curvature posterior',
    predictionTarget:'the Laplace multiplicities m_k = (k+1)(1/|Γ|)Σχ_{k/2}(g): the Poincaré space keeps only k = 0, 12, 20, 24, 30, 32, …, the octahedral first k = 8, the tetrahedral k = 6; Weyl\u2019s law Σm_k/Σ(k+1)² → 1/|Γ|; matched circles need θ_min R < 2χ_LSS — R < 144 Gly for the Poincaré space, below the atlas\u2019s whole 95% posterior band (414–4540 Gly), while lens spaces of order p ≳ 29 would still show circles'},
+  {id:'chmem', category:'hopf', domain:'quantum', cluster:'dynamics', predictionClass:'exact',
+   title:{en:'Causal holonomy memory · the vacuum that remembers the shape of S³',
+          ru:'Причинная голономная память · вакуум, который помнит форму S³',
+          de:'Kausales Holonomie-Gedächtnis · das Vakuum, das sich an die Form von S³ erinnert'},
+   purpose:'a topology-dependent vacuum force is not yet a semiclassical source: a quantum state evolves and keeps the history of the geometry. Here S³ is squashed along its Hopf fibres (the Berger sphere, volume kept) by one shape u, the conformal scalar\u2019s modes keep their level k and fibre charge m — only m ≡ 0 (mod p) on the lens space L(p,1), and on L(p,q) the pairs (q+1)m_L ≡ (q−1)m_R (mod 2p) — and the shape and the Gaussian state are integrated together from the vacuum, live, in five three-dimensional stations: the breathing Berger bundle with a mode winding on every fibre, the charge lattice raised by its couplings, the memory loop of (u, u̇, F) against the sheet an instantaneous vacuum would follow, the alias towers A_{p,k}, and the retarded kernels of every level',
+   predictionTarget:'the manuscript of 19 October 2026 recomputed: Σ_m q_km = 0 and Σ_m q² = (16/45)(k+1)k(k+2)(k−1)(k+3) for every k; A_{2,2} = A_{3,2} = 256, A_{2,3} = 0, A_{3,3} = 1536; χ_ret = −θ(t)q²/(4ω²)sin 2ωt and N = q²/(8ω²)cos 2ωt (checked against a Fock-space matrix element and a prescribed Gaussian deformation); the naive static sum −(2/45)Σ(n³ − 5n + 4/n) = −K⁴/90 + O(K³); the closure at p = 3, K = 6, λ = 0.002, Ω_u = 2.8, u(0) = 0.11 with 9 oscillators, its Hamiltonian conserved, F(35) = 2.40468 against the instantaneous 1.33652'},
   {id:'discover', category:'inv', domain:'quantum', cluster:'dynamics', predictionClass:'exact',
    title:{en:'The Discovery Explorer · what this atlas has found, confirmed and corrected',
           ru:'Исследователь открытий · что атлас нашёл, подтвердил и исправил',
@@ -12608,6 +12614,10 @@ const NEXUS_RELATIONS=[
   ['piexp','chronometry','exact','one algorithm, two uses','The certified continued fraction that pins π between its convergents is the algorithm the chronometry laboratory uses to find the best calendar cycles; best rational approximation is one theorem (Legendre) in both.','theorem'],
   ['frontier','formulas','analogy','two skies of claims, each kept as claims','The Formula Portal lays the formulas of the S³ programme out as a sky and runs live checks on the ones the atlas can compute; the Frontier Observatory lays the 372 result families of the openai/math collection out the same way and opens the six laboratories that run its claims — in both, a star is a statement, never an established result.','structural-analogy'],
   ['everys3','hopf','exact','the same fibration, drawn at every scale','The light, qubit and oscillator stations draw fibres of the Hopf fibration of the Hopf laboratory: each state of polarization or each oscillator orbit is one circle of S³ over one point of the sphere, and two of them link exactly once.','theorem'],
+  ['chmem','s3gamma','representation','which charges a lens space keeps','The space forms of the space-form laboratory are quotients of S³; along the Hopf fibres the lens space L(p,1) keeps exactly the fibre charges m ≡ 0 (mod p), and L(p,q) the pairs (q+1)m_L ≡ (q−1)m_R (mod 2p) — the selection the causal-memory laboratory feeds to its vacuum.','theorem'],
+  ['chmem','hopf','exact','the shape is a squash along the Hopf fibres','The Berger sphere stretches every Hopf fibre to 2πe^{2u/3} and shrinks the base sphere to ½e^{−u/3}, keeping the volume; the fibre charge m of each mode is its winding along the Hopf circle, and a lens space is the quotient along the same circles.','theorem'],
+  ['chmem','tri','exact','the round sphere the shape returns to','At u = 0 the Berger sphere is the round trisphere, its scalar levels k(k+2) with multiplicity (k+1)² — the spectrum the shear coupling q_km = ⅔k(k+2) − 2m² splits and whose variance Σq² = (16/45)(k+1)k(k+2)(k−1)(k+3) it carries.','theorem'],
+  ['chmem','cosmo','contrast','what a quotient changes in a cosmology, and what it cannot','A topology S³/Γ changes which modes exist and how the quantum state answers a deformation — the memory kernel is the retarded response a semiclassical source would need — but never the local Friedmann expansion at fixed stress-energy: a quotient is locally the same sphere, so H(a) of the cosmology laboratory is the same on S³ and on every L(p,q).','theorem-context'],
   ['everys3','atom','exact','Fock\'s S³ of the hydrogen atom','The atom station maps semiclassical hydrogen ellipses into Fock\'s momentum S³, where the level n is the space of harmonics of degree n − 1, of dimension n² = Σ(2ℓ+1) — the degeneracy the atom laboratory counts by ℓ.','theorem'],
   ['ccurve','kin','contrast','κ is a diffusion constant','The driving function of SLE_κ is a Brownian motion with ⟨W²⟩ = κt — the diffusion of kinetic theory with κ in the place of 2D; the loop-erased walk is the random walk of the same diffusion with its loops erased, and erasing them takes the dimension of the path from 2 to 5/4.','physics-contrast'],
   ['nscomp','nsflow','contrast','a force can make the flow compute; the exact solution cannot','The exact solution of S³ is one closed formula with energy in one curl shell; the forced torus flow of family 376 encodes a Turing machine in where one particle goes — its force is ∂ₜV − νΔV because every stage is transverse to its own variation, so the pressure is zero.','physics-contrast'],
@@ -13458,7 +13468,7 @@ const LAB_SKETCHES=new Set(['anyon','sec','red','lab','cp','noe','disp','qcd','n
 
 const LAB_CHAPTERS=Object.freeze({
   navier:['nsflow','nsgal','triad','vstretch','nsblow','nscomp','strobe','omnistrobe','s3shell','s3kb','s3tube','s3torus','s3lock','formulas'],
-  s3light:['gmode','nbg','unify','tri','hopf','everys3','s3gamma','discover'],
+  s3light:['gmode','nbg','unify','tri','hopf','everys3','s3gamma','chmem','discover'],
   /* v4.380: the frontier — the openai/math collection as a sky, and the laboratories that run its claims live */
   frontier:['frontier','zstrip','piexp','mahler','haldane','ccurve'],
   /* v4.376: nine laboratories that are not models of nature but of ARGUMENTS — the seven stations of the CIVP locking
