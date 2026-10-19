@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="hopf-raymarch-2026.10.19.114">
+<html lang="en" data-hcc-build="causal-memory-2026.10.19.115">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="hopf-raymarch-2026.10.19.114">
+<meta name="hcc-build" content="causal-memory-2026.10.19.115">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -3351,7 +3351,7 @@
 </div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.394.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.395.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Sun → Cosmos</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -3687,8 +3687,8 @@ import { TIME_DOMAIN_KIND, STATE_SCOPE, CLOCK_STATUS, TIME_DOMAINS, CLOCK_ADAPTE
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.394.0';
-const HCC_BUILD='hopf-raymarch-2026.10.19.114';
+const HCC_VERSION='4.395.0';
+const HCC_BUILD='causal-memory-2026.10.19.115';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -68572,8 +68572,11 @@ function chmSetup(){ labWipe(chmGroup); const P=chmParams(), mob=typeof MOBILE_G
   O.sim=chmNewSim(P);
   const mk=(n,ro)=>{ const m=triCapsules(n,0.95,true); m.material.uniforms.uW.value=1.0; m.renderOrder=ro||4; m.geometry.instanceCount=0; return m; };
   const lab=(cls,col)=>{ const L=mkLabel('',cls||'label'); if(col) L.element.style.color=col; const st=L.element.style; st.maxWidth='min(440px,70vw)'; st.whiteSpace='normal'; st.textAlign='center'; return L; };
-  O.title=lab('label major','#ffe2a8'); O.title.position.set(0,2.75,0); O.root.add(O.title);
-  O.cap=lab('label','#c9d3ea'); O.cap.position.set(0,-2.75,0); O.root.add(O.cap);
+  /* the title and the caption hang on the laboratory, not on the turning stage: chmFrame stands them at the two edges of
+     the open band of the screen every frame */
+  O.title=lab('label major','#ffe2a8'); O.title.position.set(0,2.75,0); chmGroup.add(O.title);
+  O.cap=lab('label','#c9d3ea'); O.cap.position.set(0,-2.75,0); chmGroup.add(O.cap);
+  O.fit={s:1,sT:1,off:0,offT:0,at:1,yT:null,yC:null,band:null};
   /* 1 · the Berger bundle: the base sphere (radius ½e^{−u/3}) and over each of its points the fibre (length 2πe^{2u/3}) */
   { const g=new THREE.Group(); O.root.add(g); O.st.bundle=g; const N=mob?44:76, S=mob?36:56;
     const base=new THREE.Mesh(new THREE.SphereGeometry(1,64,48),new THREE.MeshPhysicalMaterial({color:0x2a3d72,emissive:0x0a1430,transparent:true,opacity:0.32,roughness:0.25,clearcoat:1,depthWrite:false,side:THREE.DoubleSide})); g.add(base);
@@ -68610,14 +68613,76 @@ function chmShow(O){ for(const s of CHM_STATIONS) O.st[s].visible=s===O.P.st; }
 const chmCol=(qv,dim)=>{ const c=qv>1e-9?[1.0,0.62,0.42]:qv<-1e-9?[0.42,0.72,1.0]:[1.0,0.9,0.62]; return dim?c.map(x=>x*0.22):c; };
 function chmTick(dt){ const P=chmParams(); if(!chmObjs) chmSetup(); const O=chmObjs; O.P=P; chmShow(O);
   let S=O.sim; if(S.key!==chmSimKey(P)){ S=O.sim=chmNewSim(P); }
-  /* the closure, live: RK4 in steps of at most 0.004 */
-  if(!P.paused){ let T=Math.min(0.25,dt)*P.speed; if(P.stopAt!=null&&S.t+T>=P.stopAt){ T=Math.max(0,P.stopAt-S.t); state.chmPaused=true; }
-    const n=Math.min(160,Math.ceil(T/0.002)); for(let i=0;i<n;i++){ chmStep(S,T/n); S.sampleT+=T/n; if(S.sampleT>=0.02){ S.sampleT=0; const u=S.y[0], F=chmForce(S); S.trail.push([u,S.y[1],F,S.t]); if(S.trail.length>2300) S.trail.shift();
+  /* the closure, live: RK4 at the one fixed step h = 0.002, the time owed carried from frame to frame — so the state at
+     any t is the same on every device and at every frame rate (a slow one runs the closure slower, never coarser), and the
+     manuscript's run stops on t = 35 exactly */
+  if(!P.paused){ const h=0.002; S.owe=Math.min((S.owe||0)+Math.min(0.25,dt)*P.speed,400*h); let n=Math.floor(S.owe/h+1e-9);
+    if(P.stopAt!=null){ const left=Math.max(0,Math.round((P.stopAt-S.t)/h)); if(n>=left){ n=left; state.chmPaused=true; S.owe=0; } }
+    S.owe=Math.max(0,S.owe-n*h);
+    for(let i=0;i<n;i++){ chmStep(S,h); S.sampleT+=h; if(S.sampleT>=0.02-1e-12){ S.sampleT=0; const u=S.y[0], F=chmForce(S); S.trail.push([u,S.y[1],F,S.t]); if(S.trail.length>2300) S.trail.shift();
         S.scale.u=Math.max(S.scale.u*0.9995,Math.abs(u)); S.scale.v=Math.max(S.scale.v*0.9995,Math.abs(S.y[1])); S.scale.F=Math.max(S.scale.F*0.9995,Math.abs(F),Math.abs(chmForceInst(S,u))); } } }
   const u=S.y[0], ex=P.ex, t=S.t;
   if(P.st==='bundle') chmTickBundle(O,S,P,u,ex,t); else if(P.st==='charges') chmTickCharges(O,S,P,t); else if(P.st==='memory') chmTickMemory(O,S,P); else if(P.st==='alias') chmTickAlias(O,P); else chmTickKernels(O,P,t);
   O.root.rotation.y+=dt*0.04*(P.paused?0:1)*(P.st==='alias'||P.st==='memory'?0.5:1);
+  chmFrame(O,dt);
   chmUi+=dt; if(chmUi>0.3){ chmUi=0; chmHud(); chmLiveOut(); } }
+/* ── the frame. On a phone held upright the scene is a band between the HUD and the bars below it, a third of the
+   screen; on a desk it is most of it. So the station is measured, not assumed: its points are projected from the
+   preset distance in the direction the reader is actually looking (a zoom therefore still zooms), the open band is
+   found by asking the screen itself — a hit test down the centre column, every HUD, bar and sheet counted — and the
+   station is scaled to fit that band and centred in it, never enlarged past its own size; the title and the caption
+   stand at the band's two edges. In Multiview and in a headset the stage is left exactly as built. */
+const _chmP=new THREE.Vector3(), _chmR=new THREE.Vector3(), _chmU=new THREE.Vector3(), _chmB=new THREE.Vector3(), _chmM=new THREE.Matrix4();
+const CHM_DREF=Math.hypot(0.4,2.4,10.6);
+function chmFramePoints(O,fn){ const st=O.st[O.P.st]; if(!st) return; const s0=O.root.scale.x, p0=O.root.position.clone();
+  O.root.scale.setScalar(1); O.root.position.set(0,0,0); O.root.updateMatrixWorld(true);
+  st.traverse(o=>{ if(!o.visible) return; const g=o.geometry, A=g&&g.attributes;
+    if(A&&A.t4&&A.h4){ const n=g.instanceCount|0, T=A.t4.array, H=A.h4.array, step=Math.max(1,Math.floor(n/700));
+      for(let i=0;i<n;i+=step){ fn(_chmP.set(T[4*i],T[4*i+1],T[4*i+2]).applyMatrix4(o.matrixWorld)); fn(_chmP.set(H[4*i],H[4*i+1],H[4*i+2]).applyMatrix4(o.matrixWorld)); } return; }
+    if(o.isInstancedMesh){ for(let i=0;i<o.count;i++){ o.getMatrixAt(i,_chmM); const e=_chmM.elements; if(Math.abs(e[0])+Math.abs(e[5])+Math.abs(e[10])<1e-9) continue;
+        if(!g.boundingBox) g.computeBoundingBox(); const b=g.boundingBox; for(let c=0;c<8;c++) fn(_chmP.set(c&1?b.max.x:b.min.x,c&2?b.max.y:b.min.y,c&4?b.max.z:b.min.z).applyMatrix4(_chmM).applyMatrix4(o.matrixWorld)); } return; }
+    if(o.isMesh&&g&&g.attributes.position&&!o.isCSS2DObject){ g.computeBoundingBox(); const b=g.boundingBox;   /* the sheet is rewritten as it runs */
+      for(let c=0;c<8;c++) fn(_chmP.set(c&1?b.max.x:b.min.x,c&2?b.max.y:b.min.y,c&4?b.max.z:b.min.z).applyMatrix4(o.matrixWorld)); } });
+  O.root.scale.setScalar(s0); O.root.position.copy(p0); O.root.updateMatrixWorld(true); }
+function chmFrame(O,dt){ const F=O.fit; if(!F) return;
+  const off=(typeof MV!=='undefined'&&MV.on)||renderer.xr.isPresenting;
+  const tanH=Math.tan(camera.fov*Math.PI/360), asp=camera.aspect||1, tgt=controls.target, d=camera.position.distanceTo(tgt);
+  _chmR.set(1,0,0).applyQuaternion(camera.quaternion); _chmU.set(0,1,0).applyQuaternion(camera.quaternion); _chmB.set(0,0,1).applyQuaternion(camera.quaternion);
+  F.at+=dt;
+  if(off){ F.sT=1; F.offT=0; F.band=null; }
+  else if(F.at>0.35){ F.at=0;
+    const vr=renderer.domElement.getBoundingClientRect();
+    if(vr.width>0&&vr.height>0){
+      /* the band: what really stands over the scene (HUD, bars, sheets) — not the tips and coach bubbles that come and go,
+         or the stage would breathe each time one of them passed */
+      /* "open" is what the label declutter will also call open: nothing with pointer events over the canvas (a hit test)
+         and inside none of the chrome zones it fades captions under (the HUD lets the pointer through but still covers) */
+      const lr=labelRenderer&&labelRenderer.domElement, cx=vr.left+vr.width/2, zones=typeof labelGuardZones!=='undefined'?labelGuardZones:[];
+      const openXY=(x,y)=>{ for(const z of zones) if(x>=z.left&&x<=z.right&&y>=z.top&&y<=z.bottom) return false;
+        const el=document.elementFromPoint(x,y); return !!el&&(el===renderer.domElement||!!(lr&&lr.contains(el))); };
+      let a=vr.top, b=vr.bottom; const open=y=>openXY(cx,y);
+      { let best=null, cur=null; for(let y=vr.top+4;y<=vr.bottom-4;y+=8){ if(open(y)){ if(!cur) cur={a:y,b:y}; else cur.b=y; } else if(cur){ if(!best||cur.b-cur.a>best.b-best.a) best=cur; cur=null; } }
+        if(cur&&(!best||cur.b-cur.a>best.b-best.a)) best=cur; if(best&&best.b-best.a>80){ a=best.a; b=best.b; } }
+      const th=(O.title.element.offsetHeight||22)+10, ch=(O.cap.element.offsetHeight||22)+10, ndc=y=>1-2*(y-vr.top)/vr.height;
+      const cT=ndc(a+th), cB=ndc(b-ch); F.band=[ndc(a),ndc(b),th/vr.height,ch/vr.height];
+      /* and across: a sheet at the side may reach into the band's top or bottom rows, so each label takes the open stretch
+         of both rows it occupies, centred there and no wider — a label that overlaps a panel is faded by the declutter */
+      const row=y=>{ if(!openXY(cx,y)) return null; let L=cx, R=cx; while(L-8>vr.left+2&&openXY(L-8,y)) L-=8; while(R+8<vr.right-2&&openXY(R+8,y)) R+=8; return [L,R]; };
+      const span=(y0,y1)=>{ const r0=row(y0), r1=row(y1); if(!r0||!r1) return null; return [Math.max(r0[0],r1[0]),Math.min(r0[1],r1[1])]; };
+      const fitL=(L,sp)=>{ const w=sp?Math.max(140,Math.min(440,sp[1]-sp[0]-16)):Math.min(440,0.7*vr.width); L.element.style.maxWidth=Math.round(w)+'px';
+        return sp?2*((sp[0]+sp[1])/2-vr.left)/vr.width-1:0; };
+      F.tx=fitL(O.title,span(a+4,a+th-6)); F.cx=fitL(O.cap,span(b-ch+6,b-4));
+      let xm=1e-6, y0=1e9, y1=-1e9;
+      chmFramePoints(O,w=>{ _chmP.copy(w).sub(tgt); const x=_chmP.dot(_chmR), y=_chmP.dot(_chmU), z=_chmP.dot(_chmB), dep=Math.max(0.5,CHM_DREF-z);
+        xm=Math.max(xm,Math.abs(x/(dep*tanH*asp))); const yn=y/(dep*tanH); y0=Math.min(y0,yn); y1=Math.max(y1,yn); });
+      if(y1>y0){ const sv=cT>cB?(cT-cB)/(y1-y0):1; F.sT=Math.max(0.3,Math.min(1,0.94/xm,0.96*sv)); F.offT=(cT+cB)/2-F.sT*(y0+y1)/2; } } }
+  const k=1-Math.exp(-dt*5); F.s+=(F.sT-F.s)*k; F.off+=(F.offT-F.off)*k;
+  O.root.scale.setScalar(F.s);
+  /* the shift is a fraction of the screen, so it is a length at the depth of the target, along the camera's own up */
+  O.root.position.copy(tgt).addScaledVector(_chmU,F.off*d*tanH); chmGroup.worldToLocal(O.root.position);
+  const at=(L,xn,yn)=>{ L.position.copy(tgt).addScaledVector(_chmR,(xn||0)*d*tanH*asp).addScaledVector(_chmU,yn*d*tanH); chmGroup.worldToLocal(L.position); };
+  if(F.band){ at(O.title,F.tx,F.band[0]-F.band[2]); at(O.cap,F.cx,F.band[1]+F.band[3]); }
+  else{ O.title.position.set(0,2.75,0); O.cap.position.set(0,-2.75,0); } }
 function chmModeOf(S,k,m){ return S.M.findIndex(md=>md.k===k&&md.m===m); }
 /* the excitation of a mode over its vacuum, 2ω|f|² − 1 */
 const chmExc=(S,i)=>{ if(i<0) return 0; const md=S.M[i], a=S.y[2+4*i], b=S.y[3+4*i]; return 2*md.w*(a*a+b*b)-1; };
@@ -82606,7 +82671,7 @@ try{ hccApiRegister({
     {name:'lambda', type:'number', unit:'1', quantity_kind:'ratio', default:()=>0.002, min:0, max:0.05, doc:['the coupling of the shape to the quantum force','связь формы с квантовой силой','die Kopplung']},
     {name:'omega_u', type:'number', unit:'1', quantity_kind:'ratio', default:()=>2.8, min:0.5, max:6, doc:['the shape’s own frequency Ω_u (units c/R)','собственная частота формы Ω_u (в единицах c/R)','die Eigenfrequenz der Form']},
     {name:'u0', type:'number', unit:'1', quantity_kind:'ratio', default:()=>0.11, min:-0.3, max:0.3, doc:['the initial shape u(0)','начальная форма u(0)','die Anfangsform u(0)']},
-    {name:'time', type:'number', unit:'1', quantity_kind:'ratio', default:()=>35, min:0, max:80, doc:['the time to integrate to (units R/c)','время интегрирования (в единицах R/c)','die Integrationszeit']}],
+    {name:'time', type:'number', unit:'1', quantity_kind:'time', default:()=>35, min:0, max:80, doc:['the time to integrate to (units R/c)','время интегрирования (в единицах R/c)','die Integrationszeit']}],
   outputs:[{name:'force_dynamic', unit:'1', quantity_kind:'ratio', doc:['the quantum force of the evolved state, Σ g q(|f|² − 1/2ω)/2','квантовая сила эволюционировавшего состояния','die Quantenkraft des Zustands']},
     {name:'force_instantaneous', unit:'1', quantity_kind:'ratio', doc:['the force of a vacuum that followed the shape instantly','сила вакуума, мгновенно следующего форме','die Kraft eines instantanen Vakuums']},
     {name:'memory_ratio', unit:'1', quantity_kind:'ratio', doc:['their ratio — 1.80 on the manuscript’s run','их отношение — 1,80 в прогоне рукописи','ihr Verhältnis']},
@@ -91805,7 +91870,7 @@ const NEXUS_RELATIONS=[
   ['chmem','s3gamma','representation','which charges a lens space keeps','The space forms of the space-form laboratory are quotients of S³; along the Hopf fibres the lens space L(p,1) keeps exactly the fibre charges m ≡ 0 (mod p), and L(p,q) the pairs (q+1)m_L ≡ (q−1)m_R (mod 2p) — the selection the causal-memory laboratory feeds to its vacuum.','theorem'],
   ['chmem','hopf','exact','the shape is a squash along the Hopf fibres','The Berger sphere stretches every Hopf fibre to 2πe^{2u/3} and shrinks the base sphere to ½e^{−u/3}, keeping the volume; the fibre charge m of each mode is its winding along the Hopf circle, and a lens space is the quotient along the same circles.','theorem'],
   ['chmem','tri','exact','the round sphere the shape returns to','At u = 0 the Berger sphere is the round trisphere, its scalar levels k(k+2) with multiplicity (k+1)² — the spectrum the shear coupling q_km = ⅔k(k+2) − 2m² splits and whose variance Σq² = (16/45)(k+1)k(k+2)(k−1)(k+3) it carries.','theorem'],
-  ['chmem','cmb','causal','what a quotient could leave on the sky, and what it cannot','A topology changes which modes exist and how the quantum state responds to a deformation, never the local Friedmann expansion at fixed stress-energy; the sky sees the surviving modes, the memory kernel is the response a semiclassical source would need.','observation-context'],
+  ['chmem','cosmo','contrast','what a quotient changes in a cosmology, and what it cannot','A topology S³/Γ changes which modes exist and how the quantum state answers a deformation — the memory kernel is the retarded response a semiclassical source would need — but never the local Friedmann expansion at fixed stress-energy: a quotient is locally the same sphere, so H(a) of the cosmology laboratory is the same on S³ and on every L(p,q).','theorem-context'],
   ['everys3','atom','exact','Fock\'s S³ of the hydrogen atom','The atom station maps semiclassical hydrogen ellipses into Fock\'s momentum S³, where the level n is the space of harmonics of degree n − 1, of dimension n² = Σ(2ℓ+1) — the degeneracy the atom laboratory counts by ℓ.','theorem'],
   ['ccurve','kin','contrast','κ is a diffusion constant','The driving function of SLE_κ is a Brownian motion with ⟨W²⟩ = κt — the diffusion of kinetic theory with κ in the place of 2D; the loop-erased walk is the random walk of the same diffusion with its loops erased, and erasing them takes the dimension of the path from 2 to 5/4.','physics-contrast'],
   ['nscomp','nsflow','contrast','a force can make the flow compute; the exact solution cannot','The exact solution of S³ is one closed formula with energy in one curl shell; the forced torus flow of family 376 encodes a Turing machine in where one particle goes — its force is ∂ₜV − νΔV because every stage is transverse to its own variation, so the pressure is zero.','physics-contrast'],
@@ -93917,8 +93982,10 @@ function s3ViewVisibility(v){
   // CMB already carries its native spherical armillary. The carrier's Cartesian
   // projection grid would cross the sky and obscure the field, so it is suppressed
   // only for this station (also per tile in Multiview), without changing the saved
-  // global guide preference.
-  spatialGuides.s3.visible=state.showGuides&&state.vectorGuides!==false&&v!=='cmb';
+  // global guide preference. The causal-memory laboratory draws its own frame on every
+  // station — time and force axes, the charge lattice, the base sphere — and the grid
+  // would cut straight through them, so it is suppressed there for the same reason.
+  spatialGuides.s3.visible=state.showGuides&&state.vectorGuides!==false&&v!=='cmb'&&v!=='chmem';
   anyonGroup.visible   = v==='anyon';
   /* a laboratory that is empty until you press something is a laboratory that looks broken */
   if(v==='anyon'){ try{ anyonWire(); }catch(e){}
@@ -105827,7 +105894,7 @@ function applySpatialGuideVisibility(){
       // single-instrument stage frames (Antikythera, Earth/Sun/Moon orientation) that
       // plane does not exist, so its captions would just cut across the mechanism
       && !(mode==='cyc'&&(state.cycFrame==='antikythera'||state.cycFrame==='orientation'))
-      && !(mode==='s3'&&state.mode==='s3'&&state.s3view==='cmb');
+      && !(mode==='s3'&&state.mode==='s3'&&(state.s3view==='cmb'||state.s3view==='chmem'));
     g.traverse(o=>{
       if(o.material?.userData?.guideBaseOpacity!=null)
         o.material.opacity=o.material.userData.guideBaseOpacity*state.guideOpacity;

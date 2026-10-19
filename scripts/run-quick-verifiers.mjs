@@ -212,6 +212,7 @@ const allChecks = [
   "docs/verify-the-energy-density-scale.cjs",
   "docs/verify-the-lens-space-circles.cjs",
   "docs/verify-the-hopf-raymarch.cjs",
+  "docs/verify-the-causal-memory.cjs",
   "docs/verify-every-word-in-three-languages.cjs",
   "docs/verify-self-description-authority.mjs"
 ];
@@ -326,6 +327,11 @@ if (fullMode) {
 
   route(/\b(lpq|lens space|lens spaces|matched circle|matched circles|s3gamma|space form|space forms)\b/, [
     'docs/verify-the-lens-space-circles.cjs',
+    'docs/verify-the-causal-memory.cjs',
+  ]);
+
+  route(/\b(chmem|chm|causal memory|holonomy memory|berger|kubo|semiclassical)\b/, [
+    'docs/verify-the-causal-memory.cjs',
   ]);
 
   route(/\b(fbs_rho|fbsrho|energy density|density law|casimir|planck density|bloom)\b/, [

@@ -71,7 +71,14 @@ const REL = [...blk.matchAll(/^\s*\['([a-z0-9]+)','([a-z0-9]+)','([a-z]+)'/gm)].
        v4.379: the critical-curves laboratory's two relations (the SLE/CFT central charge to the anyon laboratory, the
        Brownian driving function to kinetic theory) bring the harmonics back to fourth nearest (|v| 2.3e-3, median 2.2e-2).
        Measured on the way: ONE pendant relation can move them anywhere from 4th to 30th — the rank is fragile, the
-       five-times-below-the-median is the robust half of this finding. */
+       five-times-below-the-median is the robust half of this finding.
+       v4.395: the causal-memory laboratory's four relations (the space forms, Hopf, the trisphere, cosmology) bring the
+       harmonics to second nearest (|v| 8.4e-4, median 2.0e-2) and the CMB, without the space-form relation, to fifth
+       on the seam. Measured on the way, and the reason its fourth relation goes to cosmology: declared to the CMB
+       instead ("what a quotient could leave on the sky"), it would have been a second relation saying the sky can show
+       S³/Γ, and it carried the CMB off the seam on its own (8.3e-3, under three times below the median) — a duplicate
+       of s3gamma→cmb, where the statement it makes (a quotient never changes the local Friedmann expansion at fixed
+       stress-energy) is about the expansion. */
     const rk = x => F.onSeam.findIndex(([y]) => y === x), rkAll = x => G.V.map((y, i) => [y, Math.abs(F.vector[i])]).sort((p, q) => p[1] - q[1]).findIndex(([y]) => y === x), vc = Math.abs(F.vector[G.ix.get('cmb')]), vs = Math.abs(F.vector[G.ix.get('sh')]);
     const G0 = atlasRelGraph(atlasCore2(REL.filter(r => !(r[0] === 's3gamma' && r[1] === 'cmb') && !(r[0] === 'cmb' && r[1] === 's3gamma'))).rels), F0 = atlasFiedler(G0, 'mainseq'), rk0 = F0.onSeam.findIndex(([y]) => y === 'cmb');
     ok('FOUND — the seam is the harmonic analysis of the sphere: the spherical harmonics stand ON it (among the ten nearest zero, five times below the median); the CMB stands on it without the relation "the CMB can show S³/Γ", and that one relation carries it to the sphere side, still three times below the median',
