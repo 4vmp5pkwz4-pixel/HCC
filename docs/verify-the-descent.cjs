@@ -40,6 +40,9 @@
  *  18. the channel of the last fibre (v4.389): the thread template counter-clockwise seen from outside; the flight a
  *      Bézier arriving at the eye along the fibre; the eye φ-fold nearer the last fibre every rung; one Hopf turn a
  *      circuit on every wall; no thread's surface ever reaching the eye
+ *  19. the central fibre, honestly (v4.390): the 4-D turn is an element of SU(2) (fibres to fibres, each over the base S²
+ *      medallion's point of its colour); a quarter turn swaps the centre and the axis; the turn rests below N₁; the
+ *      labels say "the pole of this chart"; the twist's slope is stated as drawn and as in S³
  *  17. the scale tunnel (v4.388): a ring's diameter on the screen is the size it names over the view's height (s/L), so
  *      every gate shows for some twelve rungs, a point to past the edge; the gates span a kilometre to ℓ_P with every
  *      power of ten between; the motes zoom as φ^(rung − N) in a window that wraps, and their streaks run at the radial
@@ -198,7 +201,8 @@ const cst = name => grab(new RegExp('const ' + name + '=[^\\n]*\\n'), name);
     const above = [-1.6, -1.2, -0.72, -0.3].every(N => K.dscDiveK(N) === 1);
     let core = 0; for (const k of [1, 37, 4e6]) for (let i = 0; i < 24; i++) { const P = K.dscHopfSurf(i * 0.26, i * 0.77, 0, k); core = Math.max(core, Math.abs(Math.hypot(P[0], P[1]) - 1), Math.abs(P[2])); }
     const glsl = /float dr=\(w-b\*b\/\(1\.0\+a\)\)\*q, z=b\*cos\(a2\)\*q/.test(K.DSC_TUBE_V) && /float R=1\.0\+uK\*dr; return vec3\(cos\(a1\)\*R,sin\(a1\)\*R,uK\*z\)/.test(K.DSC_TUBE_V)
-      && /vec3 P=hopfQ\(ps\+ph,ps,b\)/.test(K.DSC_TUBE_V) && /vec3 nr=cos\(tmpl\.y\)\*N0\+sin\(tmpl\.y\)\*B, Q=P\+wr\*nr;/.test(K.DSC_TUBE_V);
+      && /vec3 P=hopfP\(ps\+ph,ps,b\)/.test(K.DSC_TUBE_V) && /vec3 hopfP\(float a1,float a2,float b\)\{ return uTau>1e-5\?hopfT\(a1,a2,b\):hopfQ\(a1,a2,b\); \}/.test(K.DSC_TUBE_V)
+      && /vec3 nr=cos\(tmpl\.y\)\*N0\+sin\(tmpl\.y\)\*B, Q=P\+wr\*nr;/.test(K.DSC_TUBE_V);
     ok('the threads and the dive: the GPU’s fibre map (read back on the CPU) lies on |z₂| = b and its lines α₁ − α₂ = φ are the Hopf fibres; written without cancellation it holds a tube of 10⁻⁹ magnified 10⁸-fold in float32; below N₁ the rung keeps its tube while the last fibre stays the unit circle; above N₁ nothing is magnified; each fibre a tube round that exact curve',
       torus < 1e-12 && fib < 1e-9 && f32e < 1e-5 && hold < 1e-12 && above && core < 1e-12 && glsl, `torus ${torus.toExponential(1)} · fibres ${fib.toExponential(1)} · float32 ${f32e.toExponential(1)} · tube held ${hold.toExponential(1)} · above N₁ ${above ? '✓' : '✗'} · last fibre ${core.toExponential(1)} · shader ${glsl ? '✓' : '✗'}`); }
   /* 15 */
@@ -237,7 +241,7 @@ const cst = name => grab(new RegExp('const ' + name + '=[^\\n]*\\n'), name);
     const sizes = G.map(g => g[0]), sorted = sizes.every((v, i) => !i || v < sizes[i - 1]), ends = Math.abs(sizes[0] - 1e3) < 1e-9 && Math.abs(sizes[sizes.length - 1] - 1.616255e-35) < 1e-40;
     const decades = /for\(let k=7;k>=-35;k--\)\{ const s=Math\.pow\(10,k\);/.test(bld) && /R\.c12/.test(bld) && /R\.c23/.test(bld);
     const zoom = /l=base\+mod\(aSeed\.x\*span-base,span\), rel=l-uN, g=pow\(uPhi,rel\)/.test(mv) && /float S=clamp\(rr\*0\.4812\*uV\*0\.07,-0\.38,0\.38\);/.test(mv) && Math.abs(Math.log(PHI) - 0.4812) < 1e-4;
-    const wired = /try\{ dscTunnelTick\(N,dt\); \}catch\(e\)\{/.test(SRC) && /const fade=dscSmooth\(DSC\.top-1,DSC\.top-4,N\)\*dscSmooth\(-0\.3,0\.6,N\)/.test(tun);
+    const wired = /try\{ dscTunnelTick\(N,dt\); \}catch\(e\)\{/.test(SRC) && /const fade0=dscSmooth\(DSC\.top-1,DSC\.top-4,N\)\*dscSmooth\(-0\.3,0\.6,N\)/.test(tun) && /fade=fade0\*Math\.abs\(2\*ink-1\)/.test(tun);
     ok('the scale tunnel: a ring’s diameter on the screen is the size it names over the view’s height, so each gate shows for some twelve rungs, a point to past the edge; the gates run from a kilometre to ℓ_P, every power of ten between; the motes zoom as φ^(rung − N) in a wrapping window, their streaks at a zoom’s radial speed r·ln φ·|dN/dt|; it fades at the top and below ℓ_P',
       trueSize && sorted && ends && decades && zoom && wired && span > 11 && span < 14, `true size ${trueSize ? '✓' : '✗'} · ${G.length} named gates, sorted ${sorted ? '✓' : '✗'}, ends ${ends ? '✓' : '✗'} · decades and crossings ${decades ? '✓' : '✗'} · a gate lives ${span.toFixed(1)} rungs · zoom law ${zoom ? '✓' : '✗'} · wired ${wired ? '✓' : '✗'}`); }
   /* 18 */
@@ -274,6 +278,36 @@ const cst = name => grab(new RegExp('const ' + name + '=[^\\n]*\\n'), name);
     ok('the channel of the last fibre: the threads are counter-clockwise seen from outside (the studio light falls on them, not inside them); the flight is a Bézier that arrives at the eye along the fibre; the eye keeps a magnified distance ε from the last fibre, so it nears it φ-fold a rung; on every wall a fibre winds exactly once round the last fibre in a circuit; no thread’s surface ever reaches the eye',
       idx && frame && outward === tri && tri > 0 && wired && bez && eye && end < 1e-12 && along > 1 - 1e-9 && nearing < 3e-4 && twist < 1e-6 && thinOk && clear,
       `outward ${outward}/${tri} (${idx ? idx[0] : 'no template'}) · ε = ${EPS.toFixed(4)} · arrives at the eye ${end.toExponential(1)}, along the fibre ${along.toFixed(9)} · nearing ×${PHI.toFixed(4)} a rung to ${nearing.toExponential(1)} · one turn a circuit to ${twist.toExponential(1)} · thinning ${thinOk && clear ? '✓' : '✗'} · wiring ${bez && eye ? '✓' : '✗'}`); }
+  /* 19 */
+  { /* the central fibre, honestly (v4.390): the reader's 4-D turn is an element of SU(2), so fibres go to fibres; a quarter turn
+       swaps the centre and the axis; the base S² medallion puts every thread at its own point and colour; the slope of the
+       twist is stated as drawn and as in S³; and below N₁ the turn rests */
+    const T = new Function([fn('dscHopfTurn'), fn('dscS2Frame'), 'return {dscHopfTurn,dscS2Frame};'].join('\n'))(), V = grab(/const DSC_TUBE_V=`[\s\S]*?`;\n/, 'the thread vertex shader');
+    const shader = /vec3 hopfT\(float a1,float a2,float b\)\{ float a=sqrt\(max\(0\.0,1\.0-b\*b\)\), c=cos\(uTau\), s=sin\(uTau\);/.test(V) && /y=vec4\(c\*x\.x-s\*x\.z,c\*x\.y-s\*x\.w,s\*x\.x\+c\*x\.z,s\*x\.y\+c\*x\.w\)/.test(V) && /vec3 P=y\.xyz\/max\(1e-4,1\.0-y\.w\)/.test(V);
+    const pt = (a1, a2, b) => { const a = Math.sqrt(1 - b * b); return [a * Math.cos(a1), a * Math.sin(a1), b * Math.cos(a2), b * Math.sin(a2)]; };
+    const turn = (x, t) => { const c = Math.cos(t), s = Math.sin(t); return [c * x[0] - s * x[2], c * x[1] - s * x[3], s * x[0] + c * x[2], s * x[1] + c * x[3]]; };
+    const hopf = x => [2 * (x[0] * x[2] + x[1] * x[3]), 2 * (x[1] * x[2] - x[0] * x[3]), x[0] * x[0] + x[1] * x[1] - x[2] * x[2] - x[3] * x[3]];
+    let twin = 0, fib = 0; for (const t of [0, 0.3, 0.785, 1.2, Math.PI / 2]) for (const b of [0.1, 0.45, 0.8]) for (const ph of [0, 1.3, 4.4]) {
+      const F = T.dscS2Frame(t), th = 2 * Math.asin(b), base = [0, 1, 2].map(i => F.c[i] * Math.cos(th) + Math.sin(th) * (F.e1[i] * Math.cos(ph) + F.e2[i] * Math.sin(ph)));
+      for (let i = 0; i < 12; i++) { const ps = i * 0.53, y = turn(pt(ps + ph, ps, b), t), P = T.dscHopfTurn(ps + ph, ps, b, t, 0), q = 1 / (1 - y[3]);
+        twin = Math.max(twin, Math.hypot(P[0] - y[0] * q, P[1] - y[1] * q, P[2] - y[2] * q) / Math.max(1, Math.hypot(...P)));
+        const h = hopf(y); /* h(z₁, z₂) = (2 Re z₁z̄₂, 2 Im z₁z̄₂, |z₁|² − |z₂|²) — constant along the turned fibre, and the medallion's point */
+        fib = Math.max(fib, Math.hypot(...h.map((v, k) => v - base[k]))); } }
+    /* a quarter turn: the centre fibre (b = 0) onto the z-axis, the axis fibre (b = 1) onto the unit circle */
+    let swap = 0; for (let i = 0; i < 24; i++) { const ps = i * 0.26 + 0.05, C = T.dscHopfTurn(ps, ps, 0, Math.PI / 2, 0), A = T.dscHopfTurn(ps, ps, 1, Math.PI / 2, 0);
+      swap = Math.max(swap, Math.hypot(C[0], C[1]), Math.abs(Math.hypot(A[0], A[1]) - 1), Math.abs(A[2])); }
+    const by = SRC.slice(SRC.indexOf("D.push({id:'beyond', anchor:'quark'"), SRC.indexOf('/* ── the globe of any body'));
+    const rest = /const tau=\(DSC\.hopfTau\|\|0\)\*dscSmooth\(-1\.6,-0\.9,N\);/.test(by) && /lock=\(st\.N\?\?0\)<-1\.6;/.test(SRC) && /u\.uTau\.value=tau;/.test(by);
+    const colours = /col\.setHSL\(i\/U\.Km,0\.78,0\.6\*dim\); put\(Math\.min\(b,0\.995\),2\*Math\.PI\*i\/U\.Km,/.test(by) && /const hue=i=>`hsl\(\$\{\(360\*i\/Km\)\.toFixed\(1\)\},78%,60%\)`;/.test(SRC);
+    const words = by.includes('the central fibre — the pole of this chart (any fibre could be it)') && by.includes('центральное волокно — полюс этой карты (им может быть любое)')
+      && /\['lastfibre',-12,\['The central fibre','Центральное волокно'\]/.test(SRC) && /const Rc=1\+k\*b\*b\/\(a\*\(1\+a\)\), sd=k\*\(b\/a\)\/Rc/.test(by) && /slope \$\{sl\(sd\)\} here, φᴺ = \$\{sl\(b\)\} in S³/.test(by);
+    /* the drawn slope is the magnified wall's meridian over its circuit, tm/Rc with tm = k·b/a — read off the twin of the threads */
+    const K = new Function('THREE', 'PHI', [cst('dscHopfB'), fn('dscHopfSurf'), grab(/const DSC_DIVE_N1=[^\n]*\n/, 'N₁'), fn('dscDiveK'), 'return {dscHopfB,dscHopfSurf,dscDiveK};'].join('\n'))({}, PHI);
+    let slope = 0; for (const N of [-8, -20, -33]) { const b = K.dscHopfB(N), a = Math.sqrt(1 - b * b), k = K.dscDiveK(N), Rc = 1 + k * b * b / (a * (1 + a)), tm = k * b / a;
+      for (let i = 0; i < 16; i++) { const P = K.dscHopfSurf(0.4, i * 0.39, b, k, 1e9), r = Math.hypot(P[0], P[1]); slope = Math.max(slope, Math.abs(Math.hypot(r - Rc, P[2]) - tm) / tm); } }
+    ok('the central fibre, honestly: the reader’s 4-D turn is an element of SU(2) — every turned fibre stays one fibre over the medallion’s point of its colour; a quarter turn carries the centre onto the axis and the axis onto the unit circle; the turn rests below N₁; the station and the labels say “the pole of this chart”, and the twist’s slope is stated as drawn (tm/Rc) and as in S³ (φᴺ)',
+      shader && twin < 1e-9 && fib < 1e-9 && swap < 1e-9 && rest && colours && words && slope < 1e-9,
+      `shader ${shader ? '✓' : '✗'} · twin ${twin.toExponential(1)} · fibres over their medallion points ${fib.toExponential(1)} · quarter turn swaps ${swap.toExponential(1)} · rests below N₁ ${rest ? '✓' : '✗'} · colours ${colours ? '✓' : '✗'} · words ${words ? '✓' : '✗'} · wall tm/Rc ${slope.toExponential(1)}`); }
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 })().catch(e => { console.error('verifier error:', e && e.stack || e); process.exit(1); });
