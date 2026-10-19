@@ -65,4 +65,14 @@ const rgb = s => s.match(/\d+/g).map(Number);
     /globalThis\.HCC_LADDER=Object\.freeze\(\{index:/.test(SRC)];
   ok('the wide ladder steers on drag and selects on a click; in a headset a trigger on a step is read in the staircase\'s own metres, the wrist menu carries the staircase, the reader\'s lamp rides it every frame and a pulse answers in the hands; the laboratories of a rung open from its card; agents read it all through HCC_LADDER',
     w.every(Boolean), w.map(x => x ? '✓' : '✗').join('')); }
+{ /* v4.393: in FBS3R the quick ladder steers that world's own depth and never leaves it */
+  const scrub = grab(/function sxScrubTo\(N,final\)\{[^\n]*/, 'sxScrubTo'), fly = grab(/function sxFlyTo\(L,lm\)\{[\s\S]*?\n  if\(state\.mode==='fbs'&&!fbsTier2\(\)\)\{ sxFbsGo\(levelOf\(L\),true\); return; \}/, 'sxFlyTo in FBS3R');
+  const go = grab(/function sxFbsGo\(N,final\)\{[\s\S]*?return depth; \}/, 'sxFbsGo');
+  const st = { mode: 'fbs', fbsNmin: 0, fbsNmaxU: 299.1, fbsDepth: 200, fbsTarget: null, fbsCycle: true, fbsVel: 2 };
+  const F = new Function('state', 'FBS', go + '\nreturn sxFbsGo;')(st, { Nmax: 299.1 });
+  F(142.6, false); const live = st.fbsDepth === 142.6 && st.fbsTarget === null && !st.fbsCycle && st.fbsVel === 0; F(145, true); const glide = st.fbsTarget === 145 && st.fbsDepth === 142.6; F(-9, true); const clamp = st.fbsTarget === 0;
+  const routed = /if\(state\.mode==='fbs'&&!fbsTier2\(\)\)\{ SX_STATE\.scrubN=final\?null:N; sxFbsGo\(N,final\); return; \}/.test(scrub) && !!fly;
+  const reads = /N=D&&D\.strip\?D\.N:st\?SX_STATE\.stepGoal:\(state\.mode==='fbs'&&!fbsTier2\(\)\?state\.fbsDepth:SX_STATE\.N\)/.test(SRC) && /const step=d=>\{ const N0=Number\.isFinite\(sxNow\(\)\)\?sxNow\(\):150/.test(SRC);
+  ok('in FBS3R the quick φ-ladder is that world\'s own depth: a drag moves it live, a release or a step glides to it, the strip reads it, and nothing carries the reader to the Solar world\'s descent or the Horizons',
+    live && glide && clamp && routed && reads, `live ${live ? '✓' : '✗'} · glide ${glide ? '✓' : '✗'} · clamped to the ladder ${clamp ? '✓' : '✗'} · scrub and flight stay in FBS3R ${routed ? '✓' : '✗'} · the strip reads the depth ${reads ? '✓' : '✗'}`); }
 console.log('\n  ' + pass + ' passed, ' + fail + ' failed'); process.exit(fail ? 1 : 0);
