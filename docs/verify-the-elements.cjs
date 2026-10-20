@@ -15,6 +15,11 @@
  *      filling puts every electron of a subshell somewhere and never three in an orbital
  *   6. the descent uses them: the atom, its inside and its nucleus are the chosen element's, the molecules give way, the
  *      strip holds the table; the words say Slater's rules are a model
+ *   7. what is measured where: a sourced composition for each of the 20 bodies of the descent, in the unit its source gives;
+ *      every row a real element once, a positive value, flags from the set, notes in both languages; the rows in order of
+ *      abundance on one scale; the sums close where they must (crust, soils, rock, the two atmospheres); values quoted
+ *      independently here agree (Asplund et al. 2021 Fe, O, C, Si; the CRC crust O, Si, Au; Galileo He/H; Huygens CH₄);
+ *      Phobos and Deimos have no rows and say no element has been measured there
  */
 const fs = require('node:fs'), path = require('node:path');
 const SRC = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
@@ -74,6 +79,46 @@ try {
     const words = SRC.includes('(Slater’s rules, a model)') && SRC.includes('(правила Слейтера, модель)') && SRC.includes('Past Z = 103 the configurations are predictions'.replace('Past', 'past'));
     ok('the descent uses them: its atom, the inside of the atom and the nucleus are the chosen element’s, the molecules give way, the strip holds the table, and the words say what is a model',
       wired && words, `wired ${wired ? '✓' : '✗'} · words ${words ? '✓' : '✗'}`); }
+  /* 7 */
+  { const C = new Function(blk('const DSC_COMPOSITION=Object.freeze(', '\n') + ';\nreturn DSC_COMPOSITION;')();
+    const bodies = ['sun', 'moon', ...Object.keys(new Function(blk('const DSC_RU=', '};') + '};\nreturn DSC_RU;')()).map(x => x.toLowerCase())];
+    const UNITS = new Set(['log_eps', 'mg/kg', 'mass fraction', 'mass/Si', 'X/H', 'carrier', 'presence']), cyr = /[А-Яа-яЁё]/;
+    const ATOMS = { 'CH₄': { 1: 4, 6: 1 }, 'N₂': { 7: 2 }, 'CO': { 6: 1, 8: 1 }, 'CO₂': { 6: 1, 8: 2 }, 'H₂O': { 1: 2, 8: 1 }, 'SO₂': { 16: 1, 8: 2 }, '²²Ne': { 10: 1 }, '⁴⁰Ar': { 18: 1 }, He: { 2: 1 }, Ne: { 10: 1 }, Ar: { 18: 1 } };
+    const bad = [], lang2 = (x, w) => { if (!Array.isArray(x) || !x[0] || !x[1] || !cyr.test(x[1])) bad.push(w); };
+    const layers = Object.entries(C).flatMap(([k, b]) => [[k, b], ...(b.alt ? [[k + '.alt', b.alt]] : [])]);
+    let rows = 0;
+    for (const [k, b] of layers) {
+      if (!UNITS.has(b.unit)) bad.push(k + ' unit ' + b.unit);
+      if (!b.source || !/(19|20)\d\d/.test(b.source) || !/doi|arXiv|https?:|Handbook|Sourcebook|\b(Science|Nature|Icarus|GRL|ApJ|Sci\. Adv\.|Nat\. Astron\.|J\. Geophys\. Res\.|Space Sci\. Rev\.)\s*[A-Z]?\d+, /.test(b.source)) bad.push(k + ' source');
+      lang2(b.layer, k + ' layer'); lang2(b.full, k + ' full'); lang2(b.caveat, k + ' caveat'); lang2(b.ver, k + ' ver');
+      const seen = new Set();
+      for (const r of b.el) { rows++; const [Z, v, f, en, ru, x] = r;
+        if (!(Number.isInteger(Z) && Z >= 1 && Z <= 118) || seen.has(Z)) bad.push(`${k} Z ${Z}`); seen.add(Z);
+        if (!(Number.isFinite(v) && v > 0)) bad.push(`${k} ${Z} value ${v}`);
+        if (!/^[acltqen]*$/.test(f)) bad.push(`${k} ${Z} flags ${f}`);
+        if (!!en !== !!ru || (ru && !cyr.test(ru) && ru.replace(/(\d),(\d)/g, '$1.$2') !== en)) bad.push(`${k} ${Z} note languages`);
+        if ((b.unit === 'carrier') !== !!x || (x && !(ATOMS[x] && ATOMS[x][Z]))) bad.push(`${k} ${Z} carrier ${x}`);
+        if (b.unit === 'presence' && v !== 1) bad.push(`${k} ${Z} presence ${v}`); } }
+    const missing = bodies.filter(k => !C[k]), extra = Object.keys(C).filter(k => !bodies.includes(k));
+    /* one scale per body: atoms per H, mass, atoms per molecule; Mercury's absolute values placed by closing the listed elements */
+    const order = [];
+    for (const [k, b] of layers) { let sh;
+      if (b.unit === 'log_eps') sh = r => Math.pow(10, r[1] - 12); else if (b.unit === 'carrier') sh = r => r[1] * ATOMS[r[5]][r[0]]; else if (b.unit === 'presence') sh = () => 1;
+      else if (b.unit === 'mass/Si') { const ra = b.el.filter(r => !r[2].includes('a')).reduce((t, r) => t + r[1], 0), ab = b.el.filter(r => r[2].includes('a')).reduce((t, r) => t + r[1], 0), fSi = (1 - ab) / ra; sh = r => r[2].includes('a') ? r[1] / fSi : r[1]; }
+      else sh = r => r[1];
+      for (let i = 1; i < b.el.length; i++) { const p = b.el[i - 1], q = b.el[i]; if (sh(q) > sh(p) * (1 + 1e-12) || (sh(q) === sh(p) && q[0] < p[0])) order.push(`${k} ${p[0]}→${q[0]}`); } }
+    const row = (k, Z, alt) => (alt ? C[k].alt : C[k]).el.find(r => r[0] === Z), sum = (k, alt) => (alt ? C[k].alt : C[k]).el.reduce((t, r) => t + r[1], 0);
+    const carriers = (k, alt) => { const m = new Map(); for (const r of (alt ? C[k].alt : C[k]).el) m.set(r[5], Math.max(m.get(r[5]) || 0, r[1])); return [...m.values()].reduce((t, v) => t + v, 0); };
+    const sums = { earth: sum('earth') / 1e6, moon: sum('moon'), mars: sum('mars'), venus: sum('venus'), titan: carriers('titan'), 'venus air': carriers('venus', 1) };
+    const closes = Object.values(sums).every(v => Math.abs(v - 1) < 0.03);
+    const anchors = [['sun', 26, 7.46], ['sun', 8, 8.69], ['sun', 6, 8.46], ['sun', 14, 7.51], ['sun', 1, 12], ['earth', 8, 461000], ['earth', 14, 282000], ['earth', 79, 0.004], ['jupiter', 2, 0.0785], ['titan', 6, 0.0565], ['mercury', 14, 1], ['jupiter', 1, 1]]
+      .filter(([k, Z, v]) => { const r = row(k, Z); return !r || Math.abs(r[1] - v) > 1e-9 * Math.max(1, v); });
+    const none = ['phobos', 'deimos'].every(k => C[k] && C[k].el.length === 0 && /No element has been measured/.test(C[k].caveat[0]) && /не измерен ни один элемент/.test(C[k].caveat[1]));
+    const counts = { sun: C.sun.el.length, earth: C.earth.el.length, mercury: C.mercury.el.length, jupiter: C.jupiter.el.length };
+    const wired = /return C\?C\.el\.map\(x=>x\[0\]\):\[\];/.test(fn('dscElemsHere')) && /C\.alt&&state\.dscCompAlt/.test(fn('dscCompOf')) && /T3\(C\.caveat\)/.test(fn('dscPTPaint')) && /T3\(C\.ver\)/.test(fn('dscPTPaint')) && /class="ptnote"/.test(fn('dscPTPaint')) && /DSC_ELEM_FLAG\[c\]/.test(fn('dscElemQty'));
+    ok('what is measured where: a sourced composition for each of the 20 bodies of the descent, in its source’s unit — every row a real element once, positive, flagged from the set, noted in both languages; in order of abundance; the crust, soils, rock and atmospheres close; the quoted values agree; Phobos and Deimos say nothing is measured',
+      !bad.length && !missing.length && !extra.length && !order.length && closes && !anchors.length && none && counts.sun === 68 && counts.earth === 88 && wired,
+      `${Object.keys(C).length} bodies, ${rows} rows${bad.length ? ' · bad: ' + bad.slice(0, 6).join('; ') : ''}${missing.length ? ' · missing ' + missing.join(', ') : ''}${extra.length ? ' · extra ' + extra.join(', ') : ''} · order ${order.length ? order.slice(0, 4).join(', ') : '✓'} · sums ${Object.entries(sums).map(([k, v]) => k + ' ' + v.toFixed(3)).join(', ')} · anchors ${anchors.length ? anchors.map(a => a.join(' ')).join('; ') : '✓'} · Sun ${counts.sun}, crust ${counts.earth}, Mercury ${counts.mercury}, Jupiter ${counts.jupiter} · none on Phobos, Deimos ${none ? '✓' : '✗'} · wired ${wired ? '✓' : '✗'}`); }
 } catch (e) { fail++; console.log('  FAIL — verifier error: ' + (e && e.stack || e)); }
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
