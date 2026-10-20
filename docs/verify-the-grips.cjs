@@ -8,7 +8,9 @@
  *      everything (the eye's window, the clocks), the stroboscope of S³ (flash period, ρ), vortex stretching (levels),
  *      the Local Group (Andromeda's tangential velocity, time along the orbit, pause), Navier–Stokes on S³ (dye),
  *      FBS3R (the S³ shells) — and every gesture writes the state the panel's controls write
- *   3. the first step through the laboratories after load lands on the collision of the two galaxies, once
+ *   3. the first step through the laboratories after load was once an invitation to one laboratory (the collision of
+ *      the two galaxies, then the fluid of S³); since v4.401 it is an ordinary step — entering S³ opens the fluid and
+ *      the fluid is the first leaf of the catalogue, so the hijack only ever overrode where the reader stood
  *   4. agents can see what is grabbable and where (HCC_GRIPS.list)
  */
 const fs = require('node:fs'), path = require('node:path');
@@ -26,10 +28,12 @@ ok('every gesture writes the state the panel writes: triadU, omniLogS, strobeTd 
   /state\.triadU=Math\.max\(-0\.95/.test(SRC) && /state\.omniLogS=Math\.max\(-24/.test(SRC) && /state\.strobeTd=Math\.pow\(10,lg\)/.test(SRC) && /state\.strobeFree=true; state\.strobeRho=D\.rho/.test(SRC)
   && /state\.vdmLevels=cur; vdmObjs=null/.test(SRC) && /state\.lgmScen='custom'; state\.lgmVt=D\.vt/.test(SRC) && /O\.t=best\/599\*(12|\(O\.tEnd\|\|12\)); state\.lgmT=O\.t/.test(SRC)
   && /state\.fbsTarget=s3LadderN\(s\.k,S3\.R\*GLY_M\)/.test(SRC) && /if\(O\.dye&&O\.dye\[i\]\)/.test(SRC) && /m\.userData\.triadLeg=leg/.test(SRC) && /m\.userData\.vdmLevel=\[P\.k,P\.sigma\]/.test(SRC));
-/* v4.374: the reader asked that Navier–Stokes come first — the first swipe now lands on the fluid of S³, the first
-   chapter of the catalogue (it used to land on the Milky Way–Andromeda collision, which keeps its head-on default) */
-ok('the first swipe after load lands on Navier–Stokes on S³, once; every later step walks the catalogue, whose first chapter is the fluid',
-  /function labBarStep\(d\)\{ if\(typeof LAB_BAR!=='undefined'&&!LAB_BAR\.firstJumped\)\{ LAB_BAR\.firstJumped=true; if\(state\.s3view!=='nsflow'\|\|state\.mode!=='s3'\)\{ labBarGo\('nsflow'\); return; \} \}/.test(SRC)
-  && /navier:\['nsflow',/.test(SRC) && /const LAB_DOMAIN_ORDER=\['navier','s3light',/.test(SRC) && /headon:0/.test(SRC));
+/* v4.374: the reader asked that Navier–Stokes come first — the first swipe was made to land on the fluid of S³.
+   v4.401: the reader then reported the bar not selecting correctly, and the cause was that hijack: choose a laboratory
+   in the catalogue, press ›, and you were taken to the fluid instead of the next one. The fluid still comes first —
+   S³ is entered at it, and it is the first leaf of the first chapter — so the step is now just a step. */
+ok('Navier–Stokes on S³ comes first without hijacking a step: S³ is entered at the fluid, the fluid is the first leaf of the catalogue\'s first chapter, and the first ‹ › after load walks from where the reader stands',
+  !/firstJumped/.test(SRC) && /defaultEntry:'nsflow'/.test(SRC) && /navier:\['nsflow',/.test(SRC) && /const LAB_DOMAIN_ORDER=\['navier','s3light',/.test(SRC)
+  && /const LAB_START='nsflow';/.test(SRC) && /headon:0/.test(SRC));
 ok('agents can see what is grabbable and where', /globalThis\.HCC_GRIPS=Object\.freeze\(\{ list:/.test(SRC));
 console.log('\n  ' + pass + ' passed, ' + fail + ' failed'); process.exit(fail ? 1 : 0);

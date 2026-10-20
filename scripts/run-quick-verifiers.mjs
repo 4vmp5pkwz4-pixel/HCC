@@ -220,6 +220,7 @@ const allChecks = [
   "docs/verify-the-fibres-across-scales.cjs",
   "docs/verify-the-solid-scenes.cjs",
   "docs/verify-the-information-spectrum.cjs",
+  "docs/verify-the-catalogue-is-a-tree.cjs",
   "docs/verify-every-word-in-three-languages.cjs",
   "docs/verify-self-description-authority.mjs"
 ];
@@ -359,6 +360,12 @@ if (fullMode) {
 
   route(/\b(ois[a-z0-9_]*|information spectrum|hermite|orbit tensor|reference frame|preece|batenin)\b/, [
     'docs/verify-the-information-spectrum.cjs',
+  ]);
+
+  route(/\b(labcatalogue[a-z]*|labsection[a-z]*|labnamesplit|labnamein|labrowdress|labbrowser[a-z]*|labbar[a-z]*|lab_parts|lab_elsewhere|lab_start|sxobs[a-z]*|tsscross|tssband|catalogue)\b/, [
+    'docs/verify-the-catalogue-is-a-tree.cjs',
+    'docs/verify-the-laboratory-bar.cjs',
+    'docs/verify-the-grips.cjs',
   ]);
 
   route(/\b(dscsolids[a-z]*|dscgaslevel|dscheshare|dsc_solid_[vf]|dsctunneltick|dropfield|xtal|crystals|van der waals)\b/, [

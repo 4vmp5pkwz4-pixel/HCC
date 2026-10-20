@@ -24,9 +24,11 @@
  *   5. one door, not two: the floating ⚙ steps aside while the bar is up, the other
  *      floating buttons step above it, and all of them leave while a sheet has risen
  *   6. a first visit is told, once, what the strip is — and never again after any use
- *   7. the logic of the walk, run here on a copy: the order is the catalogue's DOM order
- *      without duplicates, stepping wraps at both ends, and outside the laboratory world
- *      ‹ and › enter at the two ends of the catalogue
+ *   7. the logic of the walk, run here on a copy: the order is the catalogue's own tree
+ *      (labCatalogueOrder — v4.401; it used to be read off the buttons in the DOM), stepping
+ *      wraps at both ends, outside the laboratories ‹ and › enter at the two ends, a
+ *      laboratory of another world is walked like the rest, and the first step after load is
+ *      a step — it is no longer hijacked to one laboratory from wherever the reader stood
  */
 const fs = require('node:fs'), path = require('node:path');
 const SRC = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
@@ -68,14 +70,20 @@ ok('one door, not two: the floating ⚙ steps aside while the bar is up, the oth
 ok('a first visit is told, once, what the strip is — the hint and its bubble end on any use and are remembered',
   /localStorage\.setItem\('hcc\.labBar\.seen\.v1','1'\)/.test(SRC) && /labBarSeen\(\); let w=null;/.test(SRC) && /#labBar\.hint\{animation:lbPulse/.test(SRC) && /laboratories live here — ⊞ lists them all/.test(SRC));
 
-/* 7 · the walk, run here */
-{ const order = SRC.slice(SRC.indexOf('function labBarOrder(){'), SRC.indexOf('function labBarCount(){')), step = SRC.slice(SRC.indexOf('function labBarStep(d){'), SRC.indexOf('function labBarCatalogue(){'));
-  const run = (ids, world, cur, d) => { let went = null; const doc = { getElementById: () => ({ querySelectorAll: () => ids.map(v => ({ id: 'v-' + v })) }) };
-    const f = new Function('document', 'S3_VIEW_NAMES', 'HCC_CTX', 'state', 'labBarGo', order + step + ';return labBarStep;')(doc, Object.fromEntries(['a', 'b', 'c', 'd'].map(k => [k, k.toUpperCase()])), { worldId: world }, { s3view: cur }, v => { went = v; });
+/* 7 · the walk, run here — v4.401: from the catalogue's tree, and from where the reader IS */
+{ const cur = SRC.slice(SRC.indexOf('function labBarCurrent(){'), SRC.indexOf('function labBarGo(v){')),
+        step = SRC.slice(SRC.indexOf('function labBarStep(d){'), SRC.indexOf('function labBarCatalogue(){'));
+  const run = (ids, world, lab, view, d) => { let went = null;
+    const f = new Function('labBarOrder', 'HCC_CTX', 'state', 'labBarGo', 'LAB_ELSEWHERE', cur + step + ';return labBarStep;')(
+      () => ids, { worldId: world, labId: lab }, { s3view: view }, v => { went = v; }, [{ id: 'x', world: 'cyc' }]);
     f(d); return went; };
-  const ids = ['a', 'b', 'b', 'c', 'x', 'd'];
-  const r = [run(ids, 's3', 'b', 1), run(ids, 's3', 'd', 1), run(ids, 's3', 'a', -1), run(ids, 'solar', 'c', 1), run(ids, 'solar', 'c', -1)];
-  ok('the walk, run here on a copy: catalogue order without duplicates or unknown ids, wrapping at both ends, and from outside the laboratory world ‹ › enter at the two ends',
-    r.join() === 'c,a,d,a,d', r.join(' · ')); }
+  const ids = ['a', 'b', 'c', 'd', 'x'];
+  const r = [run(ids, 's3', 'b', 'b', 1), run(ids, 's3', 'd', 'd', 1), run(ids, 's3', 'a', 'a', -1),
+             run(ids, 'solar', null, 'c', 1), run(ids, 'solar', null, 'c', -1), run(ids, 'cyc', 'x', 'c', 1), run(ids, 'cyc', 'x', 'c', -1), run(ids, 's3', 'c', 'c', 1)];
+  ok('the walk, run here on a copy: next and previous in the catalogue\'s order, wrapping at both ends; from outside the laboratories ‹ › enter at the two ends; a laboratory of another world is a step like the others; and the FIRST step after load goes to the next laboratory, not to a fixed one',
+    r.join() === 'c,x,x,a,x,a,d,d' && !/firstJumped/.test(step), r.join(' · ')); }
+ok('one order for the list and the bar: the bar walks labCatalogueOrder — the leaves of the catalogue\'s own tree, in the reader\'s language — and counts what it walks, so ⊞, «i / N» and the catalogue header cannot disagree',
+  /function labBarOrder\(\)\{ return labCatalogueOrder\(labLangNow\(\)\); \}/.test(SRC) && /function labBarCount\(\)\{ return labBarOrder\(\)\.length; \}/.test(SRC)
+  && /LAB_BROWSER_TOTAL=order\.length;/.test(SRC) && /:i>=0\?`\$\{i\+1\} \/ \$\{n\} · \$\{labSectionName\(labSectionOf\(v\),lang,true\)\}`/.test(SRC));
 
 console.log('\n  ' + pass + ' passed, ' + fail + ' failed'); process.exit(fail ? 1 : 0);

@@ -9,7 +9,7 @@ export type TrackStep =
   | { op: 'camera'; pos: [number, number, number]; target: [number, number, number] }
   | { op: 'call'; fn: TrackOpName; args?: Record<string, unknown>; expect?: Record<string, Expectation> };
 export type TrackOpName =
-  | 'cosmic.chi' | 'cosmic.t0' | 'cmb.camb' | 'cmb.acoustic' | 'cmb.sigmaT' | 'lss.dinf'
+  | 'catalogue.tree' | 'cosmic.chi' | 'cosmic.t0' | 'cmb.camb' | 'cmb.acoustic' | 'cmb.sigmaT' | 'lss.dinf'
   | 'space.firstMode' | 'space.circles' | 'ghost.rmax' | 'ghost.self' | 'bbh.budget'
   | 'phi.audit' | 'hyp.ratio' | 'atlas.betti' | 'wf.experiment' | 'fluid.final' | 'fluid.invariants' | 'blowup.window' | 'cycles.section' | 'strobe.carrier' | 'strobe.saros' | 'formula.check' | 'triad.top' | 'triad.census' | 'gmode.address' | 'gmode.light' | 'gmode.cosmos' | 'gmode.flash' | 'nbg.check' | 'nbg.bateman' | 'nbg.twistor' | 'nbg.kerr' | 'gmode.sky' | 'gmode.flat' | 'cosmic.horizons' | 'cosmic.causal' | 'web.flow' | 'survey.bulkflow' | 'exo.valley' | 'gaia.solarMotion' | 'gw.massPeaks' | 'orbit.torus' | 'exo.slope' | 'unify.gates' | 'unify.rank' | 'unify.quintic' | 'unify.corrections' | 'phase.relation' | 'phase.lock';
 export interface Track {
