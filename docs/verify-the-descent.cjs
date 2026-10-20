@@ -82,7 +82,9 @@ const cst = name => grab(new RegExp('const ' + name + '=[^\\n]*\\n'), name);
     THREE, PHI, LN_PHI, GOLDEN_ANGLE, levelOf, levelR, mulberry, DSC);
   /* 1 */
   { const enter = /function dscEquivRung\(b\)\{[^\n]*levelOf\(2\*d\*Math\.tan\(camera\.fov\*Math\.PI\/360\)\*b\.R\/dscBodyDrawnR\(b\)\)/.test(SRC);
-    const back = /const dAU=levelR\(Math\.max\(N,DSC\.exitN\)\)\/\(2\*Math\.tan\(camera\.fov\*Math\.PI\/360\)\)\*dscBodyDrawnR\(b\)\/b\.R;/.test(SRC);
+    /* v4.397: the Sun is drawn true within 7.5 of its radii (sunProximityScale), and the way out lands at 6.9 — so for the
+       Sun r′ = R there, whatever its mesh says while the descent is on; every other body keeps its drawn radius */
+    const back = /const dAU=levelR\(Math\.max\(N,DSC\.exitN\)\)\/\(2\*Math\.tan\(camera\.fov\*Math\.PI\/360\)\)\*\(b\.sun\?b\.R\/DSC_AU:dscBodyDrawnR\(b\)\)\/b\.R;/.test(SRC);
     const R = 6.371e6, rD = 600 * R / 1.495978707e11, d = 3.0 * rD, fov = 55, t = Math.tan(fov * Math.PI / 360), N = levelOf(2 * d * t * R / rD), dBack = levelR(N) / (2 * t) * rD / R;
     const persp = Math.abs((R / (levelR(N) / (2 * t))) - rD / d) / (rD / d);
     ok('the handover is exact: the view at a body is the rung of 2d·tan(fov/2)·R/r′ (its true size where it is drawn enlarged), and leaving reads that identity backwards — radius/distance, the whole of perspective, unchanged',
