@@ -218,6 +218,7 @@ const allChecks = [
   "docs/verify-no-whiteout-no-shrink.cjs",
   "docs/verify-the-elements.cjs",
   "docs/verify-the-fibres-across-scales.cjs",
+  "docs/verify-the-solid-scenes.cjs",
   "docs/verify-every-word-in-three-languages.cjs",
   "docs/verify-self-description-authority.mjs"
 ];
@@ -353,6 +354,11 @@ if (fullMode) {
 
   route(/\b(obsfibscaleshtml|obsfibtwistat|clifford|twist ladder)\b/, [
     'docs/verify-the-fibres-across-scales.cjs',
+  ]);
+
+  route(/\b(dscsolids[a-z]*|dscgaslevel|dscheshare|dsc_solid_[vf]|dsctunneltick|dropfield|xtal|crystals|van der waals)\b/, [
+    'docs/verify-the-solid-scenes.cjs',
+    'docs/verify-the-descent.cjs',
   ]);
 
   route(/\b(chmem|chm|causal memory|holonomy memory|berger|kubo|semiclassical)\b/, [
