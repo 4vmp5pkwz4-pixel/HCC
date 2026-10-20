@@ -216,6 +216,8 @@ const allChecks = [
   "docs/verify-the-fibre-is-oriented.cjs",
   "docs/verify-the-lens-catalogue.cjs",
   "docs/verify-no-whiteout-no-shrink.cjs",
+  "docs/verify-the-elements.cjs",
+  "docs/verify-the-fibres-across-scales.cjs",
   "docs/verify-every-word-in-three-languages.cjs",
   "docs/verify-self-description-authority.mjs"
 ];
@@ -342,6 +344,15 @@ if (fullMode) {
 
   route(/\b(sunproximityscale|sunscale|premiumbloomprofile|whiteout|descentexit|obsfibbuild)\b/, [
     'docs/verify-no-whiteout-no-shrink.cjs',
+  ]);
+
+  route(/\b(pt_rows|ptconfig|ptslater|ptshells|ptnucleus|dscelem[a-z]*|dscpt[a-z]*|dscatomlevel|dsccorelevel|dscnucleuslevel|periodic table|element)\b/, [
+    'docs/verify-the-elements.cjs',
+    'docs/verify-the-descent.cjs',
+  ]);
+
+  route(/\b(obsfibscaleshtml|obsfibtwistat|clifford|twist ladder)\b/, [
+    'docs/verify-the-fibres-across-scales.cjs',
   ]);
 
   route(/\b(chmem|chm|causal memory|holonomy memory|berger|kubo|semiclassical)\b/, [
