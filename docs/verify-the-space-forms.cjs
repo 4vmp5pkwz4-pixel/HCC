@@ -41,6 +41,6 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
     ok('on the atlas\'s own posterior the binary polyhedral spaces are hidden — below the first quantile — while L(60,1) sits inside the band',
       ['Tstar', 'Ostar', 'Istar'].every(id => P(id).bound === '<') && P('L60').bound === '=' && P('L60').p > 0.1, `L(60,1): R_max ${sgCircles('L60', 1000, chi).RmaxGly.toFixed(0)} Gly, P ${(P('L60').p * 100).toFixed(1)}%`); }
   ok('wiring: declared, routed, in the API, related to SU(2) and the CMB, and in the discovery ledger',
-    /\{id:'s3gamma', category:'geom',/.test(SRC) && /sgGroupNode\.visible = \(v==='s3gamma'\);/.test(SRC) && /id:'s3gamma', world:'s3', lab:'s3gamma',/.test(SRC) && /\['s3gamma','su2','representation'/.test(SRC) && /\{id:'pdsHidden', kind:'found'/.test(SRC));
+    /\{id:'s3gamma', category:'geom',/.test(SRC) && /sgGroupNode\.visible = \(v==='s3gamma'\)(&&!state\.lc3d)?;/.test(SRC) && /id:'s3gamma', world:'s3', lab:'s3gamma',/.test(SRC) && /\['s3gamma','su2','representation'/.test(SRC) && /\{id:'pdsHidden', kind:'found'/.test(SRC));
   console.log('\n  ' + pass + ' passed, ' + fail + ' failed'); process.exit(fail ? 1 : 0);
 })();

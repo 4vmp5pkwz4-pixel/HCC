@@ -214,6 +214,8 @@ const allChecks = [
   "docs/verify-the-hopf-raymarch.cjs",
   "docs/verify-the-causal-memory.cjs",
   "docs/verify-the-fibre-is-oriented.cjs",
+  "docs/verify-the-lens-catalogue.cjs",
+  "docs/verify-no-whiteout-no-shrink.cjs",
   "docs/verify-every-word-in-three-languages.cjs",
   "docs/verify-self-description-authority.mjs"
 ];
@@ -332,9 +334,14 @@ if (fullMode) {
     'docs/verify-the-fibration-at-the-edge.cjs',
   ]);
 
-  route(/\b(lpq|lens space|lens spaces|matched circle|matched circles|s3gamma|space form|space forms)\b/, [
+  route(/\b(lpq|lens space|lens spaces|matched circle|matched circles|s3gamma|space form|space forms|lenscat|lensclasses|lensdnc|lensmult)\b/, [
     'docs/verify-the-lens-space-circles.cjs',
     'docs/verify-the-causal-memory.cjs',
+    'docs/verify-the-lens-catalogue.cjs',
+  ]);
+
+  route(/\b(sunproximityscale|sunscale|premiumbloomprofile|whiteout|descentexit|obsfibbuild)\b/, [
+    'docs/verify-no-whiteout-no-shrink.cjs',
   ]);
 
   route(/\b(chmem|chm|causal memory|holonomy memory|berger|kubo|semiclassical)\b/, [
