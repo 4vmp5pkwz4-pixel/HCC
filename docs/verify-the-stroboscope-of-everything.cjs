@@ -23,7 +23,7 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
   const K = await import(path.join(__dirname, '..', 'core', 'atlas', 'extracted.mjs'));
   const { phaseAll, phaseItem, phaseSlowMotion, phaseStrobeLock, phaseTurnsPerFrame, phaseWindow, phaseApparent, phaseRelation2, phaseRelation3, phaseRelationNull, phaseBestLock, phasePrec,
     phaseFlashes, phasePlaneSpread, hccAliasState, hccTurnsPerFrame, hccApparentTurns, cycStrobe, cycConvergents, CYCLES, strobeNull, strobeLandscape, triadExperiment, carrierPlanes,
-    fbsS3Pick, s3LadderN, s3LadderKofN, LN_PHI, LAB_FEATURED, DISCOVERIES, discoveryTrack, trackRun } = K;
+    fbsS3Pick, s3LadderN, s3LadderKofN, LN_PHI, LAB_START, labCatalogueOrder, DISCOVERIES, discoveryTrack, trackRun } = K;
   { const L = phaseAll(), Ps = L.map(x => x.P), lo = Math.min(...Ps), hi = Math.max(...Ps); let worst = 0, allTrue = true, lock = 0;
     for (const it of L) { const s = phaseSlowMotion(it.P, 60, 0.02), t = phaseTurnsPerFrame(it.P, s, 60); worst = Math.max(worst, Math.abs(t - 0.02)); allTrue = allTrue && hccAliasState(t) === 'true';
       const sl = phaseStrobeLock(it.P, 60, 3, 0.002); lock = Math.max(lock, Math.abs(phaseTurnsPerFrame(it.P, sl, 60) - 3.002)); }
@@ -59,9 +59,9 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
       `gaps ${q.map(x => x.toFixed(3)).join(' ')} · near the S³ radius the exact shells ${ex.join(',')} then ${pick.length - ex.length} sampled · at N = 200: ${deep.length} sampled shells, k ≈ ${Number(deep[0].k).toExponential(2)}`); }
   { const ids = ['blindLaplace', 'locksByPrecision', 'spectrumOnLadder', 'kernelAudit346'], led = ids.every(id => DISCOVERIES.some(d => d.id === id && d.verifier === 'docs/verify-the-stroboscope-of-everything.cjs')), tr = ids.every(id => trackRun(discoveryTrack(id)).ok);
     ok('wired: S³ opens on Navier–Stokes and the catalogue offers the fluid first; the stroboscope of everything is declared, routed, drawn, in the API, related and in the ledger with replaying tracks',
-      led && tr && LAB_FEATURED[0] === 'nsflow' && /\{id:'s3',\s+title:'S³ · Hopf',[^\n]*defaultEntry:'nsflow'/.test(SRC) && /case 's3': V\('nsflow'\); break;/.test(SRC) && /labFeaturedHTML\(\) \+ LAB_DOMAIN_ORDER/.test(SRC)
+      led && tr && LAB_START === 'nsflow' && ['en', 'ru', 'de'].every(L => labCatalogueOrder(L)[0] === 'nsflow') && /\{id:'s3',\s+title:'S³ · Hopf',[^\n]*defaultEntry:'nsflow'/.test(SRC) && /case 's3': V\('nsflow'\); break;/.test(SRC) && /panel\.innerHTML=labCatalogueHTML\(tree,cur,L\);/.test(SRC)
       && /\{id:'omnistrobe', category:'dyn'/.test(SRC) && /omniGroup\.visible = \(v==='omnistrobe'\);/.test(SRC) && /state\.s3view==='omnistrobe'\)\{\n\s*fbsAnimT\+=labDt; updateOmni\(labDt\);/.test(SRC)
       && /id:'omnistrobe', world:'s3', lab:'omnistrobe',/.test(SRC) && /\['omnistrobe','strobe','coupling'/.test(SRC) && /\['omniAtlas','omnistrobe',omniGroup,/.test(SRC) && /data-omnipick=/.test(SRC) && /data-strobego="omnistrobe"/.test(SRC),
-      `ledger ${led ? 'ok' : 'MISSING'} · tracks ${tr ? 'replay' : 'FAIL'} · featured ${LAB_FEATURED.join(', ')}`); }
+      `ledger ${led ? 'ok' : 'MISSING'} · tracks ${tr ? 'replay' : 'FAIL'} · the catalogue opens on ${labCatalogueOrder('en').slice(0, 3).join(', ')} … (★ ${LAB_START}, listed once — v4.401 retired the "start here" block that listed thirteen laboratories twice)`); }
   console.log('\n  ' + pass + ' passed, ' + fail + ' failed'); process.exit(fail ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });

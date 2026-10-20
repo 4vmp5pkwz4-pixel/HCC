@@ -708,7 +708,9 @@
   #labPanel .labRow .labWorld{color:#78d9ff;border:1px solid rgba(120,217,255,.45);background:rgba(120,217,255,.08)}
   #labPanel .labNone{font-size:11px;color:var(--dim);padding:10px 4px;line-height:1.4}
   #labPanel .labNone[hidden]{display:none}
-  #labPanel > .panelRail{justify-content:flex-start}
+  /* the rail is a direct child, and `.panel>*` caps every direct child at 100 % of the content box — so it stopped
+     43 px short of the panel's right edge and the tree scrolled past visibly in that strip. It spans the box. */
+  #labPanel > .panelRail{justify-content:flex-start;max-width:none;margin-right:-22px}
   #labPanel > .panelRail > .labRailTitle{order:-1;flex:1 1 auto!important;width:auto!important;min-width:0!important;
     height:var(--hdr-btn)!important;justify-content:flex-start!important;gap:6px;padding:0 6px!important;margin:0!important;
     background:none;border:0;border-radius:8px;cursor:pointer;color:var(--dim);font:500 11px var(--sans);
@@ -14931,6 +14933,43 @@ function runSelfTests(){
       'what IS established: the Fus_φ factor of ℛ has the fusion space of N τ particles, exactly · what is not: that the horizon carries them');
   }
 
+  { /* cheap and structural, so it runs in reader mode too: the catalogue's tree, its names, and the bar that walks it */
+      /* ══ v4.401 · THE CATALOGUE IS ONE TREE ═══════════════════════════════════════════════════════════════════
+         Asked: «посмотри, как много дубликатов — зачем это? Уберись, сделай иерархию». MEASURED before: thirteen
+         laboratories listed twice (a "start here" block above the groups that listed them again), 41 rows in English
+         in a Russian interface, two laboratories both called «Лестница расстояний», a header of 145 beside a ⊞ of 146,
+         and a bar that walked whatever buttons the DOM happened to hold. */
+      { const ord=labCatalogueOrder('en'), set=new Set(ord), reg=LAB_REGISTRY.map(l=>l.id);
+        const twice=ord.filter((v,i)=>ord.indexOf(v)!==i), missing2=reg.filter(v=>!set.has(v)), stray=ord.filter(v=>!LAB_BY_ID.has(v));
+        const away=LAB_REGISTRY.filter(l=>l.parentWorld!=='s3');
+        const elsewhere=away.every(l=>LAB_ELSEWHERE.some(E=>E.id===l.id&&E.world===l.parentWorld))&&LAB_ELSEWHERE.every(E=>away.some(l=>l.id===E.id));
+        const langs=['ru','de'].every(L=>{ const o=labCatalogueOrder(L); return o.length===ord.length&&new Set(o).size===o.length&&o.every(v=>set.has(v)); });
+        const parts=labCatalogueTree('en');
+        const declared=Object.keys(S3_VIEW_NAMES).every(id=>LAB_PARTS.some(P=>P.sections.includes(labSectionOf(id))));
+        ok('THE CATALOGUE IS ONE TREE AND EVERY LABORATORY OF THE ATLAS IS A LEAF OF IT EXACTLY ONCE — part → section → laboratory, computed from the registries the router uses: none twice (thirteen were, under "start here"), none missing, none unregistered, the laboratory that lives in another world among them, the same leaves in all three languages, and every section a laboratory falls into declared in a part',
+          twice.length===0&&missing2.length===0&&stray.length===0&&elsewhere&&langs&&declared&&ord.length===LAB_REGISTRY.length&&ord[0]===LAB_START,
+          `${ord.length} leaves for ${LAB_REGISTRY.length} registered laboratories in ${parts.length} parts and ${parts.reduce((n,P)=>n+P.sections.length,0)} sections · ${twice.length} twice · ${missing2.length} missing${missing2.length?' ('+missing2.join(', ')+')':''} · ${stray.length} unregistered · ${away.length} in another world (${away.map(l=>l.id+' → '+l.parentWorld).join(', ')}) · first leaf ${ord[0]}`); }
+      { const clash=[];
+        for(const L of ['en','ru','de']){ const seen=new Map();
+          for(const id of labCatalogueOrder(L)){ const k=labNameIn(id,L).trim().toLowerCase();
+            if(seen.has(k)) clash.push(`${L}: ${seen.get(k)} = ${id} «${labNameIn(id,L)}»`); else seen.set(k,id); } }
+        const abbrev=[];
+        for(const L of ['ru','de']) for(const id of Object.keys(S3_VIEW_NAMES)){ const n=labNameIn(id,L); if(/[A-Za-zА-Яа-яЁёÄÖÜäöüß]\.(\s|$)/.test(n)) abbrev.push(`${L}:${id} «${n}»`); }
+        ok('NO TWO LABORATORIES SHARE A NAME IN ANY OF THE THREE LANGUAGES, AND NO NAME IS A CLIPPED ABBREVIATION. «Лестница расстояний» named two different laboratories: the distance ladder (parallax to Cepheids to two Hubble constants) and the FLRW integral from a redshift to the three cosmological distances, which is now called what it is. «лаб.», «грав.», «чёрн.» were written for 2024’s narrow buttons and a catalogue line has the room',
+          clash.length===0&&abbrev.length===0,
+          clash.length||abbrev.length?[...clash,...abbrev].join(' · '):`${labCatalogueOrder('en').length} names distinct in each of en, ru, de · cosmo is «${labNameIn('cosmo','ru')}», rungs «${labNameIn('rungs','ru')}»`); }
+      { const L=labLangNow(), ord=labCatalogueOrder(L);
+        const same=labBarOrder().length===ord.length&&labBarOrder().every((v,i)=>v===ord[i])&&labBarCount()===ord.length;
+        const built=LAB_BROWSER_IDS.length>0, agree=!built||(LAB_BROWSER_TOTAL===ord.length&&LAB_BROWSER_IDS.every((v,i)=>v===ord[i]));
+        ok('THE BAR AND THE CATALOGUE COUNT AND WALK THE SAME THING: ‹ › step through the leaves of the tree in the order the list shows them, ⊞ and «i / N» count those leaves, and the first step after load is a step — it used to be hijacked to one laboratory from wherever the reader stood',
+          same&&agree&&!/firstJumped/.test(String(labBarStep)),
+          `${ord.length} in the bar · ${built?LAB_BROWSER_TOTAL+' in the catalogue as built':'the catalogue is built in S³; checked against the tree here'} · ‹ › from ${ord[0]} reach ${ord[1]}, back to ${ord[ord.length-1]}`); }
+      { const miss=[];
+        for(const P of LAB_PARTS){ for(const lg of ['en','ru','de']) if(!(P.t&&P.t[lg])) miss.push(P.id+':'+lg);
+          for(const k of P.sections) for(const lg of ['en','ru','de']){ const a=labSectionName(k,lg), b=labSectionName(k,lg,true); if(!a||a===k||!b||b===k) miss.push(k+':'+lg); } }
+        ok('and every part and section of the tree is named in all three languages, in both the full form the catalogue shows and the short form the bar and the trail carry',
+          miss.length===0, miss.length?'UNNAMED: '+miss.join(', '):`${LAB_PARTS.length} parts · ${LAB_PARTS.reduce((n,P)=>n+P.sections.length,0)} sections · 3 languages · 2 lengths`); }
+  }
   if(!defer('fusion tree and golden chain')) { /* ── THE FUSION TREE AND THE GOLDEN CHAIN ─────────────────────────────────── */
     const B=fibTreeBasis(9), FIBN=[0,1,1,2,3,5,8,13,21,34,55];
     const adj=B.filter(b=>b.some((v,i)=>i>0&&v===0&&b[i-1]===0)).length;
@@ -108648,7 +108687,6 @@ function labBrowserRail(){
   const key=(cur.id||'')+'|'+(LAB_BROWSER_FOLDED?1:0)+'|'+(LAB_BROWSER_OPEN?1:0);
   if(LAB_CAT.railFor===key) return;
   LAB_CAT.railFor=key;
-  const target=grp.classList.contains('open')?cur:(grp.querySelector(':scope > .labSecHead')||cur);
   /* the panel is the scroller, so the current laboratory is brought into view INSIDE it.
 
      AND --panel-scroll IS REPUBLISHED WHILE THE SCROLL IS STILL MOVING. The corner controls are
@@ -108659,7 +108697,14 @@ function labBrowserRail(){
      reach for it. Following the animation for a few frames costs nothing and removes the
      window entirely. */
   requestAnimationFrame(()=>{
-    try{ target.scrollIntoView({block:'center',inline:'nearest'}); }catch(e){}
+    /* the row is looked up AGAIN when the frame comes: choosing a laboratory rebuilds Controls, which makes fresh
+       buttons, so the node seen above may already have been replaced by the one that is actually on screen */
+    const c=el.querySelector('button[id^="v-"].on')||el.querySelector('#v-'+(state&&state.s3view||LAB_START));
+    const g=c&&c.closest('.labGroup');
+    const target=g?(g.classList.contains('open')?c:(g.querySelector(':scope > .labSecHead')||c)):null;
+    /* INSTANT, not smooth: the panel is rebuilt with Controls, and a rebuild that lands mid-animation restores the
+       scroll it found — measured, a smooth scroll to a row 269 px down stopped at 63 */
+    try{ if(target) target.scrollIntoView({block:'center',inline:'nearest',behavior:'instant'}); }catch(e){}
     /* follow until the scroll actually STOPS, not for a fixed number of frames: a smooth
        scroll over a long catalogue outruns any constant, and the frames it outruns are
        exactly the ones where the corner controls are drawn at the wrong offset. Bounded
@@ -108679,7 +108724,7 @@ function labBrowserFold(on){
   try{ localStorage.setItem('hcc.labBrowserFolded.v1',LAB_BROWSER_FOLDED?'1':'0'); }catch(e){}
   const el=document.getElementById('labPanel'); if(!el) return;
   if(LAB_BROWSER_FOLDED) el.setAttribute('data-collapsed','1'); else el.removeAttribute('data-collapsed');
-  const b=el.querySelector(':scope > .foldBtn');
+  const b=el.querySelector(':scope > .foldBtn, :scope > .panelRail > .foldBtn');
   if(b){ b.textContent=LAB_BROWSER_FOLDED?'▸':'▾';
     b.title=LAB_BROWSER_FOLDED?'Unfold the catalogue':'Fold to a rail that keeps the chosen laboratory in view'; }
   labBrowserRail();
