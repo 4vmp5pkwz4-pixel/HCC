@@ -6221,8 +6221,10 @@ function runSelfTests(){
     ok('The bundle is swept as a surface carrying its own exact normals, not one-pixel polylines that can hold no light',
       gg.getAttribute('position').count===wantV&&gg.index.count===demo.length*HOPF_TUBE.seg*HOPF_TUBE.rad*6
       &&unit<1e-6&&tube.material.isShaderMaterial&&tube.material.uniforms===HOPF_UNIFORMS
-      &&!hopfFibersSub.children.some(o=>o.isLine),
-      `${wantV} vertices and ${gg.index.count/3} triangles for two fibres · normals unit to ${unit.toExponential(1)} · one merged mesh per bundle`);
+      /* the one Line allowed is the dashed reference circle over the pole, which is drawn AS a reference and is
+         not a fibre of the bundle — booting straight into the Hopf laboratory built it and this clause failed (v4.401) */
+      &&!hopfFibersSub.children.some(o=>o.isLine&&!o.userData.hopfPoleFibre),
+      `${wantV} vertices and ${gg.index.count/3} triangles for two fibres · normals unit to ${unit.toExponential(1)} · one merged mesh per bundle · ${hopfFibersSub.children.filter(o=>o.isLine).length} line(s) in the bundle group, all of them the pole's reference circle`);
     gg.dispose(); tube.material.dispose();
     ok('The light running along a fibre is the fibre coordinate itself, driven by the same clock as the beads',
       /float ph=vP\.x\*6\.2831853\*3\.0 - uTime\*uFlow\*2\.0 \+ vP\.y;/.test(tube.material.fragmentShader)
@@ -20779,7 +20781,7 @@ function renderAtlasPanel(){
   p.querySelector('#atlasValidation').onclick=XRX.exportValidationReport;
   p.querySelector('#atlasRefresh').onclick=renderAtlasPanel;
   p.querySelectorAll('[data-invjump]').forEach(b=>b.onclick=()=>{ const v=b.dataset.invjump;
-    navPush(); if(state.mode!=='s3') setMode('s3'); setS3View(v);
+    navPush(); hccGo({worldId:'s3',labId:v});   /* through the router, so the address, the trail and the catalogue follow (v4.401) */
     /* a laboratory chosen on an upright phone is SHOWN: the catalogue steps aside and its
        controls wait on ⚙ rather than opening over the laboratory just chosen */
     if(hccPhonePortrait()){ try{ labBrowserSetOpen(false); closeAllPanels(); }catch(e){} buildCtl(); return; }
@@ -22287,7 +22289,9 @@ function sxObsSteer(N,final){ const B=sxObsBand(), n=Math.max(B.lo,Math.min(B.hi
 /* the door across the edge: below, the Solar System at the rung that was asked for; above, the S³ carrier, by the
    same seam the zoom crosses — and only when the reader presses it */
 function sxObsCross(){ const E=SX_STATE.obsEdge; SX_STATE.obsEdge=null; if(!E) return;
-  if(E.side==='below'){ sxFlyTo(levelR(Math.min(E.want,sxObsBand().lo-1))); return; }
+  /* below: the Solar chain at the rung that was asked for — or, if that is still inside the Observable band's margin,
+     at the largest rung the Solar world itself frames (under 10²³ m), so the press always crosses */
+  if(E.side==='below'){ sxFlyTo(levelR(Math.min(E.want,276)),null,true); return; }
   try{ controls.target.set(0,0,0); hccCameraGoal(SCALE_SEAMS.obsS3OutGly*1.06,SCALE_SEAMS.crossFrames||48); }catch(e){} }
 function sxScrubTo(N,final){ N=Math.max(0,Math.min(SX_NMAX,N)); if(state.mode==='fbs'&&!fbsTier2()){ SX_STATE.scrubN=final?null:N; sxFbsGo(N,final); return; }
   if(state.mode==='obs'&&!DSC.on){ SX_STATE.scrubN=final?null:N; sxObsSteer(N,final); return; }
@@ -22757,11 +22761,11 @@ function ucRows(e){ const v=e[3], rows=[[TT('Domain','Область','Bereich')
    PRESET is not used for this: it places the camera and then paces the crossing from the radius the governor last
    applied, which the layer chain read as "zoomed back in" and stepped down — measured, the Milky Way asked from the
    planets ended in the local layer. Above ~10²³ m the scale belongs to the Horizons world. */
-function sxFlyTo(L,lm){ const fov=2*Math.tan(camera.fov*Math.PI/360), code=lm&&lm[3];
+function sxFlyTo(L,lm,cross){ const fov=2*Math.tan(camera.fov*Math.PI/360), code=lm&&lm[3];
   if(code){ try{ phiAtlasJump(code); }catch(e){} return; }
   if(state.mode==='fbs'&&!fbsTier2()){ sxFbsGo(levelOf(L),true); return; }   /* FBS3R steers its own depth (v4.393) */
   /* v4.401: in the Observable world a rung it can show is shown in it — framed as the card frames it */
-  if(state.mode==='obs'&&!DSC.on){ const B=sxObsBand(), Nv=levelOf(1.6*L); if(Nv>=B.lo-0.5&&Nv<=B.hi+0.5){ sxObsSteer(Nv,true); return; } }
+  if(state.mode==='obs'&&!DSC.on&&!cross){ const B=sxObsBand(), Nv=levelOf(1.6*L); if(Nv>=B.lo-0.5&&Nv<=B.hi+0.5){ sxObsSteer(Nv,true); return; } }
   /* v4.386: below the body in view (the Earth if none) the flight goes down the descent; above it, the descent hands back first */
   { const n=levelOf(L); if(n<dscTopNow()){ descentGoTo(n); return; } if(DSC.on) descentExit(); }
   const obs=L>=1e23, d=1.6*L/(obs?HCC_GLY_M:1.495978707e11)/fov, world=obs?'obs':'solar';
@@ -64817,8 +64821,8 @@ const DISCOVERIES=Object.freeze([
    numbers:{so3Quartic:2/15, icoSextic:21/256, jT:3, jO:4, jI:6}},
   {id:'catalogueTree401', kind:'revises', domain:'self', v:'4.401.0', labs:['nsflow','tri','cosmo','rungs'], verifier:'docs/verify-the-catalogue-is-a-tree.cjs',
    en:'The laboratory catalogue, audited by walking every laboratory', ru:'Каталог лабораторий: аудит обходом всех лабораторий', de:'Der Laborkatalog, geprüft durch einen Gang durch alle Labore',
-   claim:'Asked why the laboratory panel was full of duplicates, the atlas walked all 146 of its laboratories with the bar’s › and read the catalogue, the route and the trail at every step. It found thirteen laboratories listed twice (a “start here” block above the groups that listed them again); 41 rows still in English in Russian and German, because they were synthesised from the English registry and never re-labelled; two different laboratories both called «Лестница расстояний» — the FLRW integral from a redshift is the cosmological distances, the distance ladder is the chain from a triangle to two Hubble constants; a header of 145 beside a ⊞ of 146; a first ‹ › hijacked to one laboratory from wherever the reader stood; eight lab-to-lab bridges that moved the scene and left the route behind; and the Trisphere’s Controls throwing a ReferenceError half-way, so the catalogue went on marking the previous laboratory. The catalogue is now one tree — part, section, laboratory — in which every laboratory of the atlas is a leaf exactly once, in all three languages, and the bar walks those leaves.',
-   numbers:{laboratories:146, listedTwiceBefore:13, englishRowsBefore:41, sharedNamesBefore:1, bridgesOffRouteBefore:8, throwingControlsBefore:1}}]);
+   claim:'Asked why the laboratory panel was full of duplicates, the atlas walked all 146 of its laboratories — with the bar’s ›, by rebuilding the Controls of each, by building each scene, and by booting straight into each one by its link — and read the catalogue, the route, the trail and its own boot checks at every step. It found thirteen laboratories listed twice (a “start here” block above the groups that listed them again); 41 rows still in English in Russian and German; two different laboratories both called «Лестница расстояний» — the FLRW integral from a redshift is the cosmological distances, the distance ladder is the chain from a triangle to two Hubble constants; a header of 145 beside a ⊞ of 146; a first ‹ › hijacked to one laboratory from wherever the reader stood; 51 lab-to-lab bridges in 25 laboratories, and five data-driven doors, that moved the scene and left the route behind; the Trisphere’s Controls throwing a ReferenceError half-way, so the catalogue went on marking the previous laboratory; seven laboratories building vertex-coloured objects before they had colours (the pole atlas and causality planes drawn black until their first frame); and a search that hid nothing. The catalogue is now one tree — part, section, laboratory — in which every laboratory of the atlas is a leaf exactly once, in all three languages, and the bar walks those leaves.',
+   numbers:{laboratories:146, listedTwiceBefore:13, englishRowsBefore:41, sharedNamesBefore:1, bridgesOffRouteBefore:51, labsWithStaleBridges:25, dataDoorsOffRouteBefore:5, throwingControlsBefore:1, colourlessVertexObjectsBefore:7}}]);
 /* LEADS — the open threads, each with its next concrete step: for the next person, or agent, who continues this */
 const DISCOVERY_LEADS=Object.freeze([
   {id:'lmc-m33', en:'Add M33 and the LMC to the Local Group future', step:'extend lgmOrbit to a four-body friction model (Patel et al. 2017 masses); Sawala et al. 2025 find ~50% merger within 10 Gyr with them — compare with the 25% here', about:'flyby'},
@@ -72605,10 +72609,18 @@ function impAssimSet(samples,z0,source,format,generated=false){
   IMP_ASSIM.samples=samples;IMP_ASSIM.z0=z0;IMP_ASSIM.source=source;IMP_ASSIM.format=format;IMP_ASSIM.generated=generated;IMP_ASSIM.error='';
   IMP_ASSIM.fit=impFitSeriesRLC(samples,z0);state.impAssimVisible=true;impAssimRender();
 }
+/* ── AN EMPTY GEOMETRY THAT ALREADY CARRIES ITS COLOURS (v4.401) ───────────────────────────────────────────────────────
+   A vertex-coloured material on a geometry with no colour attribute renders black, silently, and the boot self-test that
+   guards it fails whenever the atlas boots into a laboratory that makes such an object before its first update. Walking
+   every laboratory and reading the scene after each found five that did — the Willmore fibres, the KAM orbit cloud, the
+   Berry images, the impedance holdout points and the pole atlas's surface (the one that is not empty: 3344 vertices drawn
+   black until the first frame painted them). Points and segments that are filled later now start from this. */
+function hccEmptyColoured(){ const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.BufferAttribute(new Float32Array(0),3)); g.setAttribute('color',new THREE.BufferAttribute(new Float32Array(0),3)); return g; }
 function impAssimAttach(){
   if(!impObjs)return;const root=new THREE.Group();root.name='measured S11 · RLC holdout forecast on the Riemann sphere';
   const measured=scientificTube([],SCI_MINT,.018,.72,false,220),forecast=scientificTube([],SCI_GOLD,.013,.72,false,220),lo=scientificTube([],SCI_VIOLET,.007,.24,false,220),hi=scientificTube([],SCI_VIOLET,.007,.24,false,220);
-  const points=new THREE.Points(new THREE.BufferGeometry(),new THREE.PointsMaterial({size:.075,vertexColors:true,transparent:true,opacity:.92,depthWrite:false,sizeAttenuation:true}));
+  const points=new THREE.Points(hccEmptyColoured(),new THREE.PointsMaterial({size:.075,vertexColors:true,transparent:true,opacity:.92,depthWrite:false,sizeAttenuation:true}));
   root.add(measured,forecast,lo,hi,points);impGroup.add(root);impObjs.assim={root,measured,forecast,lo,hi,points};impAssimRender();
 }
 function impAssimRender(){
@@ -86713,7 +86725,7 @@ function kamSetup(){
   const R=1.85, r0=0.78;
   kamGroup.add(new THREE.Mesh(new THREE.TorusGeometry(R,r0,26,44),
     new THREE.MeshBasicMaterial({color:0x16345e,wireframe:true,transparent:true,opacity:.07})));
-  const pts=new THREE.Points(new THREE.BufferGeometry(),new THREE.PointsMaterial({size:.028,vertexColors:true,transparent:true,opacity:.62,depthWrite:false,blending:THREE.AdditiveBlending}));
+  const pts=new THREE.Points(hccEmptyColoured(),new THREE.PointsMaterial({size:.028,vertexColors:true,transparent:true,opacity:.62,depthWrite:false,blending:THREE.AdditiveBlending}));
   kamGroup.add(pts);
   // the golden orbit — an invariant CIRCLE while it survives, a scatter once it is gone.
   // Drawn as a curve only when the measured drift says it really is a curve (never assumed).
@@ -87818,6 +87830,7 @@ function cauSetup(){
   // ── the complex frequency plane ─────────────────────────────────────────────
   const pl=new THREE.Group(); cauGroup.add(pl);
   const NRE=88, NIM=56, g=new THREE.PlaneGeometry(1,1,NRE-1,NIM-1);
+  g.setAttribute('color',new THREE.BufferAttribute(new Float32Array(g.attributes.position.count*3).fill(0.5),3));   /* painted on the first update; never colourless before it (v4.401) */
   const surf=new THREE.Mesh(g,new THREE.MeshBasicMaterial({vertexColors:true,side:THREE.DoubleSide,transparent:true,opacity:.55,depthWrite:false}));
   pl.add(surf);
   const upper=new THREE.Mesh(new THREE.PlaneGeometry(6.4,1.9),
@@ -88045,7 +88058,7 @@ function wilSetup(){
   const cl=mkLabel(TT('W(a) over the aspect ratio · green: the Clifford minimum at a=√2','W(a) по отношению радиусов · зелёная: клиффордов минимум при a=√2','W(a) über dem Achsenverhältnis · grün: das Clifford-Minimum bei a=√2'),'label dim');
   cl.position.set(0,-2.55,0); wilGroup.add(cl);
   // the Hopf fibres that weave the Clifford torus
-  const fib=new THREE.LineSegments(new THREE.BufferGeometry(),
+  const fib=new THREE.LineSegments(hccEmptyColoured(),
     new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:.75,blending:THREE.AdditiveBlending,depthWrite:false}));
   wilGroup.add(fib);
   const rl=mkLabel('','label const'); rl.position.set(0,2.45,0); wilGroup.add(rl);
@@ -89102,7 +89115,7 @@ function berrySetup(){
   const sph=new THREE.Mesh(new THREE.SphereGeometry(1.15,40,28),new THREE.MeshPhongMaterial({color:0x1a2c48,transparent:true,opacity:.22,shininess:40,side:THREE.BackSide}));
   sph.position.set(3.0,0.2,0); berryGroup.add(sph);
   berryGroup.add(new THREE.Mesh(new THREE.SphereGeometry(1.152,32,22),new THREE.MeshBasicMaterial({color:0x16345e,wireframe:true,transparent:true,opacity:.12})).translateX(3.0).translateY(0.2));
-  const IMG=new THREE.Points(new THREE.BufferGeometry(),new THREE.PointsMaterial({size:.055,vertexColors:true,transparent:true,opacity:.9,depthWrite:false,blending:THREE.AdditiveBlending}));
+  const IMG=new THREE.Points(hccEmptyColoured(),new THREE.PointsMaterial({size:.055,vertexColors:true,transparent:true,opacity:.9,depthWrite:false,blending:THREE.AdditiveBlending}));
   IMG.position.set(3.0,0.2,0); berryGroup.add(IMG);
   // the live (kx,ky) probe, on both objects at once
   const mkDot=(col,sc)=>{ const m=new THREE.Mesh(new THREE.SphereGeometry(.085,12,9),new THREE.MeshBasicMaterial({color:0xffffff}));
@@ -89322,6 +89335,7 @@ function poleSetup(){
   const WR0=0.55,WR1=1.45,WI0=-0.32,WI1=0.10;
   const PX=w=>-2.9+5.8*((w-WR0)/(WR1-WR0)), PZ=v=>-1.9+3.8*((v-WI0)/(WI1-WI0)), PY=m=>2.5*(m/(1+m));
   const NR=76,NI=44, g=new THREE.PlaneGeometry(1,1,NR-1,NI-1);
+  g.setAttribute('color',new THREE.BufferAttribute(new Float32Array(g.attributes.position.count*3).fill(0.5),3));   /* painted on the first update; never black before it */
   const surf=new THREE.Mesh(g,new THREE.MeshStandardMaterial({vertexColors:true,roughness:.55,metalness:.18,transparent:true,opacity:.93,side:THREE.DoubleSide}));
   poleGroup.add(surf);
   const wire=new THREE.Mesh(g,new THREE.MeshBasicMaterial({color:0x2a3550,wireframe:true,transparent:true,opacity:.06,depthWrite:false})); poleGroup.add(wire);
@@ -90188,8 +90202,8 @@ function sydSetup(){
   sydGroup.add(new THREE.AmbientLight(0x5d719c,.62));const key=new THREE.DirectionalLight(0xe8f7ff,1.15);key.position.set(5,8,7);sydGroup.add(key);const rim=new THREE.PointLight(0xffc971,2.4,14,2);rim.position.set(-3,2,3);sydGroup.add(rim);
   const W=SYD_WORLDS[world],closed=!!W.closed;
   SYD.orbitRibbon=scientificRibbon([],world==='mobius'?.22:.18,SCI_CYAN,.25,closed);SYD.orbitExact=scientificTube([],SCI_CYAN,.065,.94,closed,196);SYD.orbitBroken=scientificTube([],SCI_CORAL,.05,.9,closed,196);SYD.orbitFlow=scientificFlow([],MOBILE_GPU?36:72,SCI_CYAN,.045,closed);sydGroup.add(SYD.orbitRibbon,SYD.orbitExact,SYD.orbitBroken,SYD.orbitFlow);
-  for(let i=0;i<4;i++){const c=[SCI_GOLD,SCI_VIOLET,SCI_MINT,SCI_CORAL][i],ghost=scientificCrystal(SCI_CYAN,.075),m=scientificCrystal(c,.13);ghost.scale.setScalar(.72);ghost.traverse(o=>{if(o.material){o.material.transparent=true;o.material.opacity=.3;o.material.depthWrite=false;}});sydGroup.add(ghost,m);SYD.baseMarkers.push(ghost);SYD.markers.push(m);const tube=scientificTube([],c,.022,.68,closed,164);sydGroup.add(tube);SYD.candidateTubes.push(tube);}
-  SYD.link=scientificTube([],SCI_GOLD,.018,.46,false,32);sydGroup.add(SYD.link);SYD.probe=scientificCrystal(0xffffff,.16);sydGroup.add(SYD.probe);
+  for(let i=0;i<4;i++){const c=[SCI_GOLD,SCI_VIOLET,SCI_MINT,SCI_CORAL][i],ghost=scientificCrystal(SCI_CYAN,.075),m=scientificCrystal(c,.13);ghost.scale.setScalar(.72);ghost.traverse(o=>{if(o.material){o.material.transparent=true;o.material.opacity=.3;o.material.depthWrite=false;}});/* a point and its image share a place whenever the transformation fixes it: computed, and declared so (v4.401) */ghost.name='syd:point:'+i;m.name='syd:image:'+i;ghost.userData.placedBy=m.userData.placedBy='computed';sydGroup.add(ghost,m);SYD.baseMarkers.push(ghost);SYD.markers.push(m);const tube=scientificTube([],c,.022,.68,closed,164);sydGroup.add(tube);SYD.candidateTubes.push(tube);}
+  SYD.link=scientificTube([],SCI_GOLD,.018,.46,false,32);sydGroup.add(SYD.link);SYD.probe=scientificCrystal(0xffffff,.16);SYD.probe.name='syd:probe';SYD.probe.userData.placedBy='computed';/* it stands on the orbit point it probes */sydGroup.add(SYD.probe);
   SYD.discLayer=new THREE.Group();SYD.discLayer.name='Invariant discovery · seed orbits, level sets and the residual gap';sydGroup.add(SYD.discLayer);
   SYD.title=mkLabel('SYMMETRY DISCOVERY CHAMBER · finite-orbit invariant stress test','label const');SYD.title.position.set(0,3.48,0);sydGroup.add(SYD.title);
   SYD.sub=mkLabel('','label axis');SYD.sub.position.set(0,2.95,0);sydGroup.add(SYD.sub);
@@ -94202,7 +94216,7 @@ function nexusTrace(rebuild=true){
 function nexusFocus(lab,rebuild=true){
   if(!NEXUS_VIEW_CLUSTER.has(lab))return;state.nexusFocus=lab;nexusApplyStyles();if(rebuild&&typeof buildCtl==='function')buildCtl();
 }
-function nexusOpenLab(lab=state.nexusFocus||state.nexusSource){if(!NEXUS_VIEW_CLUSTER.has(lab))return;navPush();setS3View(lab);buildCtl();}
+function nexusOpenLab(lab=state.nexusFocus||state.nexusSource){if(!NEXUS_VIEW_CLUSTER.has(lab))return;navPush();hccGo({worldId:'s3',labId:lab});buildCtl();}
 function nexusApplyStyles(){
   if(!NEXUS.built)return;const kind=state.nexusKind||'all',focus=state.nexusFocus||'',path=new Set(state.nexusPath||[]),pathEdgeIds=new Set((NEXUS.pathEdges||[]).map(e=>e.id));
   const enabledNode=new Set();for(const e of NEXUS.edges)if(kind==='all'||e.type===kind){enabledNode.add(e.a);enabledNode.add(e.b);}
@@ -97718,7 +97732,7 @@ function phaseTorusPoint(a,b){
    (the three-distance theorem), coloured here short / middle / long. */
 const cycSectionRing=new THREE.Line(new THREE.BufferGeometry().setFromPoints(Array.from({length:97},(_,i)=>phaseTorusPoint(0,i/96).multiplyScalar(1.0))),
   new THREE.LineBasicMaterial({color:0xffffff,transparent:true,opacity:.55,depthWrite:false}));
-const cycSectionPts=new THREE.Points(new THREE.BufferGeometry(),new THREE.PointsMaterial({size:0.34,vertexColors:true,transparent:true,opacity:.95,depthWrite:false}));
+const cycSectionPts=new THREE.Points(hccEmptyColoured(),new THREE.PointsMaterial({size:0.34,vertexColors:true,transparent:true,opacity:.95,depthWrite:false}));
 cycSectionPts.frustumCulled=false; cycPhaseInst.add(cycSectionRing,cycSectionPts);
 const cycSectionLab=mkLabel('','label dim'); cycSectionLab.position.set(5.9,-2.2,0); cycPhaseInst.add(cycSectionLab);
 let CYC_SECTION=null;
@@ -99083,8 +99097,8 @@ const SAROS_SEC_R=3.1, SAROS_SEC_r=1.25, sarosSecPoint=(F,M)=>{ const A=2*Math.P
     const g=new THREE.BufferGeometry().setFromPoints(pos); sarosSectionGrp.add(new THREE.Mesh(g,new THREE.MeshBasicMaterial({color:0xff5a5a,transparent:true,opacity:.13,side:THREE.DoubleSide,depthWrite:false}))); }
   const l=mkLabel('SAROS IN A SECTION · (node F, apsis M′) at every new moon','label'); l.position.set(0,SAROS_SEC_r+2.2,0); sarosSectionGrp.add(l);
   const l2=mkLabel('','label dim'); l2.position.set(0,-SAROS_SEC_r-1.9,0); sarosSectionGrp.add(l2); sarosSectionGrp.userData.lab=l2; }
-const sarosSecPts=new THREE.Points(new THREE.BufferGeometry(),new THREE.PointsMaterial({size:0.12,vertexColors:true,transparent:true,opacity:.9,depthWrite:false})); sarosSecPts.frustumCulled=false; sarosSectionGrp.add(sarosSecPts);
-const sarosSecHot=new THREE.Points(new THREE.BufferGeometry(),new THREE.PointsMaterial({size:0.42,vertexColors:true,transparent:true,depthWrite:false})); sarosSecHot.frustumCulled=false; sarosSectionGrp.add(sarosSecHot);
+const sarosSecPts=new THREE.Points(hccEmptyColoured(),new THREE.PointsMaterial({size:0.12,vertexColors:true,transparent:true,opacity:.9,depthWrite:false})); sarosSecPts.frustumCulled=false; sarosSectionGrp.add(sarosSecPts);
+const sarosSecHot=new THREE.Points(hccEmptyColoured(),new THREE.PointsMaterial({size:0.42,vertexColors:true,transparent:true,depthWrite:false})); sarosSecHot.frustumCulled=false; sarosSectionGrp.add(sarosSecHot);
 let sarosSecKey=null;
 function updateSarosSection(){ const ep=Number.isFinite(state.epochDays)?state.epochDays:0, key=Math.floor(ep/CYC_SYNODIC); if(key===sarosSecKey) return; sarosSecKey=key;
   const S=cycSarosSection(900,ep), pos=[], col=[], hp=[], hc=[];
@@ -115775,7 +115789,7 @@ function buildCtlBody(){
         } else {
           state.hfMode='custom'; state.hfCustom=cores; state.hfP=1; state.hfQ=1;
         }
-        hfDragPos=[]; state.hfSepTarget=null; hfDirty=true; setS3View('hopfion'); buildCtl(); });
+        hfDragPos=[]; state.hfSepTarget=null; hfDirty=true; hccGo({worldId:'s3',labId:'hopfion'}); buildCtl(); });
     }
     if(V==='hopfion'){
       const HFMAX=6, cl=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
@@ -115826,7 +115840,7 @@ function buildCtlBody(){
         state.skType=cores.length===1&&cores[0].s<0?'anti':'neel';
         state.skHel=((hfPrecPhase%(2*Math.PI))+2*Math.PI)%(2*Math.PI);
         state.skDim='2d'; state.skRun=false; state.skAnim=null; state.skAnimRun=false; state.skMagnon=false;
-        skSetup(); setS3View('skyrmion'); buildCtl(); });
+        skSetup(); hccGo({worldId:'s3',labId:'skyrmion'}); buildCtl(); });
     }
     if(V==='quasi'){
       ctl.querySelectorAll('[data-qptype]').forEach(b=>b.onclick=()=>{ state.qpType=b.dataset.qptype; buildQuasi(); buildCtl(); });
@@ -115889,7 +115903,7 @@ function buildCtlBody(){
         const v=ctl.querySelector('#'+id+'V'); if(v)v.textContent=(+e.target.value).toFixed(2); }; el.onchange=()=>qmSetup(); } };
       qs2('qmK0',v=>state.qmK0=v); qs2('qmV0',v=>state.qmV0=v);
       ctl.querySelector('#qmToQuasi')&&(ctl.querySelector('#qmToQuasi').onclick=()=>{ navPush(); hccGo({worldId:'s3',labId:'quasi'}); });
-      ctl.querySelector('#qmToImp')&&(ctl.querySelector('#qmToImp').onclick=()=>{ navPush(); state.impDomain='qmbarrier'; setS3View('imp'); buildCtl(); });
+      ctl.querySelector('#qmToImp')&&(ctl.querySelector('#qmToImp').onclick=()=>{ navPush(); state.impDomain='qmbarrier'; hccGo({worldId:'s3',labId:'imp'}); buildCtl(); });
       ctl.querySelector('#qmToEig')&&(ctl.querySelector('#qmToEig').onclick=()=>{ navPush(); hccGo({worldId:'s3',labId:'eig'}); });
     }
     if(V==='qcd'){
@@ -115931,9 +115945,9 @@ function buildCtlBody(){
       ctl.querySelector('#scB')&&(ctl.querySelector('#scB').oninput=e=>{ state.scB=+e.target.value;
         const v=ctl.querySelector('#scBV'); if(v)v.textContent=state.scB.toFixed(3)+' T'; },
         ctl.querySelector('#scB').onchange=()=>{ scSetupLab(); });
-      ctl.querySelector('#scToTopo')&&(ctl.querySelector('#scToTopo').onclick=()=>{ navPush(); state.topoStation='map'; setS3View('topo'); buildCtl(); });
+      ctl.querySelector('#scToTopo')&&(ctl.querySelector('#scToTopo').onclick=()=>{ navPush(); state.topoStation='map'; hccGo({worldId:'s3',labId:'topo'}); buildCtl(); });
       ctl.querySelector('#scToQm')&&(ctl.querySelector('#scToQm').onclick=()=>{ navPush(); hccGo({worldId:'s3',labId:'qm'}); });
-      ctl.querySelector('#scToQuasi')&&(ctl.querySelector('#scToQuasi').onclick=()=>{ navPush(); state.qpType='phonon'; setS3View('quasi'); buildCtl(); });
+      ctl.querySelector('#scToQuasi')&&(ctl.querySelector('#scToQuasi').onclick=()=>{ navPush(); state.qpType='phonon'; hccGo({worldId:'s3',labId:'quasi'}); buildCtl(); });
     }
     if(V==='taub'){
       ctl.querySelectorAll('[data-tnst]').forEach(b=>b.onclick=()=>{ state.tnStation=b.dataset.tnst; tnSetupLab(); buildCtl(); });
@@ -116699,7 +116713,7 @@ function buildCtlBody(){
         const v=ctl.querySelector('#eotA0V'); if(v)v.textContent=state.eotA0+' nm'; });
       ctl.querySelector('#eotLam')&&(ctl.querySelector('#eotLam').oninput=e=>{ state.eotLam=+e.target.value;
         const v=ctl.querySelector('#eotLamV'); if(v)v.textContent=state.eotLam+' nm'; });
-      ctl.querySelector('#eotToQm')&&(ctl.querySelector('#eotToQm').onclick=()=>{ navPush(); state.qmMode='barrier'; setS3View('qm'); buildCtl(); });
+      ctl.querySelector('#eotToQm')&&(ctl.querySelector('#eotToQm').onclick=()=>{ navPush(); state.qmMode='barrier'; hccGo({worldId:'s3',labId:'qm'}); buildCtl(); });
       ctl.querySelector('#eotToQuasi')&&(ctl.querySelector('#eotToQuasi').onclick=()=>{ navPush(); hccGo({worldId:'s3',labId:'quasi'}); });
     }
     if(V==='wave'){
@@ -116950,7 +116964,7 @@ function buildCtlBody(){
         const delta=((Math.atan2(gi,gr)%(2*Math.PI))+2*Math.PI)%(2*Math.PI);   // rotate Γ e^{−iθ} onto the +real axis
         impMatchA={phase:1,t:0,delta,g0:[gr,gi],zReal:(1+m)/(1-m),zt:Math.sqrt((1+m)/(1-m))}; buildCtl(); });
       ctl.querySelector('#impToRet')&&(ctl.querySelector('#impToRet').onclick=()=>{ navPush(); hccGo({worldId:'s3',labId:'ret'}); });
-      ctl.querySelector('#impToQm')&&(ctl.querySelector('#impToQm').onclick=()=>{ navPush(); state.qmMode='barrier'; setS3View('qm'); buildCtl(); });
+      ctl.querySelector('#impToQm')&&(ctl.querySelector('#impToQm').onclick=()=>{ navPush(); state.qmMode='barrier'; hccGo({worldId:'s3',labId:'qm'}); buildCtl(); });
       ctl.querySelector('#impToWave')&&(ctl.querySelector('#impToWave').onclick=()=>{ navPush(); hccGo({worldId:'s3',labId:'wave'}); });
       ctl.querySelector('#impToEot')&&(ctl.querySelector('#impToEot').onclick=()=>{ navPush(); hccGo({worldId:'s3',labId:'eot'}); });
     }
@@ -116961,7 +116975,7 @@ function buildCtlBody(){
         const v=ctl.querySelector('#'+id+'V'); if(v)v.textContent=fx(+e.target.value); }; };
       pv('poleGi',v=>state.poleGi=v,v=>v.toFixed(3)); pv('poleGc',v=>state.poleGc=v,v=>v.toFixed(3)); pv('poleDelta',v=>state.poleDelta=v,v=>v.toFixed(3));
       ctl.querySelector('#poleToImp')&&(ctl.querySelector('#poleToImp').onclick=()=>{ navPush(); hccGo({worldId:'s3',labId:'imp'}); });
-      ctl.querySelector('#poleToRet')&&(ctl.querySelector('#poleToRet').onclick=()=>{ navPush(); state.retStation='driven'; setS3View('ret'); buildCtl(); });
+      ctl.querySelector('#poleToRet')&&(ctl.querySelector('#poleToRet').onclick=()=>{ navPush(); state.retStation='driven'; hccGo({worldId:'s3',labId:'ret'}); buildCtl(); });
       ctl.querySelector('#poleToEot')&&(ctl.querySelector('#poleToEot').onclick=()=>{ navPush(); hccGo({worldId:'s3',labId:'eot'}); });
       ctl.querySelector('#poleToGw')&&(ctl.querySelector('#poleToGw').onclick=()=>{ navPush(); hccGo({worldId:'s3',labId:'gw'}); });
     }
@@ -116975,7 +116989,7 @@ function buildCtlBody(){
         const v=ctl.querySelector('#dispSpeedV'); if(v)v.textContent='×'+state.dispSpeed.toFixed(1); });
       ctl.querySelector('#dispToQuasi')&&(ctl.querySelector('#dispToQuasi').onclick=()=>{ navPush(); hccGo({worldId:'s3',labId:'quasi'}); });
       ctl.querySelector('#dispToKdv')&&(ctl.querySelector('#dispToKdv').onclick=()=>{ navPush(); hccGo({worldId:'s3',labId:'kdv'}); });
-      ctl.querySelector('#dispToQm')&&(ctl.querySelector('#dispToQm').onclick=()=>{ navPush(); state.qmMode='free'; setS3View('qm'); buildCtl(); });
+      ctl.querySelector('#dispToQm')&&(ctl.querySelector('#dispToQm').onclick=()=>{ navPush(); state.qmMode='free'; hccGo({worldId:'s3',labId:'qm'}); buildCtl(); });
       ctl.querySelector('#dispToPole')&&(ctl.querySelector('#dispToPole').onclick=()=>{ navPush(); hccGo({worldId:'s3',labId:'pole'}); });
     }
     if(V==='berry'){
@@ -117122,7 +117136,7 @@ function buildCtlBody(){
         const v=ctl.querySelector('#cuspBV'); if(v)v.textContent=state.cuspB.toFixed(3); });
       ctl.querySelector('#cuspSweep')&&(ctl.querySelector('#cuspSweep').onclick=()=>{ state.cuspSweep=state.cuspSweep===false; buildCtl(); });
       ctl.querySelector('#cuspToLens')&&(ctl.querySelector('#cuspToLens').onclick=()=>{ navPush(); hccGo({worldId:'s3',labId:'lens'}); });
-      ctl.querySelector('#cuspToDisp')&&(ctl.querySelector('#cuspToDisp').onclick=()=>{ navPush(); state.dispSys='water'; setS3View('disp'); buildCtl(); });
+      ctl.querySelector('#cuspToDisp')&&(ctl.querySelector('#cuspToDisp').onclick=()=>{ navPush(); state.dispSys='water'; hccGo({worldId:'s3',labId:'disp'}); buildCtl(); });
       ctl.querySelector('#cuspToChaos')&&(ctl.querySelector('#cuspToChaos').onclick=()=>{ navPush(); hccGo({worldId:'s3',labId:'chaos'}); });
     }
     if(V==='poin'){
@@ -117369,8 +117383,8 @@ function buildCtlBody(){
       ctl.querySelector('#cmbToSh')&&(ctl.querySelector('#cmbToSh').onclick=()=>{ navPush(); hccGo({worldId:'s3',labId:'sh'}); });
       ctl.querySelector('#cmbToOis')&&(ctl.querySelector('#cmbToOis').onclick=()=>{ navPush(); state.oisSt='sky'; hccGo({worldId:'s3',labId:'ois'}); });
       ctl.querySelector('#cmbToEig')&&(ctl.querySelector('#cmbToEig').onclick=()=>{ navPush(); hccGo({worldId:'s3',labId:'eig'}); });
-      ctl.querySelector('#cmbToMimg')&&(ctl.querySelector('#cmbToMimg').onclick=()=>{navPush();setS3View('mimg');buildCtl();});
-      ctl.querySelector('#cmbToBb')&&(ctl.querySelector('#cmbToBb').onclick=()=>{navPush();setS3View('bb');buildCtl();});
+      ctl.querySelector('#cmbToMimg')&&(ctl.querySelector('#cmbToMimg').onclick=()=>{navPush();hccGo({worldId:'s3',labId:'mimg'});buildCtl();});
+      ctl.querySelector('#cmbToBb')&&(ctl.querySelector('#cmbToBb').onclick=()=>{navPush();hccGo({worldId:'s3',labId:'bb'});buildCtl();});
     }
     if(V==='mimg'){
       const P={near:0.3,far:0.7,deep:0.95,anti:0.999};
@@ -117415,9 +117429,9 @@ function buildCtlBody(){
       ctl.querySelector('#snToNuc')&&(ctl.querySelector('#snToNuc').onclick=()=>{ navPush(); hccGo({worldId:'s3',labId:'nuc'}); });
       ctl.querySelector('#snToNs')&&(ctl.querySelector('#snToNs').onclick=()=>{ navPush(); hccGo({worldId:'s3',labId:'ns'}); });
       ctl.querySelector('#snToBb')&&(ctl.querySelector('#snToBb').onclick=()=>{ navPush(); hccGo({worldId:'s3',labId:'bb'}); });
-      ctl.querySelector('#snToRd')&&(ctl.querySelector('#snToRd').onclick=()=>{navPush();setS3View('rd');buildCtl();});
-      ctl.querySelector('#snToGw')&&(ctl.querySelector('#snToGw').onclick=()=>{navPush();setS3View('gw');buildCtl();});
-      ctl.querySelector('#snToRmhd')&&(ctl.querySelector('#snToRmhd').onclick=()=>{state.rmhdStation='shock';navPush();setS3View('rmhd');buildCtl();});
+      ctl.querySelector('#snToRd')&&(ctl.querySelector('#snToRd').onclick=()=>{navPush();hccGo({worldId:'s3',labId:'rd'});buildCtl();});
+      ctl.querySelector('#snToGw')&&(ctl.querySelector('#snToGw').onclick=()=>{navPush();hccGo({worldId:'s3',labId:'gw'});buildCtl();});
+      ctl.querySelector('#snToRmhd')&&(ctl.querySelector('#snToRmhd').onclick=()=>{state.rmhdStation='shock';navPush();hccGo({worldId:'s3',labId:'rmhd'});buildCtl();});
     }
     if(V==='psr'){
       ctl.querySelectorAll('[data-psrp]').forEach(b=>b.onclick=()=>{ const p=PSR_PRESETS[b.dataset.psrp]; state.psrP=p.P; state.psrPd=p.Pd; buildCtl(); });
@@ -117430,7 +117444,7 @@ function buildCtlBody(){
       ctl.querySelector('#psrToNs')&&(ctl.querySelector('#psrToNs').onclick=()=>{ navPush(); hccGo({worldId:'s3',labId:'ns'}); });
       ctl.querySelector('#psrToDip')&&(ctl.querySelector('#psrToDip').onclick=()=>{ navPush(); hccGo({worldId:'s3',labId:'dip'}); });
       ctl.querySelector('#psrToCp')&&(ctl.querySelector('#psrToCp').onclick=()=>{ navPush(); hccGo({worldId:'s3',labId:'cp'}); });
-      ctl.querySelector('#psrToRmhd')&&(ctl.querySelector('#psrToRmhd').onclick=()=>{state.rmhdStation='reconnection';navPush();setS3View('rmhd');buildCtl();});
+      ctl.querySelector('#psrToRmhd')&&(ctl.querySelector('#psrToRmhd').onclick=()=>{state.rmhdStation='reconnection';navPush();hccGo({worldId:'s3',labId:'rmhd'});buildCtl();});
     }
     if(V==='qso'){
       ctl.querySelectorAll('[data-qsop]').forEach(b=>b.onclick=()=>{ const [m,l,t]=b.dataset.qsop.split(',').map(Number); state.qsoM=m; state.qsoLam=l; state.qsoTheta=t; buildCtl(); });
@@ -117440,7 +117454,7 @@ function buildCtlBody(){
       ctl.querySelector('#qsoToBhr')&&(ctl.querySelector('#qsoToBhr').onclick=()=>{ navPush(); hccGo({worldId:'s3',labId:'bhr'}); });
       ctl.querySelector('#qsoToBht')&&(ctl.querySelector('#qsoToBht').onclick=()=>{ navPush(); hccGo({worldId:'s3',labId:'bht'}); });
       ctl.querySelector('#qsoToLens')&&(ctl.querySelector('#qsoToLens').onclick=()=>{ navPush(); hccGo({worldId:'s3',labId:'lens'}); });
-      ctl.querySelector('#qsoToRmhd')&&(ctl.querySelector('#qsoToRmhd').onclick=()=>{state.rmhdStation='reconnection';navPush();setS3View('rmhd');buildCtl();});
+      ctl.querySelector('#qsoToRmhd')&&(ctl.querySelector('#qsoToRmhd').onclick=()=>{state.rmhdStation='reconnection';navPush();hccGo({worldId:'s3',labId:'rmhd'});buildCtl();});
     }
     if(V==='rmhd'){
       ctl.querySelectorAll('[data-rmhd-station]').forEach(b=>b.onclick=()=>{state.rmhdStation=b.dataset.rmhdStation;rmhdSetup();buildCtl();});
@@ -117450,7 +117464,7 @@ function buildCtlBody(){
       rc('rmhdShear','rmhdShear',v=>v.toFixed(2));rc('rmhdLogS','rmhdLogS',v=>v.toFixed(2));rc('rmhdMach','rmhdMach',v=>v.toFixed(2));
       rc('rmhdAtwood','rmhdAtwood');rc('rmhdK','rmhdK');rc('rmhdTension','rmhdTension');
       ctl.querySelector('#rmhdExport')&&(ctl.querySelector('#rmhdExport').onclick=()=>downloadFile('radiation_mhd_helicity_experiment.json','application/json',JSON.stringify(rmhdExportData(),null,2)));
-      const go=(id,v,prep)=>{const b=ctl.querySelector('#'+id);if(b)b.onclick=()=>{if(prep)prep();navPush();setS3View(v);buildCtl();};};
+      const go=(id,v,prep)=>{const b=ctl.querySelector('#'+id);if(b)b.onclick=()=>{if(prep)prep();navPush();hccGo({worldId:'s3',labId:v});buildCtl();};};
       go('rmhdToSn','sn',()=>{state.snDomain='remnant';});go('rmhdToPsr','psr');go('rmhdToQso','qso');go('rmhdToHopfion','hopfion');
     }
     if(V==='wd'){
@@ -117458,7 +117472,7 @@ function buildCtlBody(){
       ctl.querySelector('#wdMass')&&(ctl.querySelector('#wdMass').oninput=e=>{state.wdMass=+e.target.value;const v=ctl.querySelector('#wdMassV');if(v)v.textContent=state.wdMass.toFixed(3);});
       ctl.querySelector('#wdMuE')&&(ctl.querySelector('#wdMuE').oninput=e=>{state.wdMuE=+e.target.value;state.wdMass=Math.min(state.wdMass,wdMch(state.wdMuE)-.004);const v=ctl.querySelector('#wdMuEV');if(v)v.textContent=state.wdMuE.toFixed(3);});
       ctl.querySelector('#wdMuE')&&(ctl.querySelector('#wdMuE').onchange=()=>{wdSetup();buildCtl();});
-      const go=(id,v,prep)=>{const b=ctl.querySelector('#'+id);if(b)b.onclick=()=>{if(prep)prep();navPush();setS3View(v);buildCtl();};};
+      const go=(id,v,prep)=>{const b=ctl.querySelector('#'+id);if(b)b.onclick=()=>{if(prep)prep();navPush();hccGo({worldId:'s3',labId:v});buildCtl();};};
       go('wdToSn','sn',()=>snApplyPreset('ia'));go('wdToNs','ns');go('wdToNuc','nuc');go('wdToBb','bb');
     }
     if(V==='ret'){
@@ -117471,7 +117485,7 @@ function buildCtlBody(){
       rr('retKappa',v=>state.retKappa=v); rr('retDriveW',v=>state.retDriveW=v); rr('retGamma',v=>state.retGamma=v);
       rr('retCoup',v=>state.retCoup=v,v=>v.toFixed(3)); rr('retQ',v=>state.retQ=v|0,v=>String(v|0));
       ctl.querySelector('#retToEot')&&(ctl.querySelector('#retToEot').onclick=()=>{ navPush(); hccGo({worldId:'s3',labId:'eot'}); });
-      ctl.querySelector('#retToSpin')&&(ctl.querySelector('#retToSpin').onclick=()=>{ navPush(); state.spinStation='rabi'; setS3View('spin'); buildCtl(); });
+      ctl.querySelector('#retToSpin')&&(ctl.querySelector('#retToSpin').onclick=()=>{ navPush(); state.spinStation='rabi'; hccGo({worldId:'s3',labId:'spin'}); buildCtl(); });
       ctl.querySelector('#retToImp')&&(ctl.querySelector('#retToImp').onclick=()=>{ navPush(); hccGo({worldId:'s3',labId:'imp'}); });
     }
     if(V==='kdv'){
@@ -117508,7 +117522,7 @@ function buildCtlBody(){
       ctl.querySelector('#kinReset')&&(ctl.querySelector('#kinReset').onclick=()=>{ kinSetup(); });
       ctl.querySelector('#kinSpeed')&&(ctl.querySelector('#kinSpeed').oninput=e=>{ state.kinSpeed=+e.target.value;
         const v=ctl.querySelector('#kinSpeedV'); if(v)v.textContent='×'+state.kinSpeed.toFixed(1); });
-      ctl.querySelector('#kinToQuasi')&&(ctl.querySelector('#kinToQuasi').onclick=()=>{ navPush(); state.qpType='phonon'; setS3View('quasi'); buildCtl(); });
+      ctl.querySelector('#kinToQuasi')&&(ctl.querySelector('#kinToQuasi').onclick=()=>{ navPush(); state.qpType='phonon'; hccGo({worldId:'s3',labId:'quasi'}); buildCtl(); });
       ctl.querySelector('#kinToChaos')&&(ctl.querySelector('#kinToChaos').onclick=()=>{ navPush(); hccGo({worldId:'s3',labId:'chaos'}); });
     }
     if(V==='chaos'){
@@ -117521,7 +117535,7 @@ function buildCtlBody(){
         CHAOS_SYS[state.chaosSys||'lorenz'].params[k]=+e.target.value;
         const v=ctl.querySelector(`[data-chaospv="${k}"]`); if(v)v.textContent=(+e.target.value).toFixed(3);
         chaosSetup(); });   // reseed on a parameter change (a new attractor)
-      ctl.querySelector('#chaosToGrav')&&(ctl.querySelector('#chaosToGrav').onclick=()=>{ navPush(); state.gravPreset='burrau'; setS3View('grav'); buildCtl(); });
+      ctl.querySelector('#chaosToGrav')&&(ctl.querySelector('#chaosToGrav').onclick=()=>{ navPush(); state.gravPreset='burrau'; hccGo({worldId:'s3',labId:'grav'}); buildCtl(); });
       ctl.querySelector('#chaosToBif')&&(ctl.querySelector('#chaosToBif').onclick=()=>{ navPush(); setMode('fractal'); if(typeof setFractalType==='function') setFractalType('bifurc3d',false); buildCtl(); });
     }
     if(V==='rel'){
@@ -117532,7 +117546,7 @@ function buildCtlBody(){
       rs('relSpeed',v=>state.relSpeed=v,v=>'×'+v.toFixed(1));
       { const ra=ctl.querySelector('#relAuto'); if(ra) ra.onclick=()=>{ state.relAuto=!(state.relAuto===true); ra.classList.toggle('on',state.relAuto); }; }
       rs('relU',v=>state.relU=v,v=>v.toFixed(2)+'c'); rs('relV',v=>state.relV=v,v=>v.toFixed(2)+'c');
-      ctl.querySelector('#relToGw')&&(ctl.querySelector('#relToGw').onclick=()=>{ navPush(); state.gravPreset='gw'; setS3View('grav'); buildCtl(); });
+      ctl.querySelector('#relToGw')&&(ctl.querySelector('#relToGw').onclick=()=>{ navPush(); state.gravPreset='gw'; hccGo({worldId:'s3',labId:'grav'}); buildCtl(); });
       ctl.querySelector('#relToObs')&&(ctl.querySelector('#relToObs').onclick=()=>{ navPush(); setMode('obs'); });
     }
     if(V==='spin'){
@@ -118400,7 +118414,7 @@ function buildCtlBody(){
       camera.position.copy(controls.target).add(new THREE.Vector3(1.6,1.2,2.4));
       syncCameraClipping(true); buildCtl(); });
     ctl.querySelector('#mjToBud')?.addEventListener('click',()=>{ navPush(); setFractalType('buddhabrot',false); buildCtl(); });
-    ctl.querySelector('#mjToHopf')?.addEventListener('click',()=>{ navPush(); setMode('s3'); setS3View('hopf'); openPanel('ctl'); buildCtl(); });
+    ctl.querySelector('#mjToHopf')?.addEventListener('click',()=>{ navPush(); hccGo({worldId:'s3',labId:'hopf'}); openPanel('ctl'); buildCtl(); });
     ctl.querySelector('#mjCenterToJulia')?.addEventListener('click',()=>{ setJuliaParameterFromViewCenter(); if(fractalType==='mjfiber3d') buildMandelJuliaFiber3D(true); buildCtl(); });
     ctl.querySelector('#mjRebuild3D')?.addEventListener('click',()=>{ buildMandelJuliaFiber3D(true); mjFiberGroup.visible=true; });
     ctl.querySelectorAll('[data-mjq]').forEach(b=>b.addEventListener('click',()=>{ mjFiberQuality=b.dataset.mjq; buildMandelJuliaFiber3D(true); mjFiberGroup.visible=true; buildCtl(); }));
@@ -120088,7 +120102,7 @@ function renderNextActions(key){
 
 /* ---- Help / Shortcuts overlay (?) ---- */
 const HELP_SHORTCUTS=[
-  ['/ or Ctrl/⌘+K',`Search — all ${Object.keys(S3_VIEW_NAMES).length} laboratories by name, id, or what they compute ("isco", "point node", «тепло»); inside a laboratory, its related ones come first`],
+  ['/ or Ctrl/⌘+K',`Search — all ${Object.keys(S3_VIEW_NAMES).length+LAB_ELSEWHERE.length} laboratories by name, id, or what they compute ("isco", "point node", «тепло»); inside a laboratory, its related ones come first`],
   ['N','Navigator'],
   ['O','Objects'],
   ['Q','QA Atlas'],
@@ -122476,6 +122490,9 @@ function oscSetup(){
   const hands=[];
   for(let i=0;i<OSC_MAXGEN;i++){
     const g=new THREE.Group(); g.position.set(RX,RY,0);
+    /* the hands of one dial share its pivot by construction — declared, so the placement census reads the co-location
+       as the layout it is (booting straight into this laboratory found eight anonymous groups on one point, v4.401) */
+    g.name='osc:hand:'+i; g.userData.placedBy='computed';
     const bar=new THREE.Mesh(new THREE.CylinderGeometry(.022,.022,1.2,6),
       new THREE.MeshBasicMaterial({color:0x7fd8ff}));
     bar.position.set(0,0.6,0); g.add(bar);
@@ -130704,7 +130721,9 @@ try{ hccGpuInit().then(()=>{ try{ buildCtl(); }catch(e){} }).catch(()=>{}); }cat
    exists. When nothing is degraded there is no node and nothing to fill, which the
    check below says out loud rather than passing quietly. */
 try{ const n=document.getElementById('hccDegradedLabs');
-     if(n) n.textContent=`all ${Object.keys(S3_VIEW_NAMES).length} laboratories`; }catch(e){}
+     /* v4.401: the atlas's laboratories are the router's registry — the S³ laboratories and the one in the Cycles world,
+        the same number the catalogue and its bar count */
+     if(n) n.textContent=`all ${LAB_REGISTRY.length} laboratories`; }catch(e){}
 /* ══ TWO WHEELS THAT RETURN THE SAME NUMBER ARE ONE WHEEL WEARING TWO NAMES ═════
    Declaring the wheels as an instrument made them askable, and the first question
    answered found this: the Chinese sexagenary phase and the Tibetan rabjung phase
@@ -131082,7 +131101,9 @@ selfTestLate(ok=>{
 });
 
 selfTestLate(ok=>{
-  const reg=Object.keys(S3_VIEW_NAMES).length;
+  /* v4.401: the registry is LAB_REGISTRY — every laboratory of the atlas, the S³ ones and the one in the Cycles world —
+     which is what the catalogue, its ⊞ and «Browse all N laboratories» now count */
+  const reg=LAB_REGISTRY.length;
   const n=document.getElementById('hccDegradedLabs');
   /* everything the reader can actually read, plus the help table, which is text the
      reader reaches with one keystroke and which had the same literal in it */

@@ -87,6 +87,20 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
     && !/if\(\$\('triProjection'\)\)/.test(SRC) && /const tp=ctl\.querySelector\('#triProjection'\); if\(tp\) tp\.onchange=/.test(SRC)
     && /else if\(k==='sec'\)\{ labBrowserReveal\(b\.dataset\.sec\); \}/.test(SRC) && /data-crumb="sec" data-sec=/.test(SRC));
 
+  /* 5b · every lab-to-lab door through the router, every vertex-coloured object with its colours from the start */
+  { const lines = SRC.split('\n');
+    const stale = lines.filter(l => /querySelector\('#[a-z]{2,8}To[A-Z][A-Za-z0-9]*'\)/.test(l) && /setS3View\(/.test(l) && /onclick|addEventListener\('click'/.test(l));
+    const helpers = lines.filter(l => /const go=\(id,v(iew)?(,prep)?\)=>\{\s*const b=ctl\.querySelector\('#'\+id\);\s*if\(b\)\s*b\.onclick=\(\)=>\{[^}]*setS3View\(/.test(l));
+    const dataDoors = [/data-topojump[\s\S]{0,200}?setS3View/, /dataset\.gatego\); buildCtl/, /if\(t\.dataset\.passgo\)\{ navPush\(\); setS3View/].filter(r => r.test(SRC));
+    const empties = (SRC.match(/new THREE\.(Points|LineSegments)\(hccEmptyColoured\(\)/g) || []).length;
+    ok('every door from one laboratory to another goes through the router — the id\'d bridges (51 of them still moved only the scene in v4.400), their shared helpers, the data-driven chips, the invariance jump and the Nexus door — and every vertex-coloured object starts with its colours, so none renders black or fails the boot check of a laboratory opened by its link',
+      stale.length === 0 && helpers.length === 0 && dataDoors.length === 0 && /navPush\(\); hccGo\(\{worldId:'s3',labId:v\}\);   \/\* through the router/.test(SRC)
+      && /navPush\(\);hccGo\(\{worldId:'s3',labId:lab\}\);buildCtl\(\);\}/.test(SRC) && /function hccEmptyColoured\(\)\{/.test(SRC) && empties >= 7
+      && (SRC.match(/fill\(0\.5\),3\)\);   \/\* painted on the first update/g) || []).length === 2 && /sph\.geometry\.setAttribute\('color'/.test(SRC),
+      `${stale.length} bridge lines and ${helpers.length} helpers still on setS3View · ${dataDoors.length} data doors · ${empties} empty geometries born coloured`); }
+  ok('and «all N laboratories» counts the router\'s registry — the S³ laboratories and the one in the Cycles world — in the degraded notice and in the check that reads the screen, the same number the catalogue, ⊞ and «i / N» show',
+    /if\(n\) n\.textContent=`all \$\{LAB_REGISTRY\.length\} laboratories`;/.test(SRC) && /const reg=LAB_REGISTRY\.length;/.test(SRC));
+
   /* 6 · the panel */
   ok('the panel: sections open and shut and are remembered per browser; the section of the laboratory in view opens when it changes; a rebuild keeps the reader\'s scroll and the place is scrolled to only when it moved; the title rides in the sticky rail; open on a desk with a short column it stands BESIDE Controls; and on a touch screen opening it does not raise the keyboard',
     /localStorage\.getItem\('hcc\.labCat\.open\.v1'\)/.test(SRC) && /if\(LAB_CAT\.lastLab!==cur\)\{ LAB_CAT\.lastLab=cur; LAB_CAT\.auto=curSec;/.test(SRC)
@@ -100,9 +114,10 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
 
   /* 7 · the ladder */
   { const scrub = SRC.slice(SRC.indexOf('function sxScrubTo(N,final){'), SRC.indexOf('/* ── the vertical ladder of a phone ── */'));
-    const fly = SRC.slice(SRC.indexOf('function sxFlyTo(L,lm){'), SRC.indexOf('/* ── THE PHASE TRANSITION OF A LEVEL (v4.380)'));
+    const fly = SRC.slice(SRC.indexOf('function sxFlyTo(L,lm,cross){'), SRC.indexOf('/* ── THE PHASE TRANSITION OF A LEVEL (v4.380)'));
     const obsFirst = scrub.indexOf("if(state.mode==='obs'&&!DSC.on){") > 0 && scrub.indexOf("if(state.mode==='obs'&&!DSC.on){") < scrub.indexOf('sxFlyTo(L)');
-    const flyFirst = fly.indexOf("if(state.mode==='obs'&&!DSC.on){") > 0 && fly.indexOf("if(state.mode==='obs'&&!DSC.on){") < fly.indexOf('descentGoTo(n)');
+    const flyFirst = fly.indexOf("if(state.mode==='obs'&&!DSC.on&&!cross){") > 0 && fly.indexOf("if(state.mode==='obs'&&!DSC.on&&!cross){") < fly.indexOf('descentGoTo(n)')
+      && /if\(E\.side==='below'\)\{ sxFlyTo\(levelR\(Math\.min\(E\.want,276\)\),null,true\); return; \}/.test(SRC);
     ok('the ladder: the golden spiral opens the slim strip at once and a rung card unfolds the sheet; in the Observable world the strip steers the Observable world — before any path that switches worlds or goes down the descent — clamped to the band between its two seams, with the band drawn on the track and the world beyond offered on a button',
       /sxLadderPaint\(\); sxFold\(true\); \} \};/.test(SRC) && /if\(L\.classList\.contains\('compact'\)\) sxFold\(false\);/.test(SRC)
       && obsFirst && flyFirst && /SCALE_SEAMS\.obsSolarInGly\*1\.12/.test(SRC) && /up\?SCALE_SEAMS\.obsS3OutGly\*0\.9:Infinity/.test(SRC)

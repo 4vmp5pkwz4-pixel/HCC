@@ -1019,7 +1019,7 @@ check(html.includes('none of the six physical certificates is derived here')
    above the registry that knows it, and it drifted quietly through twelve releases —
    nothing could have caught it, because a literal in a string is invisible to every
    runtime check that reads the registry. So the literal is what is forbidden: the
-   sentence names a slot, the boot tail fills it from S3_VIEW_NAMES, and a post-boot
+   sentence names a slot, the boot tail fills it from LAB_REGISTRY (v4.401: every laboratory of the atlas), and a post-boot
    self-test asserts the two agree. */
 { /* Scoped to the banner's own markup, because a source rule cannot tell a live string
      from a comment recording the history of this very defect — index.html is full of the
@@ -1035,7 +1035,7 @@ check(html.includes('none of the six physical certificates is derived here')
   check(!!m && !literal && /id="hccDegradedLabs"/.test(markup),
     'the degraded notice names a slot for its laboratory count instead of writing one into the markup'
     + (!m ? ' · MISSING: the banner construction was not found' : '')
-    + (literal ? ` · FOUND the literal "${literal[0]}" — fill it from S3_VIEW_NAMES in the boot tail instead` : ''));
+    + (literal ? ` · FOUND the literal "${literal[0]}" — fill it from LAB_REGISTRY in the boot tail instead` : ''));
 }
 
 /* ── A CHECK THAT CANNOT RUN MUST SAY SO ─────────────────────────────────────
