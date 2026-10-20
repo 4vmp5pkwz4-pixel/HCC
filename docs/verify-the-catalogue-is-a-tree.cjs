@@ -19,7 +19,8 @@
  *   4. one list, not two: no "start here" block, no synthesised English row, the bar walking the tree's leaves
  *   5. the walk: no hijacked first step, every lab-to-lab bridge through the router, the Trisphere's Controls building
  *   6. the panel: open sections remembered, the scroll kept across rebuilds, the title in the sticky rail, the catalogue
- *      beside Controls where the column above is too short, no keyboard thrown up on a touch screen
+ *      beside Controls where the column above is too short, no keyboard thrown up on a touch screen, and a search
+ *      that really hides what it does not match (ё = е)
  *   7. the ladder: the spiral opens the strip; in the Observable world the strip steers the Observable world, clamped
  *      to the band it shows without crossing a seam, and the world beyond is offered on a button, never forced
  */
@@ -93,6 +94,9 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
     && /rail\.insertBefore\(labRailTitle\(cur,L,LAB_BROWSER_TOTAL\),rail\.firstChild\)/.test(SRC)
     && /body\.lab-beside #labPanel:not\(\[data-collapsed="1"\]\)\{left:calc\(var\(--ctl-right,364px\) \+ 10px\)/.test(SRC) && /document\.body\.classList\.toggle\('lab-beside',beside\)/.test(SRC)
     && /if\(q&&!touch&&!\(opts&&opts\.focus===false\)\)/.test(SRC));
+  ok('and the search really filters: a row hidden by the query is hidden by ATTRIBUTE, because a row is display:flex !important and an inline display:none cannot beat it (measured: one match of ten, all ten shown); ё and е are one letter; the per-section count says how many the query left; a query that finds nothing says so',
+    /b\.hidden=!hit; b\.style\.display=hit\?'':'none';/.test(SRC) && /#labPanel \.labList > \.labRow\[hidden\]\{display:none!important\}/.test(SRC)
+    && /const yo=x=>x\.replace\(\/ё\/g,'е'\);/.test(SRC) && /if\(c\) c\.textContent=tokens\.length\?`\$\{n\} \/ \$\{all\}`:String\(all\);/.test(SRC) && /const none=el\.querySelector\('\.labNone'\); if\(none\) none\.hidden=!\(tokens\.length&&!shown\);/.test(SRC));
 
   /* 7 · the ladder */
   { const scrub = SRC.slice(SRC.indexOf('function sxScrubTo(N,final){'), SRC.indexOf('/* ── the vertical ladder of a phone ── */'));

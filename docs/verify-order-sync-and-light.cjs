@@ -25,10 +25,13 @@ const slice = (a, b) => { const i = SRC.indexOf(a), j = SRC.indexOf(b, i); if (i
 { const ch = SRC.match(/const LAB_CHAPTERS=Object\.freeze\(\{\s*navier:\[([^\]]*)\],\s*s3light:\[([^\]]*)\],/), ids = s => s.split(',').map(x => x.trim().replace(/'/g, ''));
   const nav = ch ? ids(ch[1]) : [], light = ch ? ids(ch[2]) : [];
   const known = id => new RegExp(`\\{id:'${id}', category:`).test(SRC) || new RegExp(`\\b${id}:'`).test(SRC);
-  ok('the catalogue opens with two chapters — the fluid of S³ (Navier–Stokes first) and its light and geometry — before the domains; every member is a real laboratory; the first swipe lands on the fluid',
+  /* v4.401: the catalogue is one tree (labCatalogueTree), whose chapters keep this reading order, and the fluid is its
+     first leaf — so the first swipe needs no hijack to land on it; the hijack overrode where the reader stood */
+  ok('the catalogue opens with two chapters — the fluid of S³ (Navier–Stokes first) and its light and geometry — before the domains; every member is a real laboratory; the fluid is the first leaf the bar walks',
     nav[0] === 'nsflow' && nav.length >= 10 && light.includes('nbg') && [...nav, ...light].every(known)
     && /const LAB_DOMAIN_ORDER=\['navier','s3light',('frontier',)?'invariance',/.test(SRC) && /for\(const \[k,ids\] of Object\.entries\(LAB_CHAPTERS\)\) if\(ids\.includes\(v\)\) return k;/.test(SRC)
-    && /byDomain\.get\(k\)\.sort\(\(a,b\)=>ids\.indexOf/.test(SRC) && /labBarGo\('nsflow'\); return;/.test(SRC), `I: ${nav.join(', ')} · II: ${light.join(', ')}`); }
+    && /return reading \? ids\.slice\(\)\.sort\(\(a,b\)=>reading\.indexOf\(a\)-reading\.indexOf\(b\)\)/.test(SRC) && /const LAB_START='nsflow';/.test(SRC)
+    && /function labBarOrder\(\)\{ return labCatalogueOrder\(labLangNow\(\)\); \}/.test(SRC), `I: ${nav.join(', ')} · II: ${light.join(', ')}`); }
 
 /* 2 */
 { const code = slice('const MV_SYNC_SPEC={', 'function mvSyncPanelHTML(){');

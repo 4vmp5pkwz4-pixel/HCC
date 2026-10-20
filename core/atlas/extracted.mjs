@@ -5,11 +5,11 @@
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
    declarations: 2308   ·   exported names: 2444
-   extracted physics, sha256 8f59b46d0bbc3ce03b17c6f393397bea8d3deb646bc55baeb8a6e5d782f8cac2 */
+   extracted physics, sha256 e8c16f255e118315e334282ac05ffc17d00a57af84f6b7528cf6d67b96eba057 */
 
-const HCC_VERSION='4.400.0';
+const HCC_VERSION='4.401.0';
 
-const HCC_BUILD='spectrum-2026.10.20.120';
+const HCC_BUILD='catalogue-2026.10.20.121';
 
 const HCC_S3C=Object.freeze({
   c:299792458.0, G:6.67430e-11, kB:1.380649e-23, hbar:1.054571817e-34,
@@ -7773,7 +7773,11 @@ const DISCOVERIES=Object.freeze([
   {id:'oisDesigns', kind:'found', domain:'sphere', v:'4.400.0', labs:['ois','hopf','qcrys'], verifier:'docs/verify-the-information-spectrum.cjs',
    en:'How many certificates a finite orientation group shares with SO(3)', ru:'Сколько сертификатов конечная группа ориентаций разделяет с SO(3)', de:'Wie viele Zertifikate eine endliche Gruppe mit SO(3) teilt',
    claim:'The n-th certificate is a polynomial of degree 2n in the rotation, so a finite rotation group averages it exactly as SO(3) does whenever no spin up to 2n carries an invariant of the group: the tetrahedral group (first invariant spin j = 3) and the octahedral (j = 4) agree with SO(3) only at n = 1, the icosahedral (j = 6) through n = 2. For diag(1, −1, 0) the icosahedral orbit thus has SO(3)’s quartic certificate 2/15 exactly, and departs at the sextic — 21/256 against SO(3)’s 0 — measured with an Euler product rule shown to integrate every term exactly.',
-   numbers:{so3Quartic:2/15, icoSextic:21/256, jT:3, jO:4, jI:6}}]);
+   numbers:{so3Quartic:2/15, icoSextic:21/256, jT:3, jO:4, jI:6}},
+  {id:'catalogueTree401', kind:'revises', domain:'self', v:'4.401.0', labs:['nsflow','tri','cosmo','rungs'], verifier:'docs/verify-the-catalogue-is-a-tree.cjs',
+   en:'The laboratory catalogue, audited by walking every laboratory', ru:'Каталог лабораторий: аудит обходом всех лабораторий', de:'Der Laborkatalog, geprüft durch einen Gang durch alle Labore',
+   claim:'Asked why the laboratory panel was full of duplicates, the atlas walked all 146 of its laboratories with the bar’s › and read the catalogue, the route and the trail at every step. It found thirteen laboratories listed twice (a “start here” block above the groups that listed them again); 41 rows still in English in Russian and German, because they were synthesised from the English registry and never re-labelled; two different laboratories both called «Лестница расстояний» — the FLRW integral from a redshift is the cosmological distances, the distance ladder is the chain from a triangle to two Hubble constants; a header of 145 beside a ⊞ of 146; a first ‹ › hijacked to one laboratory from wherever the reader stood; eight lab-to-lab bridges that moved the scene and left the route behind; and the Trisphere’s Controls throwing a ReferenceError half-way, so the catalogue went on marking the previous laboratory. The catalogue is now one tree — part, section, laboratory — in which every laboratory of the atlas is a leaf exactly once, in all three languages, and the bar walks those leaves.',
+   numbers:{laboratories:146, listedTwiceBefore:13, englishRowsBefore:41, sharedNamesBefore:1, bridgesOffRouteBefore:8, throwingControlsBefore:1}}]);
 
 const DISCOVERY_LEADS=Object.freeze([
   {id:'lmc-m33', en:'Add M33 and the LMC to the Local Group future', step:'extend lgmOrbit to a four-body friction model (Patel et al. 2017 masses); Sawala et al. 2025 find ~50% merger within 10 Gyr with them — compare with the 25% here', about:'flyby'},
@@ -7797,6 +7801,10 @@ function discoveryById(id){ return DISCOVERIES.find(d=>d.id===id)||null; }
 const TRACK_SCHEMA='hcc.track/1';
 
 const TRACK_OPS=Object.freeze({
+  'catalogue.tree':{doc:'the laboratory catalogue as a tree in a language: are all the registered laboratories leaves of it, how many twice, how many names shared, and is the fluid of S³ the first leaf', run:a=>{ const L=['en','ru','de'].includes(a.lang)?a.lang:'en', T=labCatalogueTree(L), o=labCatalogueOrder(L), set=new Set(o);
+    const want=Object.keys(S3_VIEW_NAMES).length+LAB_ELSEWHERE.length, names=o.map(id=>labNameIn(id,L).trim().toLowerCase());
+    return {complete:(o.length===want&&Object.keys(S3_VIEW_NAMES).every(id=>set.has(id))&&LAB_ELSEWHERE.every(E=>set.has(E.id)))?1:0, twice:o.length-set.size, sharedNames:names.length-new Set(names).size,
+      parts:T.length, sections:T.reduce((n,P)=>n+P.sections.length,0), first:o[0]===LAB_START?1:0}; }},
   'cosmic.chi':{doc:'comoving distance to redshift z (Gly), the atlas chain with radiation', run:a=>({chiGly:ctChiOfZ(+a.z)})},
   'cosmic.t0':{doc:'the age of the universe (Gyr) on the atlas chain', run:()=>({t0Gyr:CT_T0()})},
   'cmb.camb':{doc:'what the Boltzmann code (CAMB) says: distance to last scattering (Gly) and the age (Gyr)', run:()=>({DAstarGly:CMB_CAMB.meta.derived.DAstar*3.2615637771674333, ageGyr:CMB_CAMB.meta.derived.age})},
@@ -7883,6 +7891,8 @@ function trackRun(t){ const out=[], results=[]; let ok=true;
   const fp=trackFingerprint(results); return {ok, steps:out, fingerprint:fp, fingerprintMatch:t.fingerprint?t.fingerprint===fp:null}; }
 
 const DISCOVERY_TRACKS=Object.freeze({
+  catalogueTree401:[{op:'nav', world:'s3', lab:'nsflow'},{op:'call', fn:'catalogue.tree', args:{lang:'ru'}, expect:{complete:{value:1}, twice:{value:0}, sharedNames:{value:0}, first:{value:1}}},
+    {op:'call', fn:'catalogue.tree', args:{lang:'de'}, expect:{complete:{value:1}, twice:{value:0}, sharedNames:{value:0}, first:{value:1}}}],
   ghostSky:[{op:'nav', world:'s3', lab:'s3gamma'},{op:'state', set:{sgId:'Istar', sgR:57}},
     {op:'call', fn:'ghost.rmax', args:{id:'Istar'}, expect:{RmaxGly:{value:71.81, tol:0.01}}},{op:'call', fn:'space.circles', args:{id:'Istar'}, expect:{RmaxGly:{value:143.62, tol:0.01}}},
     {op:'call', fn:'ghost.self', args:{id:'Istar'}, expect:{classes:[[0,1],[36,12],[60,20],[72,12],[90,30],[108,12],[120,20],[144,12],[180,1]]}}],
