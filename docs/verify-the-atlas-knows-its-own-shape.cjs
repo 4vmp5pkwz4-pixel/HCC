@@ -78,12 +78,22 @@ const REL = [...blk.matchAll(/^\s*\['([a-z0-9]+)','([a-z0-9]+)','([a-z]+)'/gm)].
        instead ("what a quotient could leave on the sky"), it would have been a second relation saying the sky can show
        S³/Γ, and it carried the CMB off the seam on its own (8.3e-3, under three times below the median) — a duplicate
        of s3gamma→cmb, where the statement it makes (a quotient never changes the local Friedmann expansion at fixed
-       stress-energy) is about the expansion. */
+       stress-energy) is about the expansion.
+       v4.400: the information-spectrum laboratory declares a second relation from the sphere side to the CMB, and it is
+       not that duplicate: s3gamma→cmb says the sky CAN show S³/Γ, ois→cmb says what an orientation-marginalised test of
+       one multipole CANNOT see at first order (Schur's lemma: the twirl of a traceless anisotropy is zero). Either one
+       alone carries the CMB across; without both it stands on the seam again — measured three ways, every build. Tried
+       and refused: declaring the Schur statement to the spherical harmonics instead pulls the harmonics off the seam
+       (rank 12, |v| 5.3e-3 against a median of 2.1e-2), which would have bent the finding rather than the graph. With both
+       relations the CMB stands at |v| 8.2e-3, 2.4 times below the median (it was over three with one): the pin is now
+       twice, the measured value is printed every build. */
     const rk = x => F.onSeam.findIndex(([y]) => y === x), rkAll = x => G.V.map((y, i) => [y, Math.abs(F.vector[i])]).sort((p, q) => p[1] - q[1]).findIndex(([y]) => y === x), vc = Math.abs(F.vector[G.ix.get('cmb')]), vs = Math.abs(F.vector[G.ix.get('sh')]);
-    const G0 = atlasRelGraph(atlasCore2(REL.filter(r => !(r[0] === 's3gamma' && r[1] === 'cmb') && !(r[0] === 'cmb' && r[1] === 's3gamma'))).rels), F0 = atlasFiedler(G0, 'mainseq'), rk0 = F0.onSeam.findIndex(([y]) => y === 'cmb');
-    ok('FOUND — the seam is the harmonic analysis of the sphere: the spherical harmonics stand ON it (among the ten nearest zero, five times below the median); the CMB stands on it without the relation "the CMB can show S³/Γ", and that one relation carries it to the sphere side, still three times below the median',
-      rkAll('sh') >= 0 && rkAll('sh') < 10 && vs * 5 < F.medAbs && rk0 >= 0 && rk0 < 5 && !F.sky.includes('cmb') && vc * 3 < F.medAbs && vc > Math.abs(F0.vector[G0.ix.get('cmb')]),
-      `|v_sh| ${vs.toExponential(1)} (rank ${rkAll('sh')}) · CMB without s3gamma→cmb: rank ${rk0}, |v| ${Math.abs(F0.vector[G0.ix.get('cmb')]).toExponential(1)} · with it: sphere side, |v| ${vc.toExponential(1)} · median ${F.medAbs.toExponential(1)}`); }
+    const cut = (R, a, b) => R.filter(r => !(r[0] === a && r[1] === b) && !(r[0] === b && r[1] === a));
+    const G0 = atlasRelGraph(atlasCore2(cut(cut(REL, 's3gamma', 'cmb'), 'ois', 'cmb')).rels), F0 = atlasFiedler(G0, 'mainseq'), rk0 = F0.onSeam.findIndex(([y]) => y === 'cmb');
+    const each = ['s3gamma', 'ois'].map(o => { const G1 = atlasRelGraph(atlasCore2(cut(REL, o === 's3gamma' ? 'ois' : 's3gamma', 'cmb')).rels), F1 = atlasFiedler(G1, 'mainseq'); return !F1.sky.includes('cmb') && F1.onSeam.findIndex(([y]) => y === 'cmb') < 0; });
+    ok('FOUND — the seam is the harmonic analysis of the sphere: the spherical harmonics stand ON it (among the ten nearest zero, five times below the median); the CMB stands on it without its relations to the sphere side — "the CMB can show S³/Γ" and, since v4.400, "the singlet the low multipoles lose" — and either one alone carries it to the sphere side; with both it stays near the seam, more than twice below the median',
+      rkAll('sh') >= 0 && rkAll('sh') < 10 && vs * 5 < F.medAbs && rk0 >= 0 && rk0 < 5 && !F.sky.includes('cmb') && vc * 2 < F.medAbs && vc > Math.abs(F0.vector[G0.ix.get('cmb')]) && each.every(Boolean),
+      `|v_sh| ${vs.toExponential(1)} (rank ${rkAll('sh')}) · CMB without its two relations to the sphere side: rank ${rk0}, |v| ${Math.abs(F0.vector[G0.ix.get('cmb')]).toExponential(1)} · either one alone carries it across ${each.every(Boolean) ? '✓' : '✗'} · with both: sphere side, |v| ${vc.toExponential(1)} · median ${F.medAbs.toExponential(1)}`); }
 
   /* 5 · the bus */
   { const links = MAN.bus.links, lab = s => s.split('.')[0], g = new Map(); for (const l of links) { const x = lab(l.from), y = lab(l.to); if (!g.has(x)) g.set(x, new Set()); if (!g.has(y)) g.set(y, new Set()); if (x !== y) g.get(x).add(y); }
