@@ -66,7 +66,7 @@ const rgb = s => s.match(/\d+/g).map(Number);
   ok('the wide ladder steers on drag and selects on a click; in a headset a trigger on a step is read in the staircase\'s own metres, the wrist menu carries the staircase, the reader\'s lamp rides it every frame and a pulse answers in the hands; the laboratories of a rung open from its card; agents read it all through HCC_LADDER',
     w.every(Boolean), w.map(x => x ? '✓' : '✗').join('')); }
 { /* v4.393: in FBS3R the quick ladder steers that world's own depth and never leaves it */
-  const scrub = grab(/function sxScrubTo\(N,final\)\{[^\n]*/, 'sxScrubTo'), fly = grab(/function sxFlyTo\(L,lm\)\{[\s\S]*?\n  if\(state\.mode==='fbs'&&!fbsTier2\(\)\)\{ sxFbsGo\(levelOf\(L\),true\); return; \}/, 'sxFlyTo in FBS3R');
+  const scrub = grab(/function sxScrubTo\(N,final\)\{[^\n]*/, 'sxScrubTo'), fly = grab(/function sxFlyTo\(L,lm(,cross)?\)\{[\s\S]*?\n  if\(state\.mode==='fbs'&&!fbsTier2\(\)\)\{ sxFbsGo\(levelOf\(L\),true\); return; \}/, 'sxFlyTo in FBS3R');
   const go = grab(/function sxFbsGo\(N,final\)\{[\s\S]*?return depth; \}/, 'sxFbsGo');
   const st = { mode: 'fbs', fbsNmin: 0, fbsNmaxU: 299.1, fbsDepth: 200, fbsTarget: null, fbsCycle: true, fbsVel: 2 };
   const F = new Function('state', 'FBS', go + '\nreturn sxFbsGo;')(st, { Nmax: 299.1 });

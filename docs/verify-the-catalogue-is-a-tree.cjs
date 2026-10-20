@@ -117,7 +117,8 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
     const fly = SRC.slice(SRC.indexOf('function sxFlyTo(L,lm,cross){'), SRC.indexOf('/* ── THE PHASE TRANSITION OF A LEVEL (v4.380)'));
     const obsFirst = scrub.indexOf("if(state.mode==='obs'&&!DSC.on){") > 0 && scrub.indexOf("if(state.mode==='obs'&&!DSC.on){") < scrub.indexOf('sxFlyTo(L)');
     const flyFirst = fly.indexOf("if(state.mode==='obs'&&!DSC.on&&!cross){") > 0 && fly.indexOf("if(state.mode==='obs'&&!DSC.on&&!cross){") < fly.indexOf('descentGoTo(n)')
-      && /if\(E\.side==='below'\)\{ sxFlyTo\(levelR\(Math\.min\(E\.want,276\)\),null,true\); return; \}/.test(SRC);
+      && /if\(E\.side==='below'\)\{ const B=sxObsBand\(\), n=Math\.max\(B\.lo-6,Math\.min\(E\.want,B\.lo-0\.5\)\);/.test(SRC)
+      && /state\.solarScaleLayer='cosmic';\n\s*try\{ hccGo\(\{worldId:'solar'\},\{history:true\}\); \}catch\(e\)\{ try\{ setMode\('solar'\); \}catch\(e2\)\{\} \}\n\s*try\{ advanceScaleLayer\('cosmic'\); \}catch\(e\)\{\}/.test(SRC);
     ok('the ladder: the golden spiral opens the slim strip at once and a rung card unfolds the sheet; in the Observable world the strip steers the Observable world — before any path that switches worlds or goes down the descent — clamped to the band between its two seams, with the band drawn on the track and the world beyond offered on a button',
       /sxLadderPaint\(\); sxFold\(true\); \} \};/.test(SRC) && /if\(L\.classList\.contains\('compact'\)\) sxFold\(false\);/.test(SRC)
       && obsFirst && flyFirst && /SCALE_SEAMS\.obsSolarInGly\*1\.12/.test(SRC) && /up\?SCALE_SEAMS\.obsS3OutGly\*0\.9:Infinity/.test(SRC)
