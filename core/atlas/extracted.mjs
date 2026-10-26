@@ -5,11 +5,11 @@
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
    declarations: 2308   ·   exported names: 2444
-   extracted physics, sha256 fd6c49c5b6fcc8aab4e3f3e92233283e57cfedc7cf384447b2084bb9e1d144fd */
+   extracted physics, sha256 31129a150055f02cb225dc0f664915edcc0e12defdaded3103c1e43949c0227e */
 
-const HCC_VERSION='4.401.0';
+const HCC_VERSION='4.402.0';
 
-const HCC_BUILD='catalogue-2026.10.20.121';
+const HCC_BUILD='cockpit-2026.10.26.122';
 
 const HCC_S3C=Object.freeze({
   c:299792458.0, G:6.67430e-11, kB:1.380649e-23, hbar:1.054571817e-34,
@@ -7777,7 +7777,11 @@ const DISCOVERIES=Object.freeze([
   {id:'catalogueTree401', kind:'revises', domain:'self', v:'4.401.0', labs:['nsflow','tri','cosmo','rungs'], verifier:'docs/verify-the-catalogue-is-a-tree.cjs',
    en:'The laboratory catalogue, audited by walking every laboratory', ru:'Каталог лабораторий: аудит обходом всех лабораторий', de:'Der Laborkatalog, geprüft durch einen Gang durch alle Labore',
    claim:'Asked why the laboratory panel was full of duplicates, the atlas walked all 146 of its laboratories — with the bar’s ›, by rebuilding the Controls of each, by building each scene, and by booting straight into each one by its link — and read the catalogue, the route, the trail and its own boot checks at every step. It found thirteen laboratories listed twice (a “start here” block above the groups that listed them again); 41 rows still in English in Russian and German; two different laboratories both called «Лестница расстояний» — the FLRW integral from a redshift is the cosmological distances, the distance ladder is the chain from a triangle to two Hubble constants; a header of 145 beside a ⊞ of 146; a first ‹ › hijacked to one laboratory from wherever the reader stood; 51 lab-to-lab bridges in 25 laboratories, and five data-driven doors, that moved the scene and left the route behind; the Trisphere’s Controls throwing a ReferenceError half-way, so the catalogue went on marking the previous laboratory; seven laboratories building vertex-coloured objects before they had colours (the pole atlas and causality planes drawn black until their first frame); and a search that hid nothing. The catalogue is now one tree — part, section, laboratory — in which every laboratory of the atlas is a leaf exactly once, in all three languages, and the bar walks those leaves.',
-   numbers:{laboratories:146, listedTwiceBefore:13, englishRowsBefore:41, sharedNamesBefore:1, bridgesOffRouteBefore:51, labsWithStaleBridges:25, dataDoorsOffRouteBefore:5, throwingControlsBefore:1, colourlessVertexObjectsBefore:7}}]);
+   numbers:{laboratories:146, listedTwiceBefore:13, englishRowsBefore:41, sharedNamesBefore:1, bridgesOffRouteBefore:51, labsWithStaleBridges:25, dataDoorsOffRouteBefore:5, throwingControlsBefore:1, colourlessVertexObjectsBefore:7}},
+  {id:'cockpit402', kind:'revises', domain:'self', v:'4.402.0', labs:['nsflow'], verifier:'docs/verify-the-cockpit.cjs',
+   en:'A phone held sideways, measured and laid out again', ru:'Телефон, повёрнутый боком: измерен и разложен заново', de:'Ein quer gehaltenes Telefon, vermessen und neu angeordnet',
+   claim:'Reported from an iPhone Pro Max held sideways in Safari («Это ужас»): at 932 × 321 five bands the full width of the screen — title 34 px, trail 44, laboratory bar 48, a time machine on two rows 105, tab bar 48 — took 279 px of the 321 and left the scene a 42-px strip, 13 % of the screen. The chrome now stands at the edges — one row on top, the time machine one row at the bottom, the tab bar a rail down the right edge the full height of the screen holding all eight tabs at ≥ 36 px, every sheet a column beside it — and with no sheet open the stage is 64 % of that screen and 60–71 % of every phone held sideways; nothing opens over the scene on arrival, and the centre of the view is the centre of what is free.',
+   numbers:{chromeBefore:279, screenHeight:321, stripBefore:42, stageBefore:0.13, stageAfter:0.64, railTabs:8, leastTab:36}}]);
 
 const DISCOVERY_LEADS=Object.freeze([
   {id:'lmc-m33', en:'Add M33 and the LMC to the Local Group future', step:'extend lgmOrbit to a four-body friction model (Patel et al. 2017 masses); Sawala et al. 2025 find ~50% merger within 10 Gyr with them — compare with the 25% here', about:'flyby'},
