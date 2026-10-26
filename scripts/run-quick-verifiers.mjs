@@ -221,6 +221,7 @@ const allChecks = [
   "docs/verify-the-solid-scenes.cjs",
   "docs/verify-the-information-spectrum.cjs",
   "docs/verify-the-catalogue-is-a-tree.cjs",
+  "docs/verify-the-cockpit.cjs",
   "docs/verify-every-word-in-three-languages.cjs",
   "docs/verify-self-description-authority.mjs"
 ];
@@ -366,6 +367,10 @@ if (fullMode) {
     'docs/verify-the-catalogue-is-a-tree.cjs',
     'docs/verify-the-laboratory-bar.cjs',
     'docs/verify-the-grips.cjs',
+  ]);
+
+  route(/\b(cockpit|phonelandscape|landscapecolumnlayout|hccstageshift|hcclandtoggle|hcclandcaption|mvstage|tmmore|tmbreak|land-col|tm-more|hcc-land-cockpit)\b/, [
+    'docs/verify-the-cockpit.cjs',
   ]);
 
   route(/\b(dscsolids[a-z]*|dscgaslevel|dscheshare|dsc_solid_[vf]|dsctunneltick|dropfield|xtal|crystals|van der waals)\b/, [
