@@ -73,7 +73,9 @@ function zWrites(body, naive) {
     let i = 0;
     while ((i = body.indexOf('.position.set(', i)) >= 0) {
       const inner = balanced(body, i + '.position.set'.length);
-      if (inner != null) { const a = splitArgs(inner); if (a.length === 3) z.push(a[2]); }
+      /* one spread argument is a computed 3-vector whose depth is its third component (the stroboscope of everything
+         moves its cursor with position.set(...omniPlace(…)) over a torus, and was scored flat without this) */
+      if (inner != null) { const a = splitArgs(inner); if (a.length === 3) z.push(a[2]); else if (a.length === 1 && a[0].startsWith('...')) z.push('(' + a[0].slice(3) + ')[2]'); }
       i += 14;
     }
   }

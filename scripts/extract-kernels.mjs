@@ -582,6 +582,9 @@ export const ROOTS = [
   'WOT_JAIN_ARA', 'WOT_YUGA_YR', 'WOT_MAHAYUGA_YR', 'WOT_KALPA_YR', 'WOT_TRADITIONS',
   'wotArcs', 'wotSharedProportion',
   'NEXUS_RELATIONS',
+  /* and the held-edge calibration of that graph (v4.403): a verifier CALLS it, so the claim that every declared
+     relation is tested — twins held with it — is a number computed outside the browser, not a line of source read */
+  'NEXUS_CLUSTERS', 'NEXUS_VIEWS', 'NEXUS_CV_CACHE', 'nexusAdjacency', 'nexusPairScore', 'nexusStructuralCalibration',
   /* and the invariant thread beside it: fourteen QUESTIONS, each one a set of rows
      from different laboratories that answer it in different units. It is a
      different relation from a typed edge — an edge says two laboratories are

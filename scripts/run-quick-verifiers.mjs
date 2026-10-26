@@ -222,6 +222,8 @@ const allChecks = [
   "docs/verify-the-information-spectrum.cjs",
   "docs/verify-the-catalogue-is-a-tree.cjs",
   "docs/verify-the-cockpit.cjs",
+  "docs/verify-depth-census.cjs",
+  "docs/verify-the-deferred-suite.cjs",
   "docs/verify-every-word-in-three-languages.cjs",
   "docs/verify-self-description-authority.mjs"
 ];
@@ -367,6 +369,15 @@ if (fullMode) {
     'docs/verify-the-catalogue-is-a-tree.cjs',
     'docs/verify-the-laboratory-bar.cjs',
     'docs/verify-the-grips.cjs',
+  ]);
+
+  route(/\b(hcc_flat_by_design|depth census|flat by design|position\.set)\b/, [
+    'docs/verify-depth-census.cjs',
+    'docs/verify-the-deferred-suite.cjs',
+  ]);
+
+  route(/\b(nexusadjacency|nexusstructuralcalibration|nexus_relations|invariant_thread|scalesstack[a-z]*|stack_n|tq_eval_cache|everys3|hubble_constant_(late|early)|fulltests|defer\()\b/, [
+    'docs/verify-the-deferred-suite.cjs',
   ]);
 
   route(/\b(cockpit|phonelandscape|landscapecolumnlayout|hccstageshift|hcclandtoggle|hcclandcaption|mvstage|tmmore|tmbreak|land-col|tm-more|hcc-land-cockpit)\b/, [
