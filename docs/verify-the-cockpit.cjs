@@ -144,7 +144,7 @@ const rule = sel => { const i = CSS.indexOf(sel + '{'); if (i < 0) return ''; re
 /* 8 · every world and every laboratory, sideways (v4.404) — asked: «Проверь и доведи до совершенства горизонтальный режим на
    остальных мирах и лабораториях». Every world and all 146 laboratories were walked at 932 × 321 and 667 × 300, with the
    scene and with Controls open: no control covered, none blocked, none under 44 px, nothing spilling. Two things were
-   wrong. The grips' hint stood at y 150 — the middle of a 220-px stage, over the subject — in twenty laboratories. And a
+   wrong. The grips' hint stood at y 150 — the middle of a 220-px stage, over the subject — in nine laboratories. And a
    preset frames its subject for the screen's height, which a desk leaves 86 % of to the scene and the cockpit two-thirds:
    with every visible object of a laboratory projected on the screen (bounding spheres; the canvas' pixels were tried
    first and measured the glow and the sky as much as the subject), the median laboratory stood 1.01 times as tall as the
