@@ -2,8 +2,8 @@
 'use strict';
 /* ══ THE FRONTIER OBSERVATORY (v4.380) ═══════════════════════════════════════════════════════════════════════════════
  * The openai/math collection (2026, Apache-2.0) as one sky. Checked here:
- *   1. data/frontier-atlas.json is the catalogue as published: 372 families with unique numbers, 719 manuscripts, 17
- *      subjects whose counts add up to 372, 242 families with a Lean link, 3 withdrawn manuscripts, every manuscript a
+ *   1. data/frontier-atlas.json is the catalogue as published: 373 families with unique numbers, 721 manuscripts, 17
+ *      subjects whose counts add up to 373, 245 families with a Lean link, 3 withdrawn manuscripts, every manuscript a
  *      path under preprints/ ending in .pdf, every family with a title, a description and at least one manuscript, and
  *      the ten reasoning summaries of the README table attached to families 007, 017, 087, 102, 159, 197, 221, 271, 287, 362
  *   2. every family the atlas runs live (▶) and every highlighted family exists in the catalogue, and every live link
@@ -21,8 +21,8 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
   /* 1 */
   { const F = D.families, ns = new Set(F.map(f => f.n)), man = F.reduce((s, f) => s + f.m.length, 0), sum = D.disciplines.reduce((s, d) => s + d.count, 0);
     const good = F.every(f => f.t && f.d && f.d.length > 40 && f.m.length >= 1 && f.m.every(m => /^preprints\/[^/]+\/.+\.pdf$/.test(m[1])) && D.disciplines.some(d => d.id === f.k));
-    ok('the catalogue as published: 372 families with unique numbers, 719 manuscripts, 17 subjects adding up to 372, 242 Lean-linked, 3 withdrawn, every manuscript a PDF under preprints/',
-      F.length === 372 && ns.size === 372 && man === 719 && D.counts.manuscripts === 719 && D.disciplines.length === 17 && sum === 372 && F.filter(f => f.lean).length === 242 && D.counts.lean === 242 && D.withdrawn.length === 3 && good && D.source.license === 'Apache-2.0' && F.filter(f => f.r).map(f => f.n).sort((a, b) => a - b).join() === '7,17,87,102,159,197,221,271,287,362' && F.filter(f => f.r).every(f => /^reasoning_traces\/[a-z0-9-]+\.pdf$/.test(f.r)),
+    ok('the catalogue as published: 373 families with unique numbers, 721 manuscripts, 17 subjects adding up to 373, 245 Lean-linked, 3 withdrawn, every manuscript a PDF under preprints/',
+      F.length === 373 && ns.size === 373 && man === 721 && D.counts.manuscripts === 721 && D.disciplines.length === 17 && sum === 373 && F.filter(f => f.lean).length === 245 && D.counts.lean === 245 && D.withdrawn.length === 3 && good && D.source.license === 'Apache-2.0' && F.filter(f => f.r).map(f => f.n).sort((a, b) => a - b).join() === '7,17,87,102,159,197,221,271,287,362' && F.filter(f => f.r).every(f => /^reasoning_traces\/[a-z0-9-]+\.pdf$/.test(f.r)),
       `${F.length} families · ${man} manuscripts · ${D.disciplines.length} subjects · ${F.filter(f => f.lean).length} Lean · ${D.withdrawn.length} withdrawn · commit ${String(D.source.commit).slice(0, 7)}`); }
   /* 2 */
   { const ns = new Set(D.families.map(f => f.n)), live = Object.entries(K.FO_LIVE), labs = [...new Set(live.map(([, v]) => v))];
@@ -35,7 +35,7 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
     const P = (o) => Object.assign({ q: '', disc: 0, mode: 'all', sel: 0 }, o), cnt = o => F.filter(f => K.foMatch(f, P(o))).length;
     const nt = D.disciplines.find(d => /Number theory/.test(d.name));
     ok('the catalogue logic, run: LaTeX made readable, and the filters select exactly what they say — a subject, the Lean-linked, the highlighted, the live, and words',
-      /ℚ/.test(p) && /Re s > 7\/8/.test(p) && /μ\(π\)≤ 2|μ\(π\) ≤ 2/.test(p) && cnt({}) === 372 && cnt({ mode: 'lean' }) === 242 && cnt({ disc: nt.id }) === nt.count && cnt({ mode: 'live' }) === Object.keys(K.FO_LIVE).length
+      /ℚ/.test(p) && /Re s > 7\/8/.test(p) && /μ\(π\)≤ 2|μ\(π\) ≤ 2/.test(p) && cnt({}) === 373 && cnt({ mode: 'lean' }) === 245 && cnt({ disc: nt.id }) === nt.count && cnt({ mode: 'live' }) === Object.keys(K.FO_LIVE).length
       && cnt({ q: 'riemann' }) >= 1 && F.filter(f => K.foMatch(f, P({ q: 'navier stokes' }))).some(f => f.n === 376),
       `“${p}” · all ${cnt({})} · Lean ${cnt({ mode: 'lean' })} · ${nt.name} ${cnt({ disc: nt.id })} · live ${cnt({ mode: 'live' })} · “riemann” ${cnt({ q: 'riemann' })}`); }
   /* 4 */
