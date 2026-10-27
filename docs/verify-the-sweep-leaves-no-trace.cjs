@@ -6,12 +6,14 @@
  * shared parameter of the multiview end to end had put it there: it saved and restored state[m.k] for every member of
  * every link, and a member that drives its laboratory through a SETTER keeps its value somewhere else — the Centre lab
  * in CLAB.P.chiA. So the sweep left the screen at its top, 3.09 rad, a twentieth of a radian short of the antipode,
- * whose stereographic image is a sphere around the whole scene, the camera inside it. The same sweep left the Hopf
+ * whose stereographic image is a sphere of radius 275 round the whole scene, the camera (at 18) inside it. The same sweep left the Hopf
  * laboratory's fibre A and the forecast horizon and noise of four invariance observatories at the end of their sweeps,
  * and wrote three junk keys into the state («labChiA», «hopfA.t», «pfHorizon»).
  * Now every member with a setter has a getter in the same units; the sweep saves and restores through them, puts every
  * plain value of the state back, and the self-test FAILS if any member is left moved, any setter has no getter, or any
- * key was written into the state.
+ * key was written into the state. And with the white-out gone the default still looked through a haze: cap B, round the
+ * projection's own pole, projects to a sphere round the whole scene; a screen larger than the carrier's equator sphere
+ * is drawn as faint as it is large.
  */
 const fs = require('node:fs'), path = require('node:path');
 const SRC = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
@@ -39,13 +41,21 @@ ok('THE SWEEP RESTORES THROUGH THEM AND CHECKS THAT IT DID: saved through the ge
   && !/for\(const k in saved\) state\[k\]=saved\[k\];/.test(SRC),
   j > 0 ? 'sweep → restore → verify, in the boot suite' : 'MISSING');
 
-/* and the arithmetic of the white-out: where a χ-screen near the antipode lands under the lab's projection */
-{ const RU = 886.59 / 100, chi = 3.09, def = +((SRC.match(/const P = \{ A:\[1,0,0,0\], B:\[-1,0,0,0\], chiA:([\d.]+),/) || [])[1]);
-  /* stereographic projection from the antipode of A: the χ-screen about A is a round sphere of radius tan(χ/2) */
-  const r = c => RU * Math.tan(c / 2), cam = Math.hypot(-0.08, 6, 17);
-  ok('THE ARITHMETIC OF THE WHITE-OUT: projected from the antipode, the χ-screen about A is a sphere of radius R·tan(χ/2) — at the sweep\'s top, 3.09 rad, ' + (r(chi) / cam).toFixed(1) + ' times the distance of the camera, so the camera sat inside a translucent sphere; at the laboratory\'s own default, ' + def + ' rad, it is a small sphere in front of it',
-    def === 0.55 && r(chi) > cam * 5 && r(def) < cam / 3,
-    `screen radius at 3.09 rad ${r(chi).toFixed(0)} units · at ${def} rad ${r(def).toFixed(2)} · camera ${cam.toFixed(1)} units from the centre`); }
+/* and the arithmetic of the white-out, with the projection's own scale read from the page: stereographic from (−1,0,0,0),
+   scaled by 0.8·RU, so the χ-screen about A is a sphere of radius 0.8·RU·tan(χ/2) and the one about its antipode B of
+   radius 0.8·RU·cot(χ/2) */
+{ const RU = 886.59 / 100, k = +((SRC.match(/return new THREE\.Vector3\(p\[1\]\/d, p\[3\]\/d, -p\[2\]\/d\)\.multiplyScalar\(RU\*([\d.]+)\); \}/) || [])[1]);
+  const P = SRC.match(/const P = \{ A:\[1,0,0,0\], B:\[-1,0,0,0\], chiA:([\d.]+), chiB:([\d.]+),/) || [], chiA = +P[1], chiB = +P[2];
+  const rA = c => k * RU * Math.tan(c / 2), rB = c => k * RU / Math.tan(c / 2), cam = Math.hypot(-0.08, 6, 17);
+  ok('THE ARITHMETIC OF THE WHITE-OUT: projected from the antipode at 0.8·RU, the χ-screen about A is a sphere of radius 0.8·RU·tan(χ/2) — at the sweep\'s top, 3.09 rad, ' + (rA(3.09) / cam).toFixed(1) + ' times the distance of the camera, the camera inside a translucent sphere; at the laboratory\'s own default, ' + chiA + ' rad, a small sphere in front of it',
+    k === 0.8 && chiA === 0.55 && rA(3.09) > cam * 10 && rA(chiA) < cam / 5,
+    `screen radius at 3.09 rad ${rA(3.09).toFixed(0)} units · at ${chiA} rad ${rA(chiA).toFixed(2)} · camera ${cam.toFixed(1)} units from the centre`);
+
+  /* and a screen that projects round everything is a horizon, not a wall */
+  const op = r => 0.3 * Math.min(1, Math.pow(k * RU / r, 2)), rb = rB(chiB);
+  ok('AND A SCREEN THAT PROJECTS ROUND EVERYTHING IS A HORIZON, NOT A WALL: cap B, round the projection\'s own pole, is a sphere of radius ' + rb.toFixed(1) + ' round the whole scene with the camera just outside it, and at the caps\' 0.3 it laid two pale layers over everything; a screen larger than the carrier\'s equator sphere (0.8·RU) is drawn as faint as it is large',
+    /mesh\.material\.opacity=0\.3\*Math\.min\(1,Math\.pow\(RU\*0\.8\/r,2\)\);/.test(SRC) && rb > k * RU && rb < cam && op(rb) < 0.08 && op(rA(chiA)) === 0.3,
+    `cap B radius ${rb.toFixed(2)} (camera at ${cam.toFixed(1)}) → opacity ${op(rb).toFixed(3)} instead of 0.3 · cap A radius ${rA(chiA).toFixed(2)} keeps 0.3`); }
 
 console.log(`\n  ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

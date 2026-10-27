@@ -5,7 +5,7 @@
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
    declarations: 2314   ·   exported names: 2450
-   extracted physics, sha256 3ce39ecb9ebbd1bba336d32dc8b244d040d3b46b565fa0fa6449aac7f500efeb */
+   extracted physics, sha256 548adf9152ceffe5f8691118b6b428dc7ec3f14671f7191885be64bb4171de6d */
 
 const HCC_VERSION='4.404.0';
 
@@ -7796,8 +7796,8 @@ const DISCOVERIES=Object.freeze([
    numbers:{targetsWalked:153, hintOverSubject:20, overflowBefore:80, overflowAfter:55, labsMeasured:145, fillBefore:1.01, fillAfter:0.82, insideBefore:0.93, insideAfter:1.0, frameScaleProMax:1.27, frameScaleMax:1.45}},
   {id:'sweepNoTrace404', kind:'revises', domain:'self', v:'4.404.0', labs:['lab','hopf','bht','nul','act','hol','syd'], verifier:'docs/verify-the-sweep-leaves-no-trace.cjs',
    en:'A self-test leaves the atlas as it found it: the Centre lab\'s white-out', ru:'Самотест оставляет атлас таким, каким нашёл: засветка «Центральной лаборатории»', de:'Ein Selbsttest hinterlässt den Atlas, wie er ihn vorfand: das Weiß des Zentrallabors',
-   claim:'Found walking every laboratory sideways, and present on a desk too: the Centre lab opened as a milky white-out on every boot. Its screen χ_A stood at 3.09 rad, which no reader had set — the boot self-test that sweeps every shared parameter of the multiview end to end had left it there, because it restored state[m.k] for every member and a member that drives its laboratory through a setter keeps its value elsewhere. At 3.09 rad the screen is a twentieth of a radian short of the antipode, and its stereographic image is a sphere 19 times the camera\'s distance, the camera inside it. The same sweep left the Hopf laboratory\'s fibre A and the forecast horizon and noise of four observatories at the end of their sweeps and wrote three junk keys into the state. Every member with a setter now has a getter; the sweep restores through them and fails if anything is left moved.',
-   numbers:{chiLeft:3.09, chiDefault:0.55, screenOverCamera:19.1, settersRestored:13, junkKeysBefore:3, junkKeysAfter:0}}]);
+   claim:'Found walking every laboratory sideways, and present on a desk too: the Centre lab opened as a milky white-out on every boot. Its screen χ_A stood at 3.09 rad, which no reader had set — the boot self-test that sweeps every shared parameter of the multiview end to end had left it there, because it restored state[m.k] for every member and a member that drives its laboratory through a setter keeps its value elsewhere. At 3.09 rad the screen is a twentieth of a radian short of the antipode, and its stereographic image is a sphere 15 times the camera\'s distance, the camera inside it. The same sweep left the Hopf laboratory\'s fibre A and the forecast horizon and noise of four observatories at the end of their sweeps and wrote three junk keys into the state. Every member with a setter now has a getter; the sweep restores through them and fails if anything is left moved. And with the white-out gone the default still looked through a haze: cap B, round the projection\'s own pole, projects to a sphere of radius 15.7 round the whole scene, and at the caps\' opacity of 0.3 it laid two pale layers over everything — a screen larger than the carrier\'s equator sphere is now drawn as faint as it is large (0.06).',
+   numbers:{chiLeft:3.09, chiDefault:0.55, screenOverCamera:15.2, settersRestored:13, junkKeysBefore:3, junkKeysAfter:0, capBRadius:15.66, capBOpacityBefore:0.3, capBOpacityAfter:0.061}}]);
 
 const DISCOVERY_LEADS=Object.freeze([
   {id:'lmc-m33', en:'Add M33 and the LMC to the Local Group future', step:'extend lgmOrbit to a four-body friction model (Patel et al. 2017 masses); Sawala et al. 2025 find ~50% merger within 10 Gyr with them — compare with the 25% here', about:'flyby'},

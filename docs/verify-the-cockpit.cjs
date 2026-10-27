@@ -155,7 +155,7 @@ const rule = sel => { const i = CSS.indexOf(sel + '{'); if (i < 0) return ''; re
     && /const lo=Math\.max\(S\.left\+8,fab\?fab\.right\+8:0\), hi=S\.right-8/.test(H);
   const scale = /return Math\.max\(1,Math\.min\(1\.45,0\.86\/f\)\); \}/.test(K) && /const S=hccLandStage\(\), f=Math\.max\(0\.3,\(S\.bottom-S\.top\)\/S\.H\);/.test(K)
     && /const k=LAND_FRAME_KEEP\.has\(v\)\?1:hccLandFrameScale\(\); if\(k>1\) return \[p\[0\]\*k,p\[1\]\*k,p\[2\]\*k\];/.test(P)
-    && /const LAND_FRAME_KEEP=new Set\(\['chmem','ois','lab'\]\);/.test(SRC)
+    && /const LAND_FRAME_KEEP=new Set\(\['chmem','ois'\]\);/.test(SRC)
     && /if\(mode==='fbs'\|\|mode==='field'\|\|mode==='fractal'\)\{ const k=hccLandFrameScale\(\); if\(k>1\) camera\.position\.sub\(controls\.target\)\.multiplyScalar\(k\)\.add\(controls\.target\); \}/.test(SRC)
     && (fn('setFractalType').match(/hccLandFrameScale\(\)/g) || []).length === 2;
   /* the arithmetic, over the phones held sideways: the free stage's share of the height and how far a preset stands back */
