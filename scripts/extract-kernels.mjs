@@ -862,6 +862,8 @@ export const ROOTS = [
   'HGP_A', 'HGP_AQ', 'HGP_T21', 'HGP_T49', 'HGP_IND', 'HGP_THETA', 'hgpBlocks', 'hgpEigH', 'hgpSpectrum', 'hgpZ', 'hgpSectors', 'hgpGcd', 'hgpQ', 'hgpAdd', 'hgpSub', 'hgpMul', 'hgpDiv', 'hgpPow', 'hgpCmp', 'hgpLt', 'hgpLe', 'hgpAbs', 'hgpMax', 'hgpDec', 'hgpOfNum', 'hgpNum', 'hgpFloor', 'hgpCeilTo', 'hgpF', 'hgpG', 'hgpCap', 'hgpPoly', 'hgpPolyMul', 'hgpTable', 'hgpChain', 'hgpMin2', 'HGP_ELL', 'HGP_DIAG', 'HGP_PAB', 'HGP_TRIAL_EXACT', 'hgpTrialMats', 'hgpMatMul', 'hgpRescale', 'hgpTrialStart', 'hgpTrialStep', 'hgpTrial', 'HGP_LIVE', 'hgpRunStart', 'hgpRunStep', 'hgpMerged', 'hgpCompare', 'hgpSlack', 'HGP_SLACK', 'HGP_GM', 'hgpHistory', 'hgpWeight', 'HGP_ROWS_PRINTED', 'HGP_SECTOR_NAME',
   /* the Fibonacci cube (v4.406) */
   'PX_FIB', 'PX_PHI', 'pxRank', 'pxWords', 'pxAdj', 'pxMomentByH', 'pxTransferStart', 'pxTransferWork', 'pxTransferStep', 'pxTransferValue', 'pxMomentByTransfer', 'pxDen', 'pxNumerator', 'pxSeries', 'PX_PM', 'pxFluxS', 'pxTrH4', 'pxEigSym', 'pxScars', 'PX_PASSES', 'pxJobStart', 'pxJobStep', 'pxPolyTxt',
+  /* the Hopf insulator (v4.407) */
+  'HI_S', 'hiU', 'hiN', 'hiGap', 'hiDegree', 'hiDet4', 'hiDegreeIntegral', 'hiFFT', 'hiFFT3', 'hiHopf', 'hiH0', 'hiInterp125', 'hiPreimage', 'HI_REFS', 'hiCalibMatrix', 'hiSolve', 'hiBestDeletion', 'hiMinimax', 'HI_TARGETS', 'hiMeasure',
   /* the horizons in cosmic time (v4.358) */
   'hzTable', 'hzAgeAtA', 'hzAtT', 'hzTimeAtParticle', 'hzEmissionTime', 'hzScreenAt', 'HZ_EVENTS',
   /* the causal calendar of the web (v4.360) */
