@@ -224,6 +224,8 @@ const allChecks = [
   "docs/verify-the-cockpit.cjs",
   "docs/verify-depth-census.cjs",
   "docs/verify-the-deferred-suite.cjs",
+  "docs/verify-the-fractal-levels.cjs",
+  "docs/verify-the-sweep-leaves-no-trace.cjs",
   "docs/verify-every-word-in-three-languages.cjs",
   "docs/verify-self-description-authority.mjs"
 ];
@@ -296,6 +298,7 @@ if (fullMode) {
   ]);
 
   route(/\b(camera|setcontroldistancelimits|scale_seams|hcc_zoom|far[- ]?plane|near[- ]?plane|observer seam|black void)\b/, [
+    'docs/verify-the-fractal-levels.cjs',
     'docs/verify-the-camera.cjs',
     'docs/verify-camera-limit-authority.cjs',
     'docs/verify-scale-continuity.cjs',
@@ -380,8 +383,19 @@ if (fullMode) {
     'docs/verify-the-deferred-suite.cjs',
   ]);
 
-  route(/\b(cockpit|phonelandscape|landscapecolumnlayout|hccstageshift|hcclandtoggle|hcclandcaption|mvstage|tmmore|tmbreak|land-col|tm-more|hcc-land-cockpit)\b/, [
+  route(/\b(cockpit|phonelandscape|landscapecolumnlayout|hccstageshift|hcclandstage|hcclandframescale|griphint|hcclandtoggle|hcclandcaption|mvstage|tmmore|tmbreak|land-col|tm-more|hcc-land-cockpit)\b/, [
     'docs/verify-the-cockpit.cjs',
+  ]);
+
+  route(/\b(mv_links|mvlinkapply|mvlink[a-z]*|clab|centre lab|center lab|labchia|linked parameters?)\b/, [
+    'docs/verify-the-sweep-leaves-no-trace.cjs',
+  ]);
+
+  route(/\b(hccseam[a-z]*|seamdoor|hcccamerarestore|navunifiedback|navback|sxs3[a-z]*|sxmetersperunit|autoscalehandoff|autohandoff|fractal levels?)\b/, [
+    'docs/verify-the-fractal-levels.cjs',
+    'docs/verify-the-seam-lands-at-the-observer.cjs',
+    'docs/verify-the-way-back-in.cjs',
+    'docs/verify-the-catalogue-is-a-tree.cjs',
   ]);
 
   route(/\b(dscsolids[a-z]*|dscgaslevel|dscheshare|dsc_solid_[vf]|dsctunneltick|dropfield|xtal|crystals|van der waals)\b/, [

@@ -111,11 +111,20 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
 }
 
 { /* 4. A SEAM IS NOT A FRAMING EITHER, AND THE SECTION OPENS ON OUR OWN UNIVERSE */
-  ok('AND A SEAM GLIDES ACROSS ITS CHANGE OF SCALE. The Observable ↔ S³ map multiplies or divides the camera radius by a hundred; the ordinary rate bound covers that in four frames, which is the jump cut a reader cannot connect to the sphere they just left',
-    /crossFrames:48/.test(src)
-    && /hccCameraGoal\(dObs\/SCALE_SEAMS\.s3UnitGly, SCALE_SEAMS\.crossFrames\);/.test(src)
-    && /hccCameraGoal\(dS3\*SCALE_SEAMS\.s3UnitGly, SCALE_SEAMS\.crossFrames\);/.test(src),
-    'both legs ask for the crossing over 48 frames — 1.10× each, paced in frames rather than seconds so a slow machine shows the same intermediate states');
+  /* v4.404: this clause asked both legs of the Observable ↔ S³ seam to glide over 48 frames. The glide was paced from the
+     radius the governor had last applied — in the OTHER world's unit — so the carrier opened at 91 times the mapped radius
+     and crept in, nine rungs lost and regained (docs/verify-the-seam-lands-at-the-observer.cjs runs that arithmetic).
+     The map is a similarity: in physical length there is no change of scale to glide across, and the crossing now stands
+     at the mapped radius from its first frame. What does cover a change of scale — a flight to a rung, a layer chip —
+     still glides over the same 48 frames. */
+  { const cross = (() => { const i = src.indexOf('function hccSeamCross(to){'); return i < 0 ? '' : src.slice(i, src.indexOf('\nconst hccSeamAuto=', i)); })();
+    ok('AND A SEAM HAS NO CHANGE OF SCALE TO GLIDE ACROSS — its map is a similarity, so every leg stands at the mapped radius from its first frame and tells the governor so; the 48-frame glide is kept for what does cover a change of scale, the flights to a rung and the layer chips',
+      /crossFrames:48/.test(src)
+      && (cross.match(/_lastCamDist=r; hccCameraGoal\(r,0\);/g) || []).length === 2 && /_lastCamDist=_solarR; hccCameraGoal\(_solarR,0\);/.test(cross)
+      && !/SCALE_SEAMS\.crossFrames/.test(cross)
+      && /hccCameraGoal\(d,SCALE_SEAMS\.crossFrames\|\|48\); \}catch\(e\)\{\} \};/.test(src)
+      && /hccCameraGoal\(camera\.position\.distanceTo\(controls\.target\), SCALE_SEAMS\.crossFrames\);/.test(src),
+      'the seam: placed, not paced · a flight to a rung and a layer chip: 48 frames, 1.10× each for a hundredfold, paced in frames so a slow machine shows the same intermediate states'); }
   ok('and the pacing bounds the camera in BOTH directions, because the seam divides the radius on the way out and multiplies it on the way back and only growth was ever bounded',
     /if\(_camGoalStep>1&&Number\.isFinite\(_lastCamDist\)&&_lastCamDist>0\)\s*\n\s*dist=THREE\.MathUtils\.clamp\(_camGoal,_lastCamDist\/_camGoalStep,_lastCamDist\*_camGoalStep\);/.test(src)
     && /_camGoalStep=Math\.pow\(ratio, 1\/Math\.max\(2,frames\)\);/.test(src),

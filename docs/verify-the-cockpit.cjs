@@ -23,6 +23,8 @@
  *      laboratory chosen from the invariants — nothing opened over it
  *   6. the arithmetic, for every phone held sideways: the stage at least half the screen, eight tabs on the rail
  *   7. the atlas measures it on itself: a boot self-test, NOT APPLICABLE wherever the phone is not on its side
+ *   8. (v4.404) every world and laboratory sideways: the grips' hint at the stage's foot, not over the subject; a
+ *      laboratory's preset, and the framings of FBS3R, the field and the fractals, standing back by what the cockpit takes
  */
 const fs = require('node:fs'), path = require('node:path');
 const SRC = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
@@ -89,9 +91,10 @@ const rule = sel => { const i = CSS.indexOf(sel + '{'); if (i < 0) return ''; re
     `${inCol.length}/${PANELS.length} sheets in the column · band ${band ? 'top 4 → time machine' : 'WRONG'} · step left ${steps ? 'six of six' : 'MISSING'} · lit tab ${deck ? 'synced on every deck change' : 'STALE'} · rail tabs ${toggle ? 'switches' : 'one-way'}`); }
 
 /* 4 · the stage */
-{ const S = fn('hccStageShift'), tick = fn('hccSelInsetTick');
+{ const S = fn('hccStageShift'), G = fn('hccLandStage'), tick = fn('hccSelInsetTick');   /* v4.404: the free stage is measured by hccLandStage, which the stage's centre, the grips' hint and a laboratory's framing all read */
   const shift = /if\(!document\.documentElement\.classList\.contains\('land'\)\|\|renderer\.xr\.isPresenting\|\|\(typeof MV!=='undefined'&&MV\.on\)\|\|state\.landed\) return \[0,0\];/.test(S)
-    && /const left=tm\?Math\.max\(0,\(parseFloat\(getComputedStyle\(tm\)\.paddingLeft\)\|\|8\)-8\):0;/.test(S)
+    && /const \{W,H,left,right,top,bottom\}=hccLandStage\(\);/.test(S)
+    && /const left=tm\?Math\.max\(0,\(parseFloat\(getComputedStyle\(tm\)\.paddingLeft\)\|\|8\)-8\):0;/.test(G) && /return \{W,H,left,right,top,bottom\}; \}/.test(G)
     && /HCC_STAGE\.v=\[Math\.round\(\(left\+right\)\/2-W\/2\), Math\.round\(\(top\+bottom\)\/2-H\/2\)\];/.test(S)
     && /if\(T\[0\]===0&&T\[1\]===0\)\{ try\{ T=hccStageShift\(\); \}catch\(e\)\{\} \}/.test(tick);
   const hud = /html\.land body #hud\{[^}]*pointer-events:auto!important;\s*max-height:calc\(var\(--vh100,100vh\) - var\(--tm-h,52px\) - var\(--land-top\) - 64px\)!important;overflow:hidden!important\}/.test(CSS)
@@ -137,6 +140,27 @@ const rule = sel => { const i = CSS.indexOf(sel + '{'); if (i < 0) return ''; re
     i > 0 && /const land=phoneLandscape\(\)/.test(blk) && /G\.on===G\.tabs/.test(blk) && /G\.tm\[2\]<=G\.rail\[0\]\+1/.test(blk) && /G\.stage>=0\.5/.test(blk) && /NOT APPLICABLE HERE/.test(blk)
     && /name: 'a phone turned sideways, 852x393'/.test(fs.readFileSync(path.join(__dirname, '..', 'scripts', 'selftest.mjs'), 'utf8')),
     i > 0 ? 'boot self-test present · arrives sideways at 852 × 393 in scripts/selftest.mjs' : 'NO SELF-TEST'); }
+
+/* 8 · every world and every laboratory, sideways (v4.404) — asked: «Проверь и доведи до совершенства горизонтальный режим на
+   остальных мирах и лабораториях». Every world and all 146 laboratories were walked at 932 × 321 and 667 × 300, with the
+   scene and with Controls open: no control covered, none blocked, none under 44 px, nothing spilling. Two things were
+   wrong. The grips' hint stood at y 150 — the middle of a 220-px stage, over the subject — in twenty laboratories. And a
+   preset frames its subject for the screen's height, which a desk leaves 86 % of to the scene and the cockpit two-thirds:
+   measured on the canvas alone (UI hidden, lone stars dropped), the central 90 % of a laboratory's drawing spanned a
+   median 0.88 of the free stage's height, and in 31 of 144 it ran past the stage's edge, top or bottom. */
+{ const H = fn('gripHintTick'), P = SRC.slice(SRC.indexOf('function scientificCameraPreset(v){'), SRC.indexOf('function scientificCameraPreset(v){') + 400), K = fn('hccLandFrameScale');
+  const hint = /if\(document\.documentElement\.classList\.contains\('land'\)\)\{ const S=hccLandStage\(\)/.test(H) && /foot=Math\.min\(S\.bottom,lad&&lad\.top>S\.top\+60\?lad\.top:S\.bottom\)-6;/.test(H)
+    && /const lo=Math\.max\(S\.left\+8,fab\?fab\.right\+8:0\), hi=S\.right-8/.test(H);
+  const scale = /return Math\.max\(1,Math\.min\(1\.45,0\.86\/f\)\); \}/.test(K) && /const S=hccLandStage\(\), f=Math\.max\(0\.3,\(S\.bottom-S\.top\)\/S\.H\);/.test(K)
+    && /const k=v==='chmem'\|\|v==='ois'\?1:hccLandFrameScale\(\); if\(k>1\) return \[p\[0\]\*k,p\[1\]\*k,p\[2\]\*k\];/.test(P)
+    && /if\(mode==='fbs'\|\|mode==='field'\|\|mode==='fractal'\)\{ const k=hccLandFrameScale\(\); if\(k>1\) camera\.position\.sub\(controls\.target\)\.multiplyScalar\(k\)\.add\(controls\.target\); \}/.test(SRC)
+    && (fn('setFractalType').match(/hccLandFrameScale\(\)/g) || []).length === 2;
+  /* the arithmetic, over the phones held sideways: the free stage's share of the height and how far a preset stands back */
+  const TOP = 52, TM = 51, PH = [[932, 430], [932, 321], [852, 393], [844, 390], [812, 375], [800, 360], [667, 375], [667, 300]];
+  const ks = PH.map(([W, Hh]) => { const f = (Hh - TOP - TM) / Hh; return { W, Hh, f, k: Math.max(1, Math.min(1.45, 0.86 / f)) }; });
+  ok('every world and laboratory, sideways: the grips\' hint stands at the stage\'s foot — on the ladder\'s strip or the time machine, past the tour button, short of the rail or an open column — instead of over the subject in the middle; and a laboratory\'s preset (and the framing of FBS3R, the field and the fractals) stands back by what the cockpit takes of the height, never nearer and at most 1.45× (the two laboratories that fit their stations to the open band do it themselves)',
+    hint && scale && ks.every(r => r.k >= 1 && r.k <= 1.45) && ks.some(r => r.k > 1.25),
+    ks.map(r => `${r.W}×${r.Hh} stage ${(r.f * 100).toFixed(0)}% → ×${r.k.toFixed(2)}`).join(' · ')); }
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

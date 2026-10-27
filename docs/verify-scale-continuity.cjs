@@ -43,7 +43,7 @@ check('Observable outward seam lies beyond the canonical curvature-radius proxy 
 check('S3 return seam is inside the outward seam but still beyond the particle horizon',expectedIn<expectedOut&&expectedIn>S3Particle(src),`in=${expectedIn.toFixed(3)} Gly`);
 check('Solar to Observable uses the shared seam authority',src.includes("d>SCALE_SEAMS.solarObsOutGly*GLY_AU"));
 check('Observable to Solar uses the shared seam authority',src.includes('dObs<SCALE_SEAMS.obsSolarInGly'));
-check('Observable to finite S3 carrier has an outward handoff',src.includes('dObs>SCALE_SEAMS.obsS3OutGly')&&src.includes("state.s3view='sec'; setMode('s3')")&&src.includes('dObs/SCALE_SEAMS.s3UnitGly'));
+check('Observable to finite S3 carrier has an outward handoff',src.includes('dObs>SCALE_SEAMS.obsS3OutGly')&&src.includes("state.s3view='sec'; setMode('s3')")&&src.includes('r=dGly/SCALE_SEAMS.s3UnitGly'));
 check('finite S3 carrier has a hysteretic return to Observable',src.includes("state.s3view==='sec'")&&src.includes('dS3*SCALE_SEAMS.s3UnitGly<SCALE_SEAMS.s3ObsInGly')&&src.includes("setMode('obs')")&&src.includes('dS3*SCALE_SEAMS.s3UnitGly'));
 /* this matched the inline call `setControlDistanceLimits(..., obsS3OutGly*1.35)`
  * and broke when that moved into obsApplyZoomLimits() — which it had to, because
