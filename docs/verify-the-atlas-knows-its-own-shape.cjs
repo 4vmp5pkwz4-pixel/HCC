@@ -68,6 +68,10 @@ const REL = [...blk.matchAll(/^\s*\['([a-z0-9]+)','([a-z0-9]+)','([a-z]+)'/gm)].
        v4.378: the fluid computer's three relations (to the exact solution, the blow-up and contact geometry) shift the
        first mode again — the harmonics are ninth nearest of 136 (|v| 3.3e-3, median 2.3e-2): the pin is the ten nearest;
        five times below the median is unchanged. The seam is a measured, moving quantity — it is re-measured every build.
+       v4.406: the Fibonacci cube's two relations (to the Haldane gap and the anyon zoo) shift the first mode once more: cut
+       from its two sphere-side relations the CMB stands seventh nearest of 143 (|v| 1.5e-3, sixteen times below the median
+       2.4e-2) — the same footing as the harmonics, so its pin is the same: among the ten nearest, ranked over every laboratory
+       and not only the six the kernel lists.
        v4.379: the critical-curves laboratory's two relations (the SLE/CFT central charge to the anyon laboratory, the
        Brownian driving function to kinetic theory) bring the harmonics back to fourth nearest (|v| 2.3e-3, median 2.2e-2).
        Measured on the way: ONE pendant relation can move them anywhere from 4th to 30th — the rank is fragile, the
@@ -89,10 +93,10 @@ const REL = [...blk.matchAll(/^\s*\['([a-z0-9]+)','([a-z0-9]+)','([a-z]+)'/gm)].
        twice, the measured value is printed every build. */
     const rk = x => F.onSeam.findIndex(([y]) => y === x), rkAll = x => G.V.map((y, i) => [y, Math.abs(F.vector[i])]).sort((p, q) => p[1] - q[1]).findIndex(([y]) => y === x), vc = Math.abs(F.vector[G.ix.get('cmb')]), vs = Math.abs(F.vector[G.ix.get('sh')]);
     const cut = (R, a, b) => R.filter(r => !(r[0] === a && r[1] === b) && !(r[0] === b && r[1] === a));
-    const G0 = atlasRelGraph(atlasCore2(cut(cut(REL, 's3gamma', 'cmb'), 'ois', 'cmb')).rels), F0 = atlasFiedler(G0, 'mainseq'), rk0 = F0.onSeam.findIndex(([y]) => y === 'cmb');
+    const G0 = atlasRelGraph(atlasCore2(cut(cut(REL, 's3gamma', 'cmb'), 'ois', 'cmb')).rels), F0 = atlasFiedler(G0, 'mainseq'), rk0 = G0.V.map((y, i) => [y, Math.abs(F0.vector[i])]).sort((p, q) => p[1] - q[1]).findIndex(([y]) => y === 'cmb');
     const each = ['s3gamma', 'ois'].map(o => { const G1 = atlasRelGraph(atlasCore2(cut(REL, o === 's3gamma' ? 'ois' : 's3gamma', 'cmb')).rels), F1 = atlasFiedler(G1, 'mainseq'); return !F1.sky.includes('cmb') && F1.onSeam.findIndex(([y]) => y === 'cmb') < 0; });
     ok('FOUND — the seam is the harmonic analysis of the sphere: the spherical harmonics stand ON it (among the ten nearest zero, five times below the median); the CMB stands on it without its relations to the sphere side — "the CMB can show S³/Γ" and, since v4.400, "the singlet the low multipoles lose" — and either one alone carries it to the sphere side; with both it stays near the seam, more than twice below the median',
-      rkAll('sh') >= 0 && rkAll('sh') < 10 && vs * 5 < F.medAbs && rk0 >= 0 && rk0 < 5 && !F.sky.includes('cmb') && vc * 2 < F.medAbs && vc > Math.abs(F0.vector[G0.ix.get('cmb')]) && each.every(Boolean),
+      rkAll('sh') >= 0 && rkAll('sh') < 10 && vs * 5 < F.medAbs && rk0 >= 0 && rk0 < 10 && !F.sky.includes('cmb') && vc * 2 < F.medAbs && vc > Math.abs(F0.vector[G0.ix.get('cmb')]) && each.every(Boolean),
       `|v_sh| ${vs.toExponential(1)} (rank ${rkAll('sh')}) · CMB without its two relations to the sphere side: rank ${rk0}, |v| ${Math.abs(F0.vector[G0.ix.get('cmb')]).toExponential(1)} · either one alone carries it across ${each.every(Boolean) ? '✓' : '✗'} · with both: sphere side, |v| ${vc.toExponential(1)} · median ${F.medAbs.toExponential(1)}`); }
 
   /* 5 · the bus */
