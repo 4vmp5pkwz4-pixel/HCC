@@ -56,10 +56,16 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
     && /\{key:'gal',\s+cycle:'gal'/.test(src),
     'a unit that the atlas already declares as a cycle is read from there and not typed again');
   ok('and each world is read in its own units, because offering a reader in the Solar System a galactic year is offering a control that cannot say anything useful',
-    /solar:\['hour','day','moon','year'\]/.test(src)
+    /solar:\['sec','hour','day','moon','year'\]/.test(src)
     && /cyc:\['year','century','prec','gal'\]/.test(src)
     && /obs:\['myr','gyr'\]/.test(src),
     'and the step buttons move by exactly one of the selected unit, which is what makes the bar an instrument rather than a scrubber');
+  /* v4.408: a reader asked for the second — one second per second is real time, the pace at which a turning body can be judged */
+  ok('and the worlds with turning bodies are read from the second upward: one second per second is real time, the rate at which a reader can judge how fast a body actually spins, and a second is exactly 1/86400 of the day the atlas counts in',
+    /\{key:'sec',\s+cycle:null,\s+days:1\/86400,/.test(src)
+    && /field:\['sec','hour','day','year'\]/.test(src) && /fractal:\['sec','day','year'\]/.test(src)
+    && /r1:'Одна секунда',rA:'одну секунду'/.test(src) && /\(u\.t\.r1\|\|'Один '\+u\.t\.ru\)/.test(src),
+    'sec = 1/86400 d in the Solar System, the field laboratories and the fractal descent; the Russian tooltip agrees in gender — одна секунда, одни сутки');
 }
 
 { /* 3. "NOW" HAS ONE AUTHORITY */
