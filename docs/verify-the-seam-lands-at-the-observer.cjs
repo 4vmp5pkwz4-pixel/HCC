@@ -65,7 +65,7 @@ ok('and the return leg measures its distance from the observer too',
   'approaching the centre of the carrier is not approaching our Universe, so it must not trigger the return');
 
 ok('the Observable side stays centred on the origin, because that world IS observer-centred',
-  /try\{ hccGo\(\{worldId:'obs'\},\{history:true\}\); \}catch\(e\)\{ setMode\('obs'\); \}\s*\n\s*controls\.target\.set\(0,0,0\);   \/\* the Observable world IS observer-centred \*\//.test(cross),
+  /try\{ hccGo\(\{worldId:'obs'\},\{history:true\}\); \}catch\(e\)\{ setMode\('obs'\); \}[\s\S]{0,320}?\n\s*controls\.target\.set\(0,0,0\);   \/\* the Observable world IS observer-centred \*\//.test(cross),
   'the same point wears two coordinates, and each world uses its own');
 
 /* ── the map, as arithmetic ──────────────────────────────────────────────────── */

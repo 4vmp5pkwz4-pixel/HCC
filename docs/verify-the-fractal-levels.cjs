@@ -102,8 +102,10 @@ const lP = 1.616255e-35, PHI = (1 + Math.sqrt(5)) / 2, levelOf = L => Math.log(L
     /hccCameraGoalClear\(\); camera\.position\.fromArray\(cam\); controls\.target\.fromArray\(tgt\);\s*\n\s*_lastCamDist=camera\.position\.distanceTo\(controls\.target\); hccCameraGoal\(_lastCamDist,0\); hccSeamSafe\(\); syncCameraClipping\(true\); \}/.test(R2)
     && /hccCameraRestore\(cam,tgt\)/.test(back) && /hccCameraRestore\(s\.cam,s\.tgt\);/.test(nb)
     && /B=hccSeamBand\('obs'\)/.test(fn('hccSeamSafe')) && step > 1 && placed * step < asked
-    && /if\(mode!==state\.mode\) _lastCamDist=NaN;/.test(fn('setMode')),
-    `Back to ${asked} Gly from a world switch that had placed the camera at ${placed}: before, the first frame stood at ${(placed * step).toFixed(0)} Gly and nothing asked again; now it stands where it was taken, or at the seam's edge · and a world switch forgets the radius of the world it left (Back to the Solar System walked out from ${(0.0021 * step).toFixed(4)} AU — 2 Mly read as AU — over ${Math.ceil(Math.log(71.63 / 0.0021) / Math.log(step))} frames)`); }
+    && /if\(mode!==state\.mode\) _lastCamDist=NaN;/.test(fn('setMode'))
+    && /if\(prev\.worldId==='solar'\) prev\.layer=state\.solarScaleLayer\|\|'local';/.test(fn('hccGo'))
+    && /if\(t\.worldId==='solar'&&t\.layer&&state\.mode==='solar'&&state\.solarScaleLayer!==t\.layer\) advanceScaleLayer\(t\.layer\);\s*\n\s*hccCameraRestore\(cam,tgt\);/.test(back),
+    `Back to ${asked} Gly from a world switch that had placed the camera at ${placed}: before, the first frame stood at ${(placed * step).toFixed(0)} Gly and nothing asked again; now it stands where it was taken, or at the seam's edge · and the layer of the Solar chain comes back with it (restored at 1.9e12 AU in the local layer, the frame stood empty while the chain climbed three layers) · and a world switch forgets the radius of the world it left (Back to the Solar System walked out from ${(0.0021 * step).toFixed(4)} AU — 2 Mly read as AU — over ${Math.ceil(Math.log(71.63 / 0.0021) / Math.log(step))} frames)`); }
 
 /* 7 · the strip offers the same doors, and the carrier has a band */
 { const scrub = fn('sxScrubTo'), fly = fn('sxFlyTo'), oc = fn('sxObsCross');
@@ -113,8 +115,11 @@ const lP = 1.616255e-35, PHI = (1 + Math.sqrt(5)) / 2, levelOf = L => Math.log(L
     && /if\(sxS3Sec\(\)&&!cross\)\{ const B=sxS3Band\(\), Nv=levelOf\(1\.6\*L\); if\(Nv>=B\.lo-0\.5\)\{ sxS3Steer\(Nv,true\); return; \}/.test(fly)
     && /if\(E\.from==='s3'\)\{ if\(sxS3Sec\(\)&&hccSeamCross\('obs'\)\) try\{ sxObsSteer\(E\.want,true\); \}catch\(e\)\{\} return; \}/.test(oc)
     && /if\(hccSeamCross\('s3'\)\) sxS3Steer\(E\.want,true\);/.test(oc) && !/SCALE_SEAMS\.obsS3OutGly\*1\.06/.test(oc)
-    && /SX_STATE\.obsEdge=\{side:'below', want:N, t:performance\.now\(\), from:'s3'\};/.test(fn('sxS3Steer')),
-    'drag, tap, step and rung card all reach the carrier\'s band and its door'); }
+    && /SX_STATE\.obsEdge=\{side:'below', want:N, t:performance\.now\(\), from:'s3'\};/.test(fn('sxS3Steer'))
+    /* and a step may ask past the track's end (rung 300) where the world shows more — the door out was unreachable */
+    && /const sxTop=\(\)=>\(state\.mode==='obs'&&!DSC\.on\)\|\|sxS3Sec\(\)\?SX_NMAX\+12:SX_NMAX;/.test(SRC)
+    && /function sxScrubTo\(N,final\)\{ N=Math\.max\(0,Math\.min\(sxTop\(\),N\)\);/.test(SRC) && (SRC.match(/Math\.min\(sxTop\(\),N(?:\+d)?\)/g) || []).length >= 4,
+    'drag, tap, step and rung card all reach the carrier\'s band and its door — a step past the track\'s end (rung 300) included, where the Observable world and the carrier show more than the track'); }
 
 /* 8 · and the page checks it at boot */
 ok('AND THE PAGE CHECKS IT AT BOOT: the switch reads both ways, every zoom crossing arrives inside its band, and the rung is equal on both sides of the carrier\'s seam',

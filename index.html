@@ -22054,9 +22054,10 @@ function gripHintTick(){ let el=document.getElementById('gripHint'); const act=g
   if(document.documentElement.classList.contains('land')){ const S=hccLandStage(), box=e=>{ if(!e) return null; const cs=getComputedStyle(e); if(cs.display==='none'||cs.visibility==='hidden') return null; const r=e.getBoundingClientRect(); return r.width>0&&r.height>0?r:null; };
     const fab=box(document.getElementById('helpFab')), lad=box(document.getElementById('tsLadder'));
     const lo=Math.max(S.left+8,fab?fab.right+8:0), hi=S.right-8, foot=Math.min(S.bottom,lad&&lad.top>S.top+60?lad.top:S.bottom)-6;
-    el.style.left=Math.round((lo+hi)/2)+'px'; el.style.maxWidth=Math.max(160,Math.round(hi-lo))+'px'; el.style.fontSize='11px';
+    /* max-content: a box placed by its left edge shrinks to the room on that edge's right, and wrapped to three lines */
+    el.style.left=Math.round((lo+hi)/2)+'px'; el.style.width='max-content'; el.style.maxWidth=Math.max(160,Math.round(hi-lo))+'px'; el.style.fontSize='11px';
     el.style.top=Math.max(S.top,Math.round(foot-(el.offsetHeight||26)))+'px'; }
-  else { el.style.maxWidth='min(92vw,720px)'; el.style.fontSize=''; el.style.left=phone?'50%':(innerWidth>900?'62%':'50%');
+  else { el.style.width=''; el.style.maxWidth='min(92vw,720px)'; el.style.fontSize=''; el.style.left=phone?'50%':(innerWidth>900?'62%':'50%');
     if(phone&&lr){ el.style.top=Math.max(90,Math.round(lr.top-(el.offsetHeight||44)-12))+'px'; } else el.style.top='150px'; }
   el.style.transition='opacity .8s ease'; el.style.opacity=age>8000?'0':'1'; el.style.pointerEvents='none'; }   /* on a wide screen the panels sit left: the hint stands over the scene */
 setInterval(()=>{ try{ gripHintTick(); }catch(e){} },500);
@@ -22319,6 +22320,10 @@ const SX_NMAX=300;
    (SCALE_SEAMS.s3UnitGly — the seam maps the radius by it), so the rung is read as in any other world and runs on across
    the seam. The other S³ laboratories keep their own units and no rung. */
 const sxS3Sec=()=>state.mode==='s3'&&state.s3view==='sec'&&!(typeof MV!=='undefined'&&MV.on);
+/* the ladder's track ends at rung 300, the S³ radius; the Observable world shows to N ≈ 301.5 and the carrier to ≈ 308.
+   A step or a key may ask past the track's end there — at 300 the Observable world's door out to the carrier could not
+   be reached from the strip at all, and on the carrier › could not zoom out (v4.404) */
+const sxTop=()=>(state.mode==='obs'&&!DSC.on)||sxS3Sec()?SX_NMAX+12:SX_NMAX;
 function sxMetersPerUnit(){ const m=state.mode; if(m==='solar') return DSC.on?DSC.U:1.495978707e11; if(m==='obs') return HCC_GLY_M; if(m==='fbs'&&!fbsTier2()) return levelR(state.fbsDepth||0); if(sxS3Sec()) return SCALE_SEAMS.s3UnitGly*HCC_GLY_M; return 0; }
 function sxLight(sec){ const U=[[1e-9,'ns'],[1e-6,'μs'],[1e-3,'ms'],[1,'s'],[60,'min'],[3600,'h'],[86400,'d'],[3.15576e7,'yr'],[3.15576e10,'kyr'],[3.15576e13,'Myr'],[3.15576e16,'Gyr']]; let u=U[0]; for(const x of U) if(sec>=x[0]*0.999) u=x; if(sec<1e-9) return sec.toExponential(1)+' s'; const v=sec/u[0]; return (v>=100?v.toFixed(0):v>=10?v.toFixed(1):v.toPrecision(2))+' '+u[1]; }
 /* the integer rung whose length is drawn between lo and lo·φ pixels — exactly one rung fits that window */
@@ -22572,13 +22577,13 @@ function sxStripBind(){ const T=document.getElementById('tssTrack'); if(!T||T.da
     T.classList.toggle('fine',g<0.7); if(g<0.7) T.dataset.fine=`×${(1/g).toFixed(1/g<10?1:0)} ${TT('finer','точнее','feiner')}`;
     if(k!==D.n){ D.n=k; sxHaptic(3); } sxScrubTo(N,false); sxStripTick(); };
   T.onpointerup=T.onpointercancel=ev=>{ const D=SX_STATE.drag; SX_STATE.drag=null; T.classList.remove('scrub','fine'); if(!D||!D.strip) return; if(ev.type==='pointercancel'&&!D.moved) return; sxScrubTo(D.N,true); sxStripTick(); };
-  T.onkeydown=ev=>{ const N=Number.isFinite(sxNow())?sxNow():150, d={ArrowLeft:-1,ArrowRight:1,ArrowDown:-1,ArrowUp:1,PageDown:-10,PageUp:10}[ev.key]; if(d==null) return; ev.preventDefault(); sxScrubTo(Math.max(0,Math.min(SX_NMAX,N+d)),true); };
+  T.onkeydown=ev=>{ const N=Number.isFinite(sxNow())?sxNow():150, d={ArrowLeft:-1,ArrowRight:1,ArrowDown:-1,ArrowUp:1,PageDown:-10,PageUp:10}[ev.key]; if(d==null) return; ev.preventDefault(); sxScrubTo(Math.max(0,Math.min(sxTop(),N+d)),true); };
   /* a rung either side of the track: a tap steps one, a hold keeps stepping and speeds up; in the descent the steps go
      on below N = 0, down to its floor */
   const step=d=>{ const N0=Number.isFinite(sxNow())?sxNow():150, now=performance.now(), fresh=SX_STATE.stepT&&now-SX_STATE.stepT<2500&&Number.isFinite(SX_STATE.stepGoal);
-    const N=(fresh?SX_STATE.stepGoal:Math.round(N0))+d; SX_STATE.stepGoal=DSC.on?Math.max(DSC_FLOOR,N):Math.max(0,Math.min(SX_NMAX,N)); SX_STATE.stepT=now;
+    const N=(fresh?SX_STATE.stepGoal:Math.round(N0))+d; SX_STATE.stepGoal=DSC.on?Math.max(DSC_FLOOR,N):Math.max(0,Math.min(sxTop(),N)); SX_STATE.stepT=now;
     if(DSC.on&&N<DSC.exitN){ descentGoTo(Math.max(DSC_FLOOR,N),true); sxHaptic(4); return; }
-    sxScrubTo(Math.max(0,Math.min(SX_NMAX,N)),true); sxHaptic(4); };
+    sxScrubTo(Math.max(0,Math.min(sxTop(),N)),true); sxHaptic(4); };
   for(const [id,d] of [['tssPrev',-1],['tssNext',1]]){ const b=document.getElementById(id); if(!b) continue; let tm=null, iv=null, held=false;
     const stop=()=>{ clearTimeout(tm); clearInterval(iv); tm=iv=null; };
     b.onpointerdown=ev=>{ ev.preventDefault(); try{ b.setPointerCapture(ev.pointerId); }catch(e){} held=true; step(d); stop(); tm=setTimeout(()=>{ let k=0; iv=setInterval(()=>step(d*(++k>12?3:1)),110); },420); };
@@ -22693,7 +22698,7 @@ function sxObsCross(){ const E=SX_STATE.obsEdge; SX_STATE.obsEdge=null; if(!E) r
   /* above: the seam itself, and then the rung asked for on the carrier (it flew out past the seam and left the
      crossing to the zoom's — which with the switch off never came) */
   try{ controls.target.set(0,0,0); if(hccSeamCross('s3')) sxS3Steer(E.want,true); }catch(e){} }
-function sxScrubTo(N,final){ N=Math.max(0,Math.min(SX_NMAX,N)); if(state.mode==='fbs'&&!fbsTier2()){ SX_STATE.scrubN=final?null:N; sxFbsGo(N,final); return; }
+function sxScrubTo(N,final){ N=Math.max(0,Math.min(sxTop(),N)); if(state.mode==='fbs'&&!fbsTier2()){ SX_STATE.scrubN=final?null:N; sxFbsGo(N,final); return; }
   if(state.mode==='obs'&&!DSC.on){ SX_STATE.scrubN=final?null:N; sxObsSteer(N,final); return; }
   if(sxS3Sec()){ SX_STATE.scrubN=final?null:N; sxS3Steer(N,final); return; }
   const L=levelR(N); SX_STATE.scrubN=N;
@@ -35159,7 +35164,8 @@ let _autoScaleCd=0, _skyFadeMats=null, _rideAimed=false;
    · the Observable ↔ S³ seam switched worlds WITHOUT the router: the Observable world on the screen while the address, the
      trail and the context still said «S³ · Section», and Back then went to a laboratory the reader had never opened;
    · the same seam placed the camera in the units of the world it was LEAVING: from 810 Gly on the carrier the Observable
-     world opened at 8.1 Gly and crept back out over 48 frames — six rungs lost at a seam that claims to keep every ratio
+     world opened at 8.1 Gly and crept back out over 48 frames — nine and a half rungs (a hundredfold is φ^9.57) lost and
+     regained at a seam that claims to keep every ratio
      (the Observable → Solar leg had been cured of exactly this in v4.367; this seam kept it, in both directions);
    · Back across a seam put the camera back where the crossing had fired — past the seam — and as soon as the cooldown ran
      out the reader was carried across again.
@@ -35183,8 +35189,9 @@ function hccSeamCross(to){
      through a door lands past the opposite seam to be carried on as soon as the cooldown ends */
   const B=hccSeamBand(to); dGly=Math.min(B.hi,Math.max(B.lo,dGly));
   if(to==='obs'){
-    if(from==='solar') state.solarScaleLayer='local';   /* the solar chain is left behind, not left hanging */
     try{ hccGo({worldId:'obs'},{history:true}); }catch(e){ setMode('obs'); }
+    /* after the route has recorded the layer the reader left from, so Back can return to it */
+    if(from==='solar') state.solarScaleLayer='local';   /* the solar chain is left behind, not left hanging */
     controls.target.set(0,0,0);   /* the Observable world IS observer-centred */
     /* land INSIDE the world that was just entered — the radius maps 1:1, held to its own floor and ceiling */
     const r=THREE.MathUtils.clamp(dGly, controls.minDistance*1.05, Math.min(zoomCeilingNow()*0.9, (controls.maxDistance||Infinity)*0.98));
@@ -95917,7 +95924,13 @@ function scientificViewReady(v){
    orientation — laboratories differ in size by more than an order of magnitude, so a
    literally identical camera would show four wrong pictures. */
 function s3ViewPreset(v){ return v==='chmem'?[0.4,2.4,10.6]:v==='ois'?[0.4,3.0,12.6]:v==='everys3'?[0.4,2.2,8.4]:v==='piexp'?[0.4,4.6,12.6]:v==='mahler'?[0.4,3.2,10.8]:v==='zstrip'?[0.5,6.2,12.8]:v==='haldane'?[0.8,5.6,12.6]:v==='frontier'?[0.0,2.4,14.8]:v==='ccurve'?[0.4,5.4,11.0]:v==='nscomp'?[0.4,5.6,16.5]:v==='unify'?[0.4,1.8,13.5]:v==='nbg'?(state.nbgStation==='links'?[0.8,2.2,14.5]:state.nbgStation==='twistor'?[0,1.0,14.5]:state.nbgStation==='kerr'?[2.0,3.2,12.5]:[0.6,1.6,16.5]):v==='gmode'?[0.6,1.6,15.5]:v==='omnistrobe'?[0.2,1.0,21.5]:v==='triad'?[0.3,1.4,21.5]:v==='vstretch'?[3.0,0.8,17.5]:v==='formulas'?[0,5.5,19.5]:v==='strobe'?[2.2,1.0,20.5]:v==='nsblow'?[1.2,0.2,19.5]:v==='nsgal'?[1.4,0.6,13.6]:v==='tri'?[0,2.6,11.8]:v==='s3gamma'?[0,2.2,10.5]:v==='discover'?[0,2.4,11.5]:v==='lgmerge'?[0,5.5,10.5]:v==='nsflow'?[1.5,0.6,12.4]:v==='bbh'?[0,9.5,15.5]:v==='he3'?[0,2.2,10.4]:v==='nuosc'?[0,1.2,13.2]:v==='adisk'?[0,4.2,11.5]:v==='elens'?[3.2,2.4,11.5]:v==='emb'?[1.8,.6,12.6]:v==='civplock'?[0,.6,11.2]:v==='civpcut'?[0,.4,13.2]:v==='civpidx'?[1.2,1.3,15.2]:v==='civpa4'?[0,-.8,14.6]:v==='civpsel'?[6.4,5.4,12.4]:v==='civpcar'?[1.5,-.4,13.6]:v==='civpclo'?[.6,.3,13.2]:v==='nexus'?[0,1.5,20.5]:v==='nul'?[0,1.15,10.4]:v==='act'?[0,1.1,10.35]:v==='hol'?[0,1.1,10.25]:v==='syd'?[0,1.15,10.2]:v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,.45,10.8]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:v==='bht'?[0,0,9.5]:v==='rpd'?[0,0.8,11.5]:v==='imp'?[0,2.4,10.5]:v==='pole'?[0,2.2,10]:v==='disp'?[0,0.6,11]:v==='berry'?[0,1.2,9.5]:v==='cusp'?[0,1.5,8.5]:v==='kam'?[0,1.4,8.5]:v==='rsh'?[0,3.2,9.2]:v==='and'?[0,0.6,9.5]:v==='psp'?[0,1.6,10.4]:v==='dfx'?[0,2.2,8.2]:v==='noe'?[0,1.4,8.8]:v==='cau'?[0,2.0,8.4]:v==='wil'?[0,1.2,8.0]:v==='gate'?[0,0.4,9.4]:v==='cps'?[0,1.6,8.6]:v==='poin'?[0,1.0,8]:v==='qcrys'?[1.2,1.0,10]:v==='leech'?[0,-0.2,13.8]:v==='scales'?[0,0.35,13.8]:v==='osc'?[0,0.2,12.6]:v==='cmb'?[0,.35,10.4]:v==='mimg'?[0,0,9]:v==='bhr'?[0,3,16]:v==='ns'?[0,0.5,9]:v==='sn'?[0,0.5,9.5]:v==='psr'?[0,0.8,9.5]:v==='qso'?[3,2.5,9]:v==='rmhd'?[0,.35,10.6]:v==='wd'?[0,.45,9.8]:v==='cosmicweb'?[0,.8,12.8]:v==='s3shell'?[0,.4,12.6]:v==='s3torus'?[0,-.3,13.2]:v==='s3tube'?[0,-.25,13.8]:v==='s3escape'?[0,.2,13.4]:v==='s3kb'?[0,.35,12.6]:v==='s3lock'?[0,.15,16.4]:[0,8,17]; }
-function scientificCameraPreset(v){const p=s3ViewPreset(v);{ const k=v==='chmem'||v==='ois'?1:hccLandFrameScale(); if(k>1) return [p[0]*k,p[1]*k,p[2]*k]; }   /* a phone on its side (v4.404): the two that fit their stations to the open band fit them themselves */
+/* a phone on its side (v4.404): a preset stands back by what the cockpit takes — except where that would change what is
+   seen rather than how much: the causal memory and the information spectrum fit their stations to the open band
+   themselves, and the Centre lab's preset stands INSIDE the shell its cap B projects to (the cap round the projection's
+   own pole is the outside of a sphere of radius R·tan((π−χ_B)/2) = 19.4 units; the camera stands at 18) — backed out to
+   22.8 the shell closed over the stage as a pale disc */
+const LAND_FRAME_KEEP=new Set(['chmem','ois','lab']);
+function scientificCameraPreset(v){const p=s3ViewPreset(v);{ const k=LAND_FRAME_KEEP.has(v)?1:hccLandFrameScale(); if(k>1) return [p[0]*k,p[1]*k,p[2]*k]; }
 if(typeof innerWidth==='undefined'||innerWidth>760||!['nexus','nul','act','hol','syd','civplock','civpcut','civpidx','civpa4','civpsel','civpcar','civpclo'].includes(v))return p;const k=v==='nexus'?1.55:1.38;return [p[0],p[1]*.84,p[2]*k];}
 /* Visibility-only projection of a view id onto the scene graph. setS3View() calls it
    once; MULTIVIEW calls it per tile, between render passes, so four laboratories can
@@ -127970,7 +127983,8 @@ function tickBody(now, frame){
   else if(state.mode==='s3'){
     // Reverse leg of the same seam. Only the global section participates: zooming a
     // specialist S³ laboratory must never throw the reader into another instrument.
-    if(state.s3view==='sec' && !state.landed && !renderer.xr.isPresenting && !focusAnim){
+    /* (v4.404: and not from inside the multiview, whose tiles are laboratories side by side, not a place on the ladder) */
+    if(state.s3view==='sec' && !state.landed && !renderer.xr.isPresenting && !focusAnim && !MV.on){
       if(_autoScaleCd>0) _autoScaleCd-=dt;
       else { const _O=hccObserverOnCarrier();
         /* measured from the OBSERVER for the same reason the outward leg lands there:
@@ -129280,6 +129294,7 @@ function hccGo(target,opts={}){
     }
     const prev={worldId:HCC_CTX.worldId,labId:HCC_CTX.labId};
     try{ prev.seq=++NAV_SEQ.n; prev.cam=camera.position.toArray(); prev.tgt=controls.target.toArray(); }catch(e){}   /* ordered with the camera stack, and the view kept */
+    if(prev.worldId==='solar') prev.layer=state.solarScaleLayer||'local';   /* and the rung of the Solar chain it was on (v4.404) */
     if(opts.history!==false&&(prev.worldId!==worldId||prev.labId!==labId))
       HCC_CTX.navigationHistory.push(prev);
     HCC_CTX.worldId=worldId; HCC_CTX.labId=labId;
@@ -129518,7 +129533,11 @@ function navUnifiedBack(){ const h=HCC_CTX.navigationHistory, a=NAV_STACK.length
     const t=h.pop(); let cam=t.cam, tgt=t.tgt;
     if(a>=0&&b-a===1){ const snap=NAV_STACK.pop(); cam=snap.cam; tgt=snap.tgt; }
     hccGo(t,{history:false});
-    if(cam) setTimeout(()=>{ try{ if(HCC_CTX.worldId===t.worldId&&HCC_CTX.labId===t.labId) hccCameraRestore(cam,tgt); }catch(e){} },420);
+    if(cam) setTimeout(()=>{ try{ if(HCC_CTX.worldId===t.worldId&&HCC_CTX.labId===t.labId){
+      /* v4.404: the layer of the Solar chain comes back with the camera — restored at 1.9e12 AU in the local layer, the
+         reader saw an empty frame until the chain had climbed back through three layers */
+      if(t.worldId==='solar'&&t.layer&&state.mode==='solar'&&state.solarScaleLayer!==t.layer) advanceScaleLayer(t.layer);
+      hccCameraRestore(cam,tgt); } }catch(e){} },420);
     r=true; }
   else if(a>=0){ try{ navBack(); r=true; }catch(e){} }   /* a jump inside the same place: the camera stack alone */
   else r=hccBack();

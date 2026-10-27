@@ -146,13 +146,16 @@ const rule = sel => { const i = CSS.indexOf(sel + '{'); if (i < 0) return ''; re
    scene and with Controls open: no control covered, none blocked, none under 44 px, nothing spilling. Two things were
    wrong. The grips' hint stood at y 150 — the middle of a 220-px stage, over the subject — in twenty laboratories. And a
    preset frames its subject for the screen's height, which a desk leaves 86 % of to the scene and the cockpit two-thirds:
-   measured on the canvas alone (UI hidden, lone stars dropped), the central 90 % of a laboratory's drawing spanned a
-   median 0.88 of the free stage's height, and in 31 of 144 it ran past the stage's edge, top or bottom. */
+   with every visible object of a laboratory projected on the screen (bounding spheres; the canvas' pixels were tried
+   first and measured the glow and the sky as much as the subject), the median laboratory stood 1.01 times as tall as the
+   free stage and in 80 of 145 it ran past the stage's edge. Standing back by the ratio: median 0.82, 55 past the edge,
+   the share of a laboratory inside the stage a median 0.93 → 1.00 (tenth percentile 0.55 → 0.70). */
 { const H = fn('gripHintTick'), P = SRC.slice(SRC.indexOf('function scientificCameraPreset(v){'), SRC.indexOf('function scientificCameraPreset(v){') + 400), K = fn('hccLandFrameScale');
   const hint = /if\(document\.documentElement\.classList\.contains\('land'\)\)\{ const S=hccLandStage\(\)/.test(H) && /foot=Math\.min\(S\.bottom,lad&&lad\.top>S\.top\+60\?lad\.top:S\.bottom\)-6;/.test(H)
     && /const lo=Math\.max\(S\.left\+8,fab\?fab\.right\+8:0\), hi=S\.right-8/.test(H);
   const scale = /return Math\.max\(1,Math\.min\(1\.45,0\.86\/f\)\); \}/.test(K) && /const S=hccLandStage\(\), f=Math\.max\(0\.3,\(S\.bottom-S\.top\)\/S\.H\);/.test(K)
-    && /const k=v==='chmem'\|\|v==='ois'\?1:hccLandFrameScale\(\); if\(k>1\) return \[p\[0\]\*k,p\[1\]\*k,p\[2\]\*k\];/.test(P)
+    && /const k=LAND_FRAME_KEEP\.has\(v\)\?1:hccLandFrameScale\(\); if\(k>1\) return \[p\[0\]\*k,p\[1\]\*k,p\[2\]\*k\];/.test(P)
+    && /const LAND_FRAME_KEEP=new Set\(\['chmem','ois','lab'\]\);/.test(SRC)
     && /if\(mode==='fbs'\|\|mode==='field'\|\|mode==='fractal'\)\{ const k=hccLandFrameScale\(\); if\(k>1\) camera\.position\.sub\(controls\.target\)\.multiplyScalar\(k\)\.add\(controls\.target\); \}/.test(SRC)
     && (fn('setFractalType').match(/hccLandFrameScale\(\)/g) || []).length === 2;
   /* the arithmetic, over the phones held sideways: the free stage's share of the height and how far a preset stands back */
