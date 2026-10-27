@@ -864,6 +864,8 @@ export const ROOTS = [
   'PX_FIB', 'PX_PHI', 'pxRank', 'pxWords', 'pxAdj', 'pxMomentByH', 'pxTransferStart', 'pxTransferWork', 'pxTransferStep', 'pxTransferValue', 'pxMomentByTransfer', 'pxDen', 'pxNumerator', 'pxSeries', 'PX_PM', 'pxFluxS', 'pxTrH4', 'pxEigSym', 'pxScars', 'PX_PASSES', 'pxJobStart', 'pxJobStep', 'pxPolyTxt',
   /* the Hopf insulator (v4.407) */
   'HI_S', 'hiU', 'hiN', 'hiGap', 'hiDegree', 'hiDet4', 'hiDegreeIntegral', 'hiFFT', 'hiFFT3', 'hiHopf', 'hiH0', 'hiInterp125', 'hiPreimage', 'HI_REFS', 'hiCalibMatrix', 'hiSolve', 'hiBestDeletion', 'hiMinimax', 'HI_TARGETS', 'hiMeasure',
+  /* the Hopf-triad universe (v4.408) */
+  'htMul', 'HT_E', 'htN', 'htIsotropy', 'htOmegaAvg', 'htBounce', 'htEnergy', 'htEss', 'htWindow', 'htWindowByRoot', 'htTcrit', 'htBase', 'htFibre',
   /* the horizons in cosmic time (v4.358) */
   'hzTable', 'hzAgeAtA', 'hzAtT', 'hzTimeAtParticle', 'hzEmissionTime', 'hzScreenAt', 'HZ_EVENTS',
   /* the causal calendar of the web (v4.360) */
