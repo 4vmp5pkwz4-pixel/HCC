@@ -38,29 +38,34 @@ ok('the observer on the carrier is one function and one point',
   && (src.match(/hccObserverOnCarrier\(\)/g) || []).length >= 4,
   'the cap is centred there and its passport returns the same point, so there is one authority and not two');
 
-/* The placement is unchanged; what follows it is not. Both legs now also record the
- * mapped radius as a CAMERA GOAL, because the governor's per-frame dolly bound
- * truncates a placement that asks once — the return leg multiplies the radius by a
- * hundred and was arriving at 2.6 of it, one thirty-eighth of the distance this seam
- * claims to preserve exactly. The clause is about WHERE the leg aims, so the block
- * it matches is allowed to carry that line. */
+/* v4.404: every crossing of every seam is ONE function now, hccSeamCross — routed (address, trail and Back follow), the
+ * radius mapped in physical length. The legs aim where they aimed; what follows the placement changed again. The legs
+ * had recorded the mapped radius as a goal paced over 48 frames, and the pace is measured from the radius the governor
+ * last applied — which across THIS seam is in the other world's unit: the carrier opened at 91 times the mapped radius
+ * (or the Observable world at a ninety-first of it) and crept back, nine rungs lost and regained at a seam that keeps
+ * every ratio. A similarity has nothing to glide across, so the governor is told the camera already stands there. */
+const cross = (() => { const i = src.indexOf('function hccSeamCross(to){'); return i < 0 ? '' : src.slice(i, src.indexOf('\nconst hccSeamAuto=', i)); })();
 ok('the outward leg targets the observer instead of the centre of the carrier',
-  /\{ const O=hccObserverOnCarrier\(\);\s*\n\s*controls\.target\.copy\(O\);\s*\n\s*camera\.position\.copy\(O\)\.addScaledVector\(dir, dObs\/SCALE_SEAMS\.s3UnitGly\);/.test(src)
-  && /hccCameraGoal\(dObs\/SCALE_SEAMS\.s3UnitGly, SCALE_SEAMS\.crossFrames\); \}/.test(src)
+  /if\(to==='s3'\)\{\s*try\{ hccGo\(\{worldId:'s3',labId:'sec'\},\{history:true\}\); \}catch\(e\)\{ state\.s3view='sec'; setMode\('s3'\); \}/.test(cross)
+  && /const O=hccObserverOnCarrier\(\), r=dGly\/SCALE_SEAMS\.s3UnitGly;\s*\n\s*controls\.target\.copy\(O\); camera\.position\.copy\(O\)\.addScaledVector\(dir, r\);/.test(cross)
   && !/state\.s3view='sec'; setMode\('s3'\);\s*\n\s*controls\.target\.set\(0,0,0\);/.test(src),
   'the cap you have just zoomed out of is centred on that point; the origin of the projection is somewhere no chain of scales leads');
-ok('and both legs keep asking until the camera is at the radius the map gives it, because a seam that claims an exact ratio and lands at one thirty-eighth of it is not a seam',
-  /hccCameraGoal\(dObs\/SCALE_SEAMS\.s3UnitGly, SCALE_SEAMS\.crossFrames\);/.test(src)
-  && /hccCameraGoal\(dS3\*SCALE_SEAMS\.s3UnitGly, SCALE_SEAMS\.crossFrames\);/.test(src),
-  'the outward leg divides by a hundred and the return leg multiplies by it; only the growth was being clamped, which is why only the return leg read as wrong — and both are now paced over the same number of frames, so the crossing is a glide in either direction');
+{ const m = src.match(/function hccCameraGoal\(d, frames\)\{[\s\S]*?\n\}\n/);
+  const run = (last, goal, frames) => new Function('camera', 'controls', `let _camGoalPending=true, _camGoal=NaN, _camGoalStep=0, _lastCamDist=${last};\n${m[0]}\nhccCameraGoal(${goal}, ${frames}); return _camGoalStep;`)({ position: { distanceTo: () => goal } }, { target: {} });
+  const dObs = 957.5, r = dObs / 100, now = run(r, r, 0), was = run(dObs, r, 48), first = dObs / was;
+  ok('and both legs stand at the radius the map gives them from the first frame: the governor is told the camera is already there, so no pace is measured from the radius it last applied in the other world\'s unit — run here: as it is, nothing to pace; as it was, the carrier opened at ' + (first / r).toFixed(0) + ' times the mapped radius (mutation, caught)',
+    !!m && (cross.match(/_lastCamDist=r; hccCameraGoal\(r,0\);/g) || []).length === 2
+    && !/hccCameraGoal\(dObs\/SCALE_SEAMS\.s3UnitGly, SCALE_SEAMS\.crossFrames\)/.test(src) && !/hccCameraGoal\(dS3\*SCALE_SEAMS\.s3UnitGly, SCALE_SEAMS\.crossFrames\)/.test(src)
+    && now === 0 && first / r > 50,
+    `out at ${dObs} Gly → the carrier at ${r} units: now step ${now}; before, ${was.toFixed(4)}× a frame from ${dObs} — the first frame ${first.toFixed(0)} units out, ${(first * 100).toFixed(0)} Gly, for a camera that belonged at ${(r * 100).toFixed(0)}`); }
 
 ok('and the return leg measures its distance from the observer too',
   /const dS3=camera\.position\.distanceTo\(_O\), homeAim=controls\.target\.distanceTo\(_O\)<RU\*0\.08;/.test(src)
-  && /const dir=camera\.position\.clone\(\)\.sub\(_O\);/.test(src),
+  && /else if\(from==='s3'\)\{ const O=hccObserverOnCarrier\(\); dir=camera\.position\.clone\(\)\.sub\(O\); dGly=dir\.length\(\)\*SCALE_SEAMS\.s3UnitGly; \}/.test(cross),
   'approaching the centre of the carrier is not approaching our Universe, so it must not trigger the return');
 
 ok('the Observable side stays centred on the origin, because that world IS observer-centred',
-  /setMode\('obs'\); controls\.target\.set\(0,0,0\);   \/\/ the Observable world IS observer-centred/.test(src),
+  /try\{ hccGo\(\{worldId:'obs'\},\{history:true\}\); \}catch\(e\)\{ setMode\('obs'\); \}[\s\S]{0,320}?\n\s*controls\.target\.set\(0,0,0\);   \/\* the Observable world IS observer-centred \*\//.test(cross),
   'the same point wears two coordinates, and each world uses its own');
 
 /* ── the map, as arithmetic ──────────────────────────────────────────────────── */
@@ -107,20 +112,27 @@ ok('and angles survive it too, which a scale-only map would also have to prove',
    checkbox's own render is one of those, so deleting a real gate left four gates and
    five matches and the check stayed green. A mutation proved it. Each of the five
    transitions is now named and looked for where it actually lives. */
+/* v4.404: and the automatic hand-off is ONE predicate for all four crossings (hccSeamAuto: that switch and this one), in
+   both directions — it had governed the two outward legs only, so zooming in crossed whatever it said and zooming out
+   did not, and a reader who zoomed into the Solar System could not zoom back out. Off, a seam offers its door, and the
+   door is gated by this switch too. */
 const SITES = [
   ['the solar ladder steps', /if\(state\.scaleChain===false\) return;/],
-  ['the hand-off out to the Observable Universe', /d>SCALE_SEAMS\.solarObsOutGly\*GLY_AU && state\.autoScaleHandoff!==false && state\.scaleChain!==false/],
+  ['the hand-off out to the Observable Universe', /d>SCALE_SEAMS\.solarObsOutGly\*GLY_AU && state\.scaleChain!==false\)\{\s*\n\s*if\(hccSeamAuto\(\)\)\{ hccSeamCross\('obs'\); return; \}/],
   /* this site also carries !state.quantShells — while the curvature band is drawn
      the reader is looking AT the thing the seam would carry them through, and three
      of its five shells lie beyond the hand-off radius. The gate that matters to this
      check is still there; the pattern allows the extra condition rather than
      forbidding it, because a gate may be narrowed and must not be removed. */
-  ['the hand-off on to the finite carrier', /dObs>SCALE_SEAMS\.obsS3OutGly && [^;]*state\.autoScaleHandoff!==false && state\.scaleChain!==false/],
-  ['the return from the Observable Universe', /dObs<SCALE_SEAMS\.obsSolarInGly && state\.scaleChain!==false/],
-  ['the return from the carrier', /dS3\*SCALE_SEAMS\.s3UnitGly<SCALE_SEAMS\.s3ObsInGly && state\.scaleChain!==false/]];
+  ['the hand-off on to the finite carrier', /const _outS3=homeAim && dObs>SCALE_SEAMS\.obsS3OutGly && [^;]*state\.scaleChain!==false;[\s\S]{0,160}if\(_outS3&&hccSeamAuto\(\)\) hccSeamCross\('s3'\);/],
+  ['the return from the Observable Universe', /const _inSolar=homeAim && dObs<SCALE_SEAMS\.obsSolarInGly && state\.scaleChain!==false;[\s\S]{0,160}else if\(_inSolar&&hccSeamAuto\(\)\) hccSeamCross\('solar'\);/],
+  ['the return from the carrier', /const _inObs=homeAim && dS3\*SCALE_SEAMS\.s3UnitGly<SCALE_SEAMS\.s3ObsInGly && state\.scaleChain!==false;\s*\n\s*if\(_inObs&&hccSeamAuto\(\)\) hccSeamCross\('obs'\);/]];
 const missing = SITES.filter(([, re]) => !re.test(src)).map(([n]) => n);
-ok('one switch governs every automatic move between scales, and each of the five is gated where it lives',
-  missing.length === 0 && /scaleChain:true/.test(src),
+ok('one switch governs every automatic move between scales, and each of the five is gated where it lives — the four crossings by one predicate that reads both switches, in both directions alike, and the door they offer instead by this one',
+  missing.length === 0 && /scaleChain:true/.test(src)
+  && /const hccSeamAuto=\(\)=>state\.autoScaleHandoff!==false&&state\.scaleChain!==false;/.test(src)
+  && /function hccSeamOffer\(to\)\{ if\(state\.scaleChain===false\)\{ HCC_SEAM\.door=null; return; \}/.test(src)
+  && !/state\.autoScaleHandoff!==false && state\.scaleChain!==false/.test(src),
   `${SITES.length} transitions, each named and each gated` + (missing.length ? ` · UNGATED: ${missing.join(', ')}` : ''));
 
 /* ── THIS PINNED THE HEADING, AND THE HEADING WAS THE BUG ────────────────────

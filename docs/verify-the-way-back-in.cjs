@@ -15,7 +15,8 @@ const fs = require('node:fs'), path = require('node:path');
 const SRC = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 let pass = 0, fail = 0;
 const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? ' :: ' + d : '')); } else { fail++; console.log('  FAIL — ' + n + (d ? ' :: ' + d : '')); } };
-const i0 = SRC.indexOf('if(homeAim && dObs<SCALE_SEAMS.obsSolarInGly && state.scaleChain!==false){'), seam = i0 > 0 ? SRC.slice(i0, SRC.indexOf("hudBig.textContent='Scale ↓ Cosmic web", i0)) : '';
+/* v4.404: every leg of every seam is one function, hccSeamCross, and this is its leg to the Solar System */
+const i0 = SRC.indexOf('function hccSeamCross(to){'), seam = i0 > 0 ? SRC.slice(SRC.indexOf("state.solarScaleLayer='cosmic';", i0), SRC.indexOf("TT('Scale ↓ Cosmic web", i0)) : '';
 
 /* 1 */
 ok('the inward seam holds the mapped radius: the governor is told the camera already stands there, and no crossing is paced across a 1:1 map',

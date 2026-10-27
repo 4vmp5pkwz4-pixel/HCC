@@ -122,12 +122,13 @@ ok('the hand-off is a navigation, so the breadcrumb and the address cannot disag
   /try\{ hccGo\(\{worldId:'obs'\},\{history:true\}\); \}catch\(e\)\{ setMode\('obs'\); \}/.test(src),
   'it called setMode directly and told no one: HCC_CTX kept saying solar while the Observable Universe was drawn, and the reader could see the disagreement in the breadcrumb');
 
+/* v4.404: every crossing of every seam is one function now (hccSeamCross); its leg to the Observable world is this one */
 ok('the solar chain is left behind rather than left hanging when the reader crosses the seam',
-  /state\.solarScaleLayer='local';\s*\/\/ the solar chain is left behind, not left hanging/.test(src),
+  /if\(from==='solar'\) state\.solarScaleLayer='local';\s*\/\* the solar chain is left behind, not left hanging \*\//.test(src),
   'the layer stayed on cosmic after the world had changed, which is a second authority for where the reader is');
 
 ok('the arrival radius is held inside the world that was just entered',
-  /const arrive=Math\.min\(d\/GLY_AU, zoomCeilingNow\(\)\*0\.9\);/.test(src),
+  /const r=THREE\.MathUtils\.clamp\(dGly, controls\.minDistance\*1\.05, Math\.min\(zoomCeilingNow\(\)\*0\.9, \(controls\.maxDistance\|\|Infinity\)\*0\.98\)\);/.test(src),
   'a continuous scale across the seam is not a licence to arrive somewhere nothing is drawn');
 
 ok('the rule says in the file why it exists, so the next reader does not have to rediscover the fault',
