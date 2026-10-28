@@ -866,6 +866,8 @@ export const ROOTS = [
   'HI_S', 'hiU', 'hiN', 'hiGap', 'hiDegree', 'hiDet4', 'hiDegreeIntegral', 'hiFFT', 'hiFFT3', 'hiHopf', 'hiH0', 'hiInterp125', 'hiGrid', 'hiPreimageOn', 'hiPreimage', 'hiChain', 'hiCurrent', 'hiOrient', 'hiCycle', 'hiLink', 'hiRing', 'hiPieces', 'hiResample', 'HI_REFS', 'hiCalibMatrix', 'hiSolve', 'hiBestDeletion', 'hiMinimax', 'HI_TARGETS', 'hiMeasure',
   /* the Hopf-triad universe (v4.408) */
   'htMul', 'HT_E', 'htN', 'htIsotropy', 'htOmegaAvg', 'htBounce', 'htEnergy', 'htEss', 'htWindow', 'htWindowByRoot', 'htTcrit', 'htBase', 'htFibre',
+  /* Gauss's theorem on S³ (v4.410) */
+  'GS_PHI', 'gsG', 'gsGp', 'gsGamma', 'gsFlux', 'gsFluxNum', 'gsLapR', 'gsSpectral', 'gsEnd', 'gsShellFlux', 'gsHierNet', 'gsHierPartial', 'gsDist', 'gsField', 'gsLine', 'gsSphereFlux', 'gsFrame', 'gsGL', 'gsChart2', 'gsCross',
   /* the Yang–Mills threshold on S³ (v4.409) */
   'YM_XE', 'ymMonos', 'ymEj', 'ymEps', 'ymOps', 'ymRank', 'ymShift', 'ymKernel', 'ymCurlSpectrum', 'ymCurlPredicted', 'ymLevel', 'YM_FIB', 'YM_LATTICE', 'ymGlue', 'ymOrbit', 'ymNullspace', 'YM_MODE_CACHE', 'ymMode', 'ymField', 'ymRot4', 'ymProject', 'ymStreamline', 'ymSeed',
   /* the horizons in cosmic time (v4.358) */
