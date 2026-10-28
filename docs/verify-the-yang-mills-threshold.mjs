@@ -36,6 +36,15 @@ const SP=[0,1,2,3,4,5].map(K.ymCurlSpectrum);
     const w=O2.curl.map(r=>r.reduce((s,x,j)=>s+x*v[j],0)); if(!w.every((x,i)=>x===2*v[i])) right=false; }
   const orbit=K.ymOrbit([0.6,0.48,0.64,0],0,true,64,1), orbitR=K.ymOrbit([0.6,0.48,0.64,0],0,false,64,1);
   check(left&&right&&orbit.length===65&&orbitR.length===65,'the six lowest modes are the Killing fields of S³: the three left-invariant E_k have curl −2, the three right-invariant e_k x have curl +2 — their orbits are the two Hopf fibrations, so the lowest gluon on S³ is a Hopf field, at ω = 2/R',`left ${left} · right ${right}`); }
+/* 5b. the modes the laboratory draws: each is an exact kernel vector of curl − σ(ℓ+1), divergence-free, of the multiplet size
+   ℓ(ℓ+2); its field lines stay on S³ and run along V; at ℓ = 1 they are great circles that close after 2π */
+{ const rows=[]; let ok=true, worstOff=0, worstTan=0;
+  for(const [l,c] of [[1,-1],[1,1],[2,-1],[2,1],[3,-1],[3,1]]){ const M=K.ymMode(l,c); rows.push(`${l}${c<0?'−':'+'}:${M.dim}`);
+    if(M.dim!==l*(l+2)||M.resid>1e-12||M.div>1e-12||M.lambda!==c*(l+1)) ok=false;
+    const v=M.basis[M.dim-1], pts=K.ymStreamline(M,v,K.ymSeed(7),160,0.04);
+    for(const x of pts){ worstOff=Math.max(worstOff,Math.abs(Math.hypot(...x)-1)); const V=K.ymField(M,v,x), n=Math.hypot(...V); if(n>1e-9) worstTan=Math.max(worstTan,Math.abs(x[0]*V[0]+x[1]*V[1]+x[2]*V[2]+x[3]*V[3])/n); } }
+  const M1=K.ymMode(1,-1), n=Math.round(2*Math.PI/0.002), L=K.ymStreamline(M1,M1.basis[1],K.ymSeed(3),n,2*Math.PI/n), a=L[0], z=L[L.length-1], close=Math.hypot(a[0]-z[0],a[1]-z[1],a[2]-z[2],a[3]-z[3]);
+  check(ok&&worstOff<1e-12&&worstTan<1e-12&&close<1e-9,'every mode the laboratory draws is an exact kernel vector of curl − σ(ℓ+1) (residual and divergence at rounding), in a multiplet of ℓ(ℓ+2) for each chirality; its integrated field lines stay on S³ and run along the field; at ℓ = 1 they are great circles that close after 2π — the Hopf circles',`${rows.join(' ')} · off S³ ${worstOff.toExponential(1)} · normal component ${worstTan.toExponential(1)} · closure ${close.toExponential(1)}`); }
 /* 6. the physical scale, and the manuscript's own glueball arithmetic */
 { const L=300, r0=410, gapClaim=Math.sqrt(3)*L, gap=2*L, F=K.YM_FIB;
   const ratio=K.ymGlue(3,1,true)/K.ymGlue(1,1,true), ratioFormula=K.ymGlue(3,1,false)/K.ymGlue(1,1,false);

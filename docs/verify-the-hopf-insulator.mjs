@@ -1,4 +1,4 @@
-/* THE HOPF INSULATOR (v4.407) — Preece & Batenin, «Certified Hopf Tomography: Exact Invariants, Sharp Stability and Minimax
+/* THE HOPF INSULATOR (v4.407, v4.409) — Preece & Batenin, «Certified Hopf Tomography: Exact Invariants, Sharp Stability and Minimax
    Calibration» (FBS3R, 23 October 2026): repository verifier on the page's own kernels (core/atlas/extracted.mjs).
    The manuscript's exact claims are recomputed against independent constructions written here, and mutations must fail. */
 const K=await import(new URL('../core/atlas/extracted.mjs',import.meta.url));
@@ -37,6 +37,56 @@ const B=K.hiCalibMatrix(), D=K.hiBestDeletion(B);
 { const dup=K.HI_REFS.map(r=>r.slice()); dup[5]=dup[4]; const Dd=K.hiBestDeletion(K.hiCalibMatrix(dup));
   const moved=K.HI_REFS.map(r=>r.slice()); moved[5]=[[0,1],[3,5],[4,5]]; const Dm=K.hiBestDeletion(K.hiCalibMatrix(moved));
   check(Dd.invertible===0&&!(Dm.best&&eqQ(Dm.best.norm,127525,31104)),'mutations fail: duplicating a reference makes every eleven-row block singular (the manuscript\'s own negative control), and moving the sixth reference changes the certified norm',`duplicate: ${Dd.invertible}/12 invertible · moved: ${Dm.best?frac(Dm.best.norm):'—'}`); }
+
+/* 9. v4.409 — the curves are curves: the traced segments, joined modulo 2π, close on the torus; every colour's windings cancel (its
+   preimage bounds), and the Hopf current F, computed here by its own finite differences, runs along each curve */
+const TAU=2*Math.PI, RINGS=[0.5,1.05,1.6,2.4,2.9];
+{ let curves=0, open=0, unbalanced=0, worstAgree=1, used=0, segs=0, wsum=0, lsum=0; const sins=[];
+  for(const m of [-2.5,-2,-0.5,0.5,2,2.5]) for(const th of RINGS){ const G=K.hiGrid(m,24);
+    for(const p of K.hiRing(5,th,0.37)){ const seg=K.hiPreimageOn(G,p), C=K.hiChain(seg).map(c=>K.hiOrient(c,m)); segs+=seg.filter(([a,b])=>Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2])>=1e-12).length;
+      curves+=C.length; for(const c of C){ used+=c.pts.length-1; if(!c.closed){ open++; continue; } worstAgree=Math.min(worstAgree,c.agree);
+        /* F by its definition, at the middle of every fourth segment: ½ε_ijk n·(∂_j n × ∂_k n), here by a five-point stencil */
+        for(let i=0;i+1<c.pts.length;i+=2){ const a=c.pts[i], b=c.pts[i+1], x=a.map((v,q)=>(v+b[q])/2), t=a.map((v,q)=>b[q]-v), e=1e-3, n=y=>K.hiN(K.hiU(y[0],y[1],y[2],m)),
+            d=[0,1,2].map(ax=>{ const at=s2=>{ const y=x.slice(); y[ax]+=s2*e; return n(y); }, A=at(-2), B=at(-1), Cc=at(1), D=at(2); return [0,1,2].map(cc=>(A[cc]-8*B[cc]+8*Cc[cc]-D[cc])/(12*e)); }), c0=n(x),
+            tri=(u,v)=>c0[0]*(u[1]*v[2]-u[2]*v[1])+c0[1]*(u[2]*v[0]-u[0]*v[2])+c0[2]*(u[0]*v[1]-u[1]*v[0]), F=[tri(d[1],d[2]),tri(d[2],d[0]),tri(d[0],d[1])];
+          const len=Math.hypot(...t), cr=Math.hypot(F[1]*t[2]-F[2]*t[1],F[2]*t[0]-F[0]*t[2],F[0]*t[1]-F[1]*t[0])/(Math.hypot(...F)*len); sins.push(cr); wsum+=len*cr; lsum+=len; } }
+      if([0,1,2].some(q=>C.filter(c=>c.closed).reduce((s2,c)=>s2+c.wind[q],0)!==0)) unbalanced++; } }
+  const p95=sins.slice().sort((x,y)=>x-y)[Math.floor(0.95*(sins.length-1))], mean=wsum/lsum;
+  check(open===0&&unbalanced===0&&used===segs&&worstAgree>0.9&&mean<0.06&&p95<0.2,'the drawn curves are closed curves of the torus: the segments, joined modulo 2π, close up and use every segment; each colour\'s windings cancel (its preimage bounds a surface, as the vanishing weak invariants require); the Hopf current F runs along every curve to the grid\'s resolution, and orients it',
+    `${curves} curves over 6 m × 5 rings × 5 colours · open ${open} · unbalanced ${unbalanced} · segments used ${used}/${segs} · per-curve F-agreement ≥ ${worstAgree.toFixed(3)} · |sin∠(F, segment)| length-weighted mean ${mean.toFixed(3)}, 95th percentile ${p95.toFixed(3)} at 24³`); }
+/* 10. v4.409 — the linking number, counted on the curves themselves, pair by pair: −χ (the degree), in every phase and for every ring —
+   also past the equator, where the curves wind round the torus and are joined by bridges that cancel as chains */
+{ const rows=[]; let pairs=0, wrong=0, unknown=0, wound=0;
+  for(const m of [-2.5,-2,-0.5,0.5,2,2.5,3.5,-3.8]) { const vals=new Set(); for(const th of RINGS){ const G=K.hiGrid(m,24), C=K.hiRing(5,th,0.37).map(p=>K.hiChain(K.hiPreimageOn(G,p)).map(c=>K.hiOrient(c,m)));
+      wound+=C.flat().filter(c=>c.closed&&c.wind.some(Boolean)).length;
+      for(let a=0;a<5;a++) for(let b=a+1;b<5;b++){ const L=K.hiLink(C[a],C[b]); pairs++; if(L===null) unknown++; else { vals.add(L); if(L!==K.hiDegree(m)) wrong++; } } }
+    rows.push(`${m}: ${[...vals].join('/')}`); }
+  check(pairs===400&&wrong===0&&unknown===0&&wound>100,'the preimages of any two colours, oriented along F, link exactly −χ times — the degree of z/|z|: −1, 2, −1 in the topological phases, 0 in the trivial ones — for every pair of five colours on rings from θ = 0.5 to 2.9 — the manuscript\'s χ is minus Whitehead\'s ∫A·F/16π², which is the linking number itself',
+    `${pairs} pairs · wrong ${wrong} · undetermined ${unknown} · curves winding round the torus ${wound} · ${rows.join(' · ')}`); }
+/* 11. v4.409 — the crossing count is Gauss's linking integral: on a standard Hopf link both give −1; the count flips with an orientation,
+   and a preimage with one of its two curves removed no longer bounds (refused) or links differently */
+{ const n=400, C1=[], C2=[]; for(let i=0;i<=n;i++){ const t=TAU*i/n; C1.push([1+0.3*Math.cos(t),1+0.3*Math.sin(t),1]); C2.push([1.3+0.3*Math.cos(t),1,1+0.3*Math.sin(t)]); }
+  let g=0; for(let i=0;i<n;i++) for(let j=0;j<n;j++){ const a=C1[i], b=C1[i+1], c=C2[j], d=C2[j+1], r=[0,1,2].map(q=>(a[q]+b[q]-c[q]-d[q])/2), d1=[0,1,2].map(q=>b[q]-a[q]), d2=[0,1,2].map(q=>d[q]-c[q]), R=Math.hypot(...r);
+    g+=(r[0]*(d1[1]*d2[2]-d1[2]*d2[1])+r[1]*(d1[2]*d2[0]-d1[0]*d2[2])+r[2]*(d1[0]*d2[1]-d1[1]*d2[0]))/(R*R*R); }
+  g/=4*Math.PI; const cv=P=>[{pts:P, closed:true, wind:[0,0,0]}], L=K.hiLink(cv(C1),cv(C2)), Lr=K.hiLink(cv(C1),cv(C2.slice().reverse()));
+  const G=K.hiGrid(0,24), Ca=K.hiChain(K.hiPreimageOn(G,K.hiRing(2,1.05,0)[0])).map(c=>K.hiOrient(c,0)), Cb=K.hiChain(K.hiPreimageOn(G,K.hiRing(2,1.05,0)[1])).map(c=>K.hiOrient(c,0)), full=K.hiLink(Ca,Cb), half=K.hiLink(Ca.slice(0,1),Cb);
+  const Gs=K.hiGrid(0,24), Cs=K.hiChain(K.hiPreimageOn(Gs,K.hiRing(2,2.6,0)[0])).map(c=>K.hiOrient(c,0)), Ds=K.hiChain(K.hiPreimageOn(Gs,K.hiRing(2,2.6,0)[1])).map(c=>K.hiOrient(c,0)), cut=K.hiLink(Cs.slice(1),Ds);
+  check(Math.abs(g+1)<1e-3&&L===-1&&Lr===1&&full===2&&half!==2&&Ca.length===2&&cut===null,'the crossing count is Gauss\'s double integral (−1 on a standard Hopf link, both ways), reverses with an orientation, and fails as it must: at m = 0 a colour\'s preimage is two curves and one alone links half as often; a winding preimage with one curve removed no longer bounds, and the count refuses it',
+    `Gauss ${g.toFixed(4)} · count ${L} · reversed ${Lr} · m = 0: both curves ${full}, one ${half} · winding with a curve removed ${cut}`); }
+/* 12. v4.409 — what is drawn is what is counted: the cube cuts every curve at its faces and carries the pieces back inside, keeping its
+   length; around Γ and around (π, π, π) alike */
+{ let worst=-9, dl=0, n=0, jump=0, off=0;
+  for(const c0 of [0,Math.PI]) for(const m of [-2,0,2]) for(const th of [1.05,2.4]){ const G=K.hiGrid(m,20);
+    for(const p of K.hiRing(4,th,0.2)) for(const c of K.hiChain(K.hiPreimageOn(G,p))){ const P=K.hiPieces(c.pts,c0,c.closed); n+=P.length; let L0=0, L1=0;
+      for(let i=0;i+1<c.pts.length;i++) L0+=Math.hypot(...[0,1,2].map(q=>c.pts[i+1][q]-c.pts[i][q]));
+      for(const pc of P){ for(const x of pc.pts) for(let q=0;q<3;q++) worst=Math.max(worst,Math.abs(x[q]-c0)-Math.PI); for(let i=0;i+1<pc.pts.length;i++){ const d=Math.hypot(...[0,1,2].map(q=>pc.pts[i+1][q]-pc.pts[i][q])); L1+=d; if(d>1) jump++; } }
+      dl=Math.max(dl,Math.abs(L1-L0));
+      /* the resampled path: every point on the polyline (distance to its nearest segment), the ends kept */
+      const R=K.hiResample(c.pts,0.1), dseg=(x,a,b)=>{ const ab=[0,1,2].map(q=>b[q]-a[q]), ax=[0,1,2].map(q=>x[q]-a[q]), L2=ab[0]**2+ab[1]**2+ab[2]**2, t=L2?Math.max(0,Math.min(1,(ab[0]*ax[0]+ab[1]*ax[1]+ab[2]*ax[2])/L2)):0; return Math.hypot(...[0,1,2].map(q=>ax[q]-t*ab[q])); };
+      for(const x of R){ let d=Infinity; for(let i=0;i+1<c.pts.length;i++) d=Math.min(d,dseg(x,c.pts[i],c.pts[i+1])); off=Math.max(off,d); }
+      off=Math.max(off,Math.hypot(...[0,1,2].map(q=>R[0][q]-c.pts[0][q])),Math.hypot(...[0,1,2].map(q=>R[R.length-1][q]-c.pts[c.pts.length-1][q]))); } }
+  check(worst<=1e-12&&dl<1e-9&&jump===0&&off<1e-9,'the drawing is the counted curve: cut at the faces of the cube [c₀ − π, c₀ + π]³ and carried back inside, every piece stays in the cube, no piece jumps across it, the length is kept to rounding, and the evenly resampled tube path stays on the traced curve',
+    `${n} pieces · max excess ${worst.toExponential(1)} · length change ${dl.toExponential(1)} · jumps ${jump} · resampled path off the curve ${off.toExponential(1)}`); }
 
 console.log(`\n${pass} passed, ${fail} failed · ${(performance.now()-t00).toFixed(0)} ms`);
 process.exit(fail?1:0);
