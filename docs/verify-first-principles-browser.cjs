@@ -80,6 +80,10 @@ function serve(){return new Promise(resolve=>{const server=http.createServer((re
   await page.locator('#hccFpTrigger').click();
   await page.locator('#hccFpLens').waitFor({state:'visible'});
   ok('Lens opens lazily as one dialog',await page.locator('#hccFpLens').count()===1);
+  /* v4.409: with no laboratory in view the Lens opens on its navigator (the first tab since the navigator was added),
+     so the Formula view is asked for by name before its slots are read — this check had been failing silently since */
+  ok('with no laboratory in view the Lens opens on the navigator',await page.locator('#hccFpLens .hccFpTab[aria-selected="true"]').getAttribute('data-view')==='nav');
+  await page.getByRole('button',{name:'Formula',exact:true}).click();
   ok('Formula view contains exact and evaluated scientific slots',(await page.locator('#hccFpLens .fpExact').count())>0&&(await page.locator('#hccFpLens .fpEvaluated').count())>0);
 
   await page.getByRole('button',{name:'Dependency'}).click();
@@ -126,6 +130,31 @@ function serve(){return new Promise(resolve=>{const server=http.createServer((re
   ok('closing destroys the Lens DOM',await page.locator('#hccFpLens').count()===0);
   await page.locator('#hccFpTrigger').click();
   ok('reopening does not duplicate Lens or trigger',await page.locator('#hccFpLens').count()===1&&await page.locator('#hccFpTrigger').count()===1);
+
+  /* ── v4.409: ON A DESK THE LENS IS A DOCK BUTTON, IT OPENS ON THE LABORATORY YOU ARE IN, AND IT RUNS ITS INSTRUMENT ── */
+  const desk=await browser.newContext({viewport:{width:1440,height:900},reducedMotion:'reduce'});
+  const dp=await desk.newPage(); dp.on('pageerror',e=>pageErrors.push(String(e)));
+  await dp.goto(`http://127.0.0.1:${port}/?render=0`,{waitUntil:'domcontentloaded',timeout:30000});
+  await dp.locator('#fpDockBtn').waitFor({state:'visible',timeout:20000});
+  ok('on a desk the Lens is a button in the dock and the floating pill steps aside',await dp.locator('#fpDockBtn').isVisible()&&!(await dp.locator('#hccFpTrigger').isVisible()));
+  await dp.evaluate(()=>HCC_NAV.go('s3','hopftriad')); await dp.waitForTimeout(1500);
+  await dp.locator('#fpDockBtn').click(); await dp.locator('#hccFpLens').waitFor({state:'visible'});
+  ok('inside a laboratory the Lens opens on THAT laboratory — the Hopf-triad universe, not the Hopf fibration whose id is a substring of its own',await dp.locator('#hccFpLens .hccFpSelect').inputValue()==='hopftriad');
+  ok('and on its Formula view, with its native contract declared and its typed instrument beside it',await dp.locator('#hccFpLens .hccFpTab[aria-selected="true"]').getAttribute('data-view')==='formula'
+    &&(await dp.locator('#hccFpLens .hccFpBody').innerText()).includes('closed FLRW spacetime')&&await dp.locator('#hccFpLens [data-fp-inst="hopftriad"]').count()===1);
+  await dp.locator('#hccFpLens [data-fp-in="eta"]').fill('0.3'); await dp.locator('#hccFpLens [data-fp-in="zeta"]').fill('0.06');
+  await dp.locator('#hccFpLens [data-fp-run="hopftriad"]').click(); await dp.waitForTimeout(300);
+  const ran=await dp.locator('#hccFpLens [data-fp-out="hopftriad"]').innerText();
+  ok('the instrument runs in the Lens on the inputs typed there: η = 0.3, ζ = 0.06 bounces outside the window, h²a_min² = 0.6',ran.includes('bounces = true')&&ran.includes('in_window = false')&&ran.includes('a_min_squared = 0.6'));
+  await dp.locator('#fpDockBtn').click({force:true}); await dp.waitForTimeout(200);
+  ok('the door toggles: pressed again it closes the Lens and the focus comes back to it',await dp.locator('#hccFpLens').count()===0&&await dp.evaluate(()=>document.activeElement&&document.activeElement.id)==='fpDockBtn');
+  await dp.locator('#fpDockBtn').click(); await dp.locator('#hccFpLens').waitFor({state:'visible'}); await dp.mouse.click(6,450); await dp.waitForTimeout(200);
+  ok('a click outside the Lens closes it',await dp.locator('#hccFpLens').count()===0&&await dp.locator('#hccFpBackdrop').count()===0);
+  await dp.locator('#fpDockBtn').click(); await dp.locator('#hccFpLens').waitFor({state:'visible'});
+  await dp.locator('#hccFpLens [data-view="nav"]').click();
+  await dp.locator('#hccFpLens [data-nav-trip]').filter({hasText:'The Fibonacci cube'}).first().click(); await dp.waitForTimeout(1500);
+  ok('a journey to a laboratory arrives there — they called a function the Lens cannot reach and went nowhere',await dp.evaluate(()=>HCC_NAV.scene().labId)==='pxp');
+  await desk.close();
 
   ok('Lens and Integration Bus emit no page-level JavaScript exceptions',pageErrors.length===0);
   console.log(`\nFIRST-PRINCIPLES + INTEGRATION BROWSER GATE: ${pass} assertions passed`);

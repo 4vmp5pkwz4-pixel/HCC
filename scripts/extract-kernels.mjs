@@ -863,9 +863,11 @@ export const ROOTS = [
   /* the Fibonacci cube (v4.406) */
   'PX_FIB', 'PX_PHI', 'pxRank', 'pxWords', 'pxAdj', 'pxMomentByH', 'pxTransferStart', 'pxTransferWork', 'pxTransferStep', 'pxTransferValue', 'pxMomentByTransfer', 'pxDen', 'pxNumerator', 'pxSeries', 'PX_PM', 'pxFluxS', 'pxTrH4', 'pxEigSym', 'pxScars', 'PX_PASSES', 'pxJobStart', 'pxJobStep', 'pxPolyTxt',
   /* the Hopf insulator (v4.407) */
-  'HI_S', 'hiU', 'hiN', 'hiGap', 'hiDegree', 'hiDet4', 'hiDegreeIntegral', 'hiFFT', 'hiFFT3', 'hiHopf', 'hiH0', 'hiInterp125', 'hiPreimage', 'HI_REFS', 'hiCalibMatrix', 'hiSolve', 'hiBestDeletion', 'hiMinimax', 'HI_TARGETS', 'hiMeasure',
+  'HI_S', 'hiU', 'hiN', 'hiGap', 'hiDegree', 'hiDet4', 'hiDegreeIntegral', 'hiFFT', 'hiFFT3', 'hiHopf', 'hiH0', 'hiInterp125', 'hiGrid', 'hiPreimageOn', 'hiPreimage', 'hiChain', 'hiCurrent', 'hiOrient', 'hiCycle', 'hiLink', 'hiRing', 'hiPieces', 'hiResample', 'HI_REFS', 'hiCalibMatrix', 'hiSolve', 'hiBestDeletion', 'hiMinimax', 'HI_TARGETS', 'hiMeasure',
   /* the Hopf-triad universe (v4.408) */
   'htMul', 'HT_E', 'htN', 'htIsotropy', 'htOmegaAvg', 'htBounce', 'htEnergy', 'htEss', 'htWindow', 'htWindowByRoot', 'htTcrit', 'htBase', 'htFibre',
+  /* the Yang–Mills threshold on S³ (v4.409) */
+  'YM_XE', 'ymMonos', 'ymEj', 'ymEps', 'ymOps', 'ymRank', 'ymShift', 'ymKernel', 'ymCurlSpectrum', 'ymCurlPredicted', 'ymLevel', 'YM_FIB', 'YM_LATTICE', 'ymGlue', 'ymOrbit', 'ymNullspace', 'YM_MODE_CACHE', 'ymMode', 'ymField', 'ymRot4', 'ymProject', 'ymStreamline', 'ymSeed',
   /* the horizons in cosmic time (v4.358) */
   'hzTable', 'hzAgeAtA', 'hzAtT', 'hzTimeAtParticle', 'hzEmissionTime', 'hzScreenAt', 'HZ_EVENTS',
   /* the causal calendar of the web (v4.360) */
