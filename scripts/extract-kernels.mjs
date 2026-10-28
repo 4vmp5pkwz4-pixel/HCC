@@ -866,6 +866,8 @@ export const ROOTS = [
   'HI_S', 'hiU', 'hiN', 'hiGap', 'hiDegree', 'hiDet4', 'hiDegreeIntegral', 'hiFFT', 'hiFFT3', 'hiHopf', 'hiH0', 'hiInterp125', 'hiPreimage', 'HI_REFS', 'hiCalibMatrix', 'hiSolve', 'hiBestDeletion', 'hiMinimax', 'HI_TARGETS', 'hiMeasure',
   /* the Hopf-triad universe (v4.408) */
   'htMul', 'HT_E', 'htN', 'htIsotropy', 'htOmegaAvg', 'htBounce', 'htEnergy', 'htEss', 'htWindow', 'htWindowByRoot', 'htTcrit', 'htBase', 'htFibre',
+  /* the Yang–Mills threshold on S³ (v4.409) */
+  'YM_XE', 'ymMonos', 'ymEj', 'ymEps', 'ymOps', 'ymRank', 'ymShift', 'ymKernel', 'ymCurlSpectrum', 'ymCurlPredicted', 'ymLevel', 'YM_FIB', 'YM_LATTICE', 'ymGlue', 'ymOrbit',
   /* the horizons in cosmic time (v4.358) */
   'hzTable', 'hzAgeAtA', 'hzAtT', 'hzTimeAtParticle', 'hzEmissionTime', 'hzScreenAt', 'HZ_EVENTS',
   /* the causal calendar of the web (v4.360) */
