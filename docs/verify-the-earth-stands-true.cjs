@@ -103,7 +103,7 @@ ok('the phone points the view where it points: north-up, turned west and raised 
 
 /* 6 · the navigator */
 ok('the First-Principles Lens opens on a navigator that reaches every world, laboratory and object',
-  /let lens=null,view='nav'/.test(SRC) && /data-view="nav">Navigator</.test(SRC) && /find:\(q,n=24\)=>/.test(SRC) && /open:key=>\{ if\(!SELECT\.has\(key\)\) return false;/.test(SRC)
+  /let lens=null,backdrop=null,opener=null,view='nav'/.test(SRC) && /data-view="nav">Navigator</.test(SRC) && /find:\(q,n=24\)=>/.test(SRC) && /open:key=>\{ if\(!SELECT\.has\(key\)\) return false;/.test(SRC)
   && /layer:L=>\{ if\(!\['local','galactic','andromeda','cosmic'\]\.includes\(L\)\) return false;/.test(SRC) && /const NAV_TRIPS=\[/.test(SRC));
 
 ok('on a phone the standing banner stands on the clock band, compact, and the round buttons step aside — the sky stays clear',

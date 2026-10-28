@@ -208,7 +208,10 @@ for (const arrival of ARRIVALS) {
      re-checks here anyway. This is the "here anyway": every arrival below asks for all of
      them, so a release is gated on exactly what it was gated on before. The reader-mode
      arrival at the end is the one that checks the deferral is real. */
-  await page.goto(`http://127.0.0.1:${PORT}/index.html?render=0&fulltests=1${arrival.hash}`, { waitUntil: 'domcontentloaded', timeout: 90000 });
+  /* v4.409: measured on this container, the whole suite (1148 checks, all passing) reaches domcontentloaded in 98 s — the
+     nexus-rail check alone takes 26.6 s over 150 laboratories — so the ninety seconds above were again a budget set below
+     the cost. 150 s; a genuine hang still fails. */
+  await page.goto(`http://127.0.0.1:${PORT}/index.html?render=0&fulltests=1${arrival.hash}`, { waitUntil: 'domcontentloaded', timeout: 150000 });
   await page.waitForFunction(() => globalThis.HCC_API && document.documentElement.dataset.hccRender,
     null, { timeout: 30000 }).catch(() => { });
   await page.evaluate(async () => { await HCC_API.ready({ timeout: 15000 }); });
