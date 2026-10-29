@@ -107,7 +107,7 @@ try {
     let worst = 0; for (let i = 0; i < 300; i++) { const dir = K.raDecDir(24 * rnd(), Math.asin(2 * rnd() - 1) / D), cam = new Q4(rnd() - 0.5, rnd() - 0.5, rnd() - 0.5, rnd() - 0.5).normalize(), spin = new Q4().setFromAxisAngle(new V3(0, 0, 1), 7 * rnd());
       const qOut = cam.clone().invert().multiply(K.dscSkyQuat(dir)).multiply(spin), F = cam.clone().multiply(qOut), z = new V3(0, 0, 1).applyQuaternion(F); worst = Math.max(worst, z.clone().sub(dir).length()); }
     const beyond = SRC.slice(SRC.indexOf("D.push({id:'beyond'"), SRC.indexOf("D.push({id:'beyond'") + 40000);
-    const tick = /skyTrue=state\.dscSkyTrue!==false;/.test(beyond) && /if\(skyTrue&&U\.skyId!==\(state\.obsFibAnchor\|\|'hugelqg'\)\)\{ U\.skyId=state\.obsFibAnchor\|\|'hugelqg'; U\.skyDir=obsFibAnchorDir\(U\.skyId\); U\.skyQ=dscSkyQuat\(U\.skyDir\);/.test(beyond)
+    const tick = /skyTrue=state\.dscSkyTrue!==false;/.test(beyond) && /if\(skyTrue&&U\.skyId!==\(state\.obsFibAnchor\|\|'qsoaxis'\)\)\{ U\.skyId=state\.obsFibAnchor\|\|'qsoaxis'; U\.skyDir=obsFibAnchorDir\(U\.skyId\); U\.skyQ=dscSkyQuat\(U\.skyDir\);/.test(beyond)
       && /const qOut=skyTrue\?camera\.quaternion\.clone\(\)\.invert\(\)\.multiply\(U\.skyQ\)\.multiply\(spin\)/.test(beyond) && /F\.quaternion\.copy\(camera\.quaternion\)\.multiply\(qOut\)/.test(beyond)
       && /spin=new THREE\.Quaternion\(\)\.setFromAxisAngle\(dscV\(0,0,1\),0\.045\*ti\)/.test(beyond);
     /* the axis fibre flows along +z at the origin of the chart: z₁ = 0, z₂ = e^{iψ}, at ψ = −π/2 */
