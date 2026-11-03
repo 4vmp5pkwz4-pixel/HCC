@@ -17827,12 +17827,33 @@ const HCC_OPTICS_SHADER={
       col+=n*uGrain*sqrt(max(L,uFloor));
       gl_FragColor=vec4(max(col,0.0),1.0);
     }`};
+/* NO NaN INTO THE BLOOM (v4.411). One fragment that computes NaN — pow of a base a rounding error made negative, on a GPU
+   (Metal through ANGLE) where that is NaN even for an integer exponent — is one dark pixel in a plain render; but the bloom
+   blurs it through its mip chain, every tap that touches it becomes NaN, and the additive composite turns a square hundreds
+   of pixels wide black: the black square a reader met at the centre of the φ-ladder at N ≈ 95 and at other scales. The shader
+   bases are clamped at their source; and here, between the scene and the bloom, any NaN or infinite value is replaced and the
+   rest clamped to the half-float range, so no future slip can spread. */
+const HCC_FINITE_SHADER={uniforms:{tDiffuse:{value:null}},
+  vertexShader:`varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+  /* read by its bits, which no fast-math compiler may fold away: a NaN becomes 0, an infinity the half-float ceiling (an
+     overexposed pixel stays bright), everything else is clamped to that range */
+  fragmentShader:`uniform sampler2D tDiffuse; varying vec2 vUv;
+    float fin(float x,float z){
+    #if __VERSION__ >= 300
+      uint u=floatBitsToUint(x); if((u&0x7f800000u)==0x7f800000u) return (u&0x007fffffu)!=0u?z:(x>0.0?6.0e4:-6.0e4);
+      return clamp(x,-6.0e4,6.0e4);
+    #else
+      return (abs(x)<6.0e4)?x:z;
+    #endif
+    }
+    void main(){ vec4 c=texture2D(tDiffuse,vUv); gl_FragColor=vec4(fin(c.r,0.0),fin(c.g,0.0),fin(c.b,0.0),fin(c.a,1.0)); }`};
 function ensureBloom(){
   if(bloomComposer||bloomFailed) return bloomComposer;
   try{
     bloomComposer=new EffectComposer(renderer);
     if(premiumVisualsEnabled)bloomComposer.setPixelRatio(premiumComposerPixelRatio());
     bloomComposer.addPass(new RenderPass(scene,camera));
+    bloomComposer.addPass(new ShaderPass(HCC_FINITE_SHADER));
     const p=premiumVisualsEnabled?premiumBloomProfile():{strength:.55,radius:.5,threshold:.85};
     const sz=premiumVisualsEnabled
       ?new THREE.Vector2(Math.max(2,renderer.domElement.clientWidth),Math.max(2,renderer.domElement.clientHeight))
@@ -23290,7 +23311,7 @@ const hccPhaseVS=(mvv,ell,sc)=>`
   { float z_=max(-${mvv}.z,1e-30), s_=${ell}*${sc}*projectionMatrix[1][1]/z_, psi_=hccPhasePsi(s_,uPhK);
     float c_=mix(1.0,smoothstep(-0.035,0.035,psi_-aU),uPhOn);
     float p0_=gl_PointSize, sd_=s_*uPhPr, pc_=mix(min(2.4*sd_,28.0*uPhPr),2.0*uPhK*uPhPr,psi_), ps_=mix(max(p0_,pc_),p0_,c_);
-    vPhA=(p0_*p0_)/(ps_*ps_)*min(1.0,ps_*ps_)*(1.0+0.6*uPhOn*exp(-pow((psi_-aU)/0.03,2.0))*step(0.02,psi_))
+    vPhA=(p0_*p0_)/(ps_*ps_)*min(1.0,ps_*ps_)*(1.0+0.6*uPhOn*exp(-pow(abs((psi_-aU)/0.03),2.0))*step(0.02,psi_))
         *mix(min(1.0,1.5*sd_*sd_/(p0_*p0_)),1.0,c_);
     gl_PointSize=max(ps_,1.0); }`;
 const HCC_PHASE_DECL='attribute float aEll;\nattribute float aU;\nuniform float uPhK;\nuniform float uPhPr;\nuniform float uPhOn;\nuniform float uPhScale;\nvarying float vPhA;\n'+HCC_PHASE_GLSL+'\n';
@@ -23355,7 +23376,7 @@ void main(){
   float c=mix(1.0,smoothstep(-0.035,0.035,psi-aU),uOn);
   float p0=uSize*uPr, ps=mix(max(p0,mix(min(2.4*s*uPr,34.0*uPr),2.0*uK*uPr,psi)),p0,c);
   float win=smoothstep(0.012,0.035,rs)*(1.0-smoothstep(70.0,160.0,rs));
-  float front=uOn*exp(-pow((psi-aU)/0.03,2.0))*step(0.02,psi);
+  float front=uOn*exp(-pow(abs((psi-aU)/0.03),2.0))*step(0.02,psi);
   vec3 col=aCls<0.5?vec3(0.62,0.78,1.0):aCls<1.5?vec3(0.49,0.88,0.69):aCls<2.5?vec3(0.95,0.76,0.42):vec3(0.70,0.60,1.0);
   vCol=mix(col,vec3(1.0,0.97,0.9),0.5*front); vC=c;
   vA=uOp*win*(p0*p0)/(ps*ps)*min(1.0,ps*ps)*(1.0+0.6*front);
@@ -24630,7 +24651,7 @@ function hccStarMaterial({abs=true}={}){
       #include <common>
       #include <logdepthbuf_pars_vertex>
       float hccAirmass(float hDeg){ float h=max(hDeg,-0.5);
-        return 1.0/(sin(h*0.017453293)+0.50572*pow(h+6.07995,-1.6364)); }
+        return 1.0/(sin(h*0.017453293)+0.50572*pow(max(h+6.07995,1e-6),-1.6364)); }
       void main(){
         vec4 mv=modelViewMatrix*vec4(position,1.0);
         float m=aMag;
@@ -24646,7 +24667,7 @@ function hccStarMaterial({abs=true}={}){
           col*=pow(vec3(10.0),-0.4*uExtinct*vec3(${P.kRGB.map(f).join(',')})*(X-1.0));
           col/=max(max(col.r,col.g),max(col.b,1e-4));
           if(uTwinkle>0.0&&hDeg>0.0){
-            float sig=min(0.9,uTwinkle*0.09*pow(X,1.75)), s=aSeed*6.2831853;
+            float sig=min(0.9,uTwinkle*0.09*pow(max(X,0.0),1.75)), s=aSeed*6.2831853;
             tw=max(0.04,1.0+sig*(0.55*sin(uTime*11.3+s)+0.30*sin(uTime*23.7+s*3.1)+0.15*sin(uTime*41.9+s*7.3)));
             float cs=uTwinkle*clamp((X-2.0)/12.0,0.0,0.45);
             col*=1.0+cs*vec3(sin(uTime*9.1+s),sin(uTime*9.1+s+2.094),sin(uTime*9.1+s+4.189));
@@ -24669,7 +24690,7 @@ function hccStarMaterial({abs=true}={}){
         vec2 p=(gl_PointCoord-0.5)*vSize; float r2=dot(p,p), r=sqrt(r2);
         float sg=0.6*vCore;
         float core=exp(-r2/(2.0*sg*sg));
-        float glow=${f(P.halo)}*exp(-r/(${f(P.haloK)}*vCore))+${f(P.wing)}*pow(1.0+r2/(vCore*vCore),-${f(P.wingB)});
+        float glow=${f(P.halo)}*exp(-r/(${f(P.haloK)}*vCore))+${f(P.wing)}*pow(max(1.0+r2/(vCore*vCore),1e-6),-${f(P.wingB)});
         float spike=0.0;
         if(vSpike>0.0){ vec2 q=abs(p); float L=vCore*(4.0+2.0*sqrt(vI));
           spike=vSpike*0.16*(exp(-q.y/0.6-q.x/L)+exp(-q.x/0.6-q.y/L)); }
@@ -24965,7 +24986,7 @@ const sunMesh = new THREE.Mesh(new THREE.SphereGeometry(1,96,64), new THREE.Shad
       }
       /* faculae: the bright magnetic network is seen best at the limb, where the
          line of sight looks into the hot walls of the flux tubes */
-      float fac=pow(1.0-mu,3.0)*vnoise(normalize(vP)*38.0+vec3(0.0,uTime*0.05,0.0));
+      float fac=pow(max(1.0-mu,0.0),3.0)*vnoise(normalize(vP)*38.0+vec3(0.0,uTime*0.05,0.0));
       gl_FragColor=vec4(col*I*(1.0+0.5*fac)*uExposure, 1.0);
     }`
 }));
@@ -24998,7 +25019,7 @@ const sunCorona=new THREE.Mesh(new THREE.PlaneGeometry(2*HCC_SOLAR.coronaOuter,2
       if(r<1.0||r>uOuter){ discard; }
       /* Baumbach K+F, in units of the mean disc brightness. Six decades over the
          first four radii, which is why one opacity never looked right. */
-      float B=1e-6*(uA.x*pow(r,-uP.x)+uA.y*pow(r,-uP.y)+uA.z*pow(r,-uP.z));
+      float B=1e-6*(uA.x*pow(max(r,1e-6),-uP.x)+uA.y*pow(max(r,1e-6),-uP.y)+uA.z*pow(max(r,1e-6),-uP.z));
       /* DISPLAY CLAMP, DECLARED: a screen holds about two decades and this spans six.
          The radial ORDER is exact and the ratio between any two radii is not — the
          same compression the atlas files for every other million-to-one range. */
@@ -25491,12 +25512,12 @@ function planetAtmosphere(name, planetRadiusKm){
         vec3 N=normalize(vN), V=normalize(vV), S=normalize(uSun);
         /* the limb: grazing rays cross far more air, which is the whole reason an
            atmosphere is a RING of colour and not a wash over the disc */
-        float grazing=pow(1.0-abs(dot(N,V)),2.4);
+        float grazing=pow(max(1.0-abs(dot(N,V)),0.0),2.4);
         float lit=max(0.0,dot(N,S));
         float cosT=dot(-V,S);
         float rayleigh=0.75*(1.0+cosT*cosT);                    // the Rayleigh phase function
         float g=uMie, gg=g*g;                                   // Henyey-Greenstein, forward lobe
-        float mie=(1.0-gg)/pow(1.0+gg-2.0*g*cosT, 1.5)*0.25;
+        float mie=(1.0-gg)/pow(max(1.0+gg-2.0*g*cosT,0.0), 1.5)*0.25;
         vec3 col=uTint*uBeta*rayleigh*(1.0-uHaze) + uTint*mie*uHaze;
         float a=grazing*(0.22+0.95*lit);
         gl_FragColor=vec4(col*a*1.35, clamp(a*1.1,0.0,1.0));
@@ -25740,16 +25761,16 @@ function hccEarthMaterial(){
           sh=texture2D(uClouds,vUv+vec2(dot(sL,eL)/(6.2832*cf),dot(sL,nL)/3.1416)*0.006).a*uCloudA; }
         vec3 col=day*(0.02+0.98*lit)*dayF*(1.0-0.45*sh);
         /* twilight: the long path through air reddens the light at the terminator */
-        col+=day*vec3(0.9,0.38,0.16)*0.22*exp(-pow(mu/0.05,2.0));
+        col+=day*vec3(0.9,0.38,0.16)*0.22*exp(-pow(abs(mu/0.05),2.0));
         /* the ocean's glint and its Fresnel sheen */
         vec3 H=normalize(S+V); float nh=max(dot(ng,H),0.0);
-        float fres=pow(1.0-max(dot(ng,V),0.0),5.0);
-        col+=water*dayF*(1.0-cl)*(vec3(1.0,0.93,0.8)*(pow(nh,300.0)*0.75+pow(nh,40.0)*0.06)+vec3(0.25,0.4,0.6)*fres*0.22);
+        float fres=pow(max(1.0-max(dot(ng,V),0.0),0.0),5.0);
+        col+=water*dayF*(1.0-cl)*(vec3(1.0,0.93,0.8)*(pow(max(nh,0.0),300.0)*0.75+pow(max(nh,0.0),40.0)*0.06)+vec3(0.25,0.4,0.6)*fres*0.22);
         /* the night side: city lights only */
         if(uHas.x>0.5){ vec3 nt=texture2D(uNight,vUv).rgb; float city=smoothstep(0.22,0.75,max(nt.r,nt.g)-0.35*nt.b);
           col+=vec3(1.0,0.72,0.38)*city*1.6*(1.0-smoothstep(-0.20,0.04,mu))*(1.0-0.7*cl); }
         /* the clouds, lit by the Sun and a whisper of the night */
-        col=mix(col,vec3(1.0)*(0.03+0.97*max(mu,0.0))*dayF+vec3(0.9,0.45,0.25)*0.25*exp(-pow(mu/0.08,2.0)),cl*0.92);
+        col=mix(col,vec3(1.0)*(0.03+0.97*max(mu,0.0))*dayF+vec3(0.9,0.45,0.25)*0.25*exp(-pow(abs(mu/0.08),2.0)),cl*0.92);
         gl_FragColor=vec4(col,1.0);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
@@ -26025,7 +26046,7 @@ const DSC_SOLID_V=DSC_LOGD_V+`attribute vec3 aP; attribute vec3 aOff; attribute 
 const DSC_SOLID_F=DSC_LOGD_F+`uniform float uMode; uniform vec3 uSunV,uTint; varying vec3 vN; varying vec3 vVP; varying vec3 vC; varying float vA;
   void main(){
     #include <logdepthbuf_fragment>
-    vec3 n=normalize(vN), v=normalize(-vVP), L=normalize(uSunV); if(dot(n,v)<0.0) n=-n; float nv=max(dot(n,v),0.0), nl=max(dot(n,L),0.0), fr=pow(1.0-nv,2.5);
+    vec3 n=normalize(vN), v=normalize(-vVP), L=normalize(uSunV); if(dot(n,v)<0.0) n=-n; float nv=max(dot(n,v),0.0), nl=max(dot(n,L),0.0), fr=pow(max(1.0-nv,0.0),2.5);
     vec3 c; float a=1.0;
     if(uMode>2.5){ /* in a photosphere the light comes from everywhere: the ball reads by its limb, a little darker */ c=vC*(0.62+0.38*nv); }
     else if(uMode>1.5){ /* ice is clear: a face turned to the eye lets the light behind through and adds little, a face seen
@@ -26468,11 +26489,11 @@ function dscBuild(){ if(DSC.built) return; DSC.built=true;
     vertexShader:`varying vec3 vD; void main(){ vD=position; vec4 p=projectionMatrix*modelViewMatrix*vec4(position,1.0); gl_Position=p.xyww; }`,
     fragmentShader:`varying vec3 vD; uniform vec3 uSun,uUp,uSunC,uZen,uHor,uTwC,uFogC,uGlowC; uniform float uSunR,uSunVeil,uAir,uDayK,uFog,uFogFar,uWater,uDeep,uGlow,uBeyond,uT;
       void main(){ vec3 d=normalize(vD), s=normalize(uSun), up=normalize(uUp); float el=dot(d,up), sa=dot(s,up), cs=dot(d,s);
-        float day=smoothstep(-0.12,0.16,sa), tw=exp(-pow(sa/0.10,2.0));
+        float day=smoothstep(-0.12,0.16,sa), tw=exp(-pow(abs(sa/0.10),2.0));
         vec3 zen=mix(uZen*0.025,uZen,day), hor=mix(uHor*0.04,uHor,day);
         vec3 sh=normalize(s-up*sa+1e-5); float az=max(dot(normalize(d-up*el+1e-5),sh),0.0);
-        hor+=uTwC*tw*(0.25+0.75*pow(az,3.0))*0.8;
-        vec3 air=mix(zen,hor,pow(1.0-max(el,0.0),3.2)); air=mix(air,hor*0.55,smoothstep(0.0,-0.3,el));
+        hor+=uTwC*tw*(0.25+0.75*pow(max(az,0.0),3.0))*0.8;
+        vec3 air=mix(zen,hor,pow(max(1.0-max(el,0.0),0.0),3.2)); air=mix(air,hor*0.55,smoothstep(0.0,-0.3,el));
         /* the Sun at its true angular radius, and the glare a camera sees about it */
         float disc=smoothstep(cos(uSunR*1.10),cos(uSunR*0.90),cs), halo=pow(max(cs,0.0),3000.0)*0.9+pow(max(cs,0.0),220.0)*0.12+pow(max(cs,0.0),12.0)*0.025;
         vec3 sunL=uSunC*(disc*16.0+halo*2.2)*(1.0-uSunVeil);
@@ -26480,10 +26501,10 @@ function dscBuild(){ if(DSC.built) return; DSC.built=true;
         vec3 col=air*uAir+sunL*(1.0-0.55*uAir*(1.0-day)); float a=max(aAir,clamp((disc+halo*0.6)*(1.0-uSunVeil),0.0,1.0));
         vec3 fog=uFogC*mix(0.18,1.0,max(day,1.0-uAir))*mix(0.84,1.0,uFogFar)*(0.80+0.12*(0.5+0.5*cs))*(0.56+0.44*smoothstep(-0.85,0.85,el))*0.3; col=mix(col,fog,uFog); a=max(a,uFog);   /* linear: after ACES and sRGB a lit cloud's inside reads mid-grey, not white (v4.393) */
         vec3 wat=vec3(0.020,0.11,0.16)+vec3(0.03,0.09,0.10)*(0.5+0.5*el)+vec3(0.10,0.16,0.14)*pow(max(cs,0.0),6.0)*day; col=mix(col,wat,uWater); a=max(a,uWater);
-        vec3 deep=vec3(0.004,0.006,0.016)+vec3(0.018,0.010,0.040)*pow(1.0-abs(d.y),3.0); col=mix(col,deep,uDeep); a=max(a,uDeep);
+        vec3 deep=vec3(0.004,0.006,0.016)+vec3(0.018,0.010,0.040)*pow(max(1.0-abs(d.y),0.0),3.0); col=mix(col,deep,uDeep); a=max(a,uDeep);
         float gw=(0.8-0.24*el)*(0.9+0.1*sin(7.0*d.x+uT*0.7)*sin(5.0*d.y-uT*0.5)); col=mix(col,uGlowC*gw,uGlow); a=max(a,uGlow);   /* looking down, into hotter gas, is brighter */
         float sw=0.5+0.5*sin(6.0*atan(d.z,d.x)+uT*0.2+8.0*d.y);
-        vec3 by=vec3(0.012,0.006,0.03)+vec3(0.16,0.10,0.025)*pow(max(0.0,d.y*0.5+0.5),3.0)*(0.6+0.4*sw)+vec3(0.06,0.02,0.12)*pow(1.0-abs(d.y),2.0); col=mix(col,by,uBeyond); a=max(a,uBeyond);
+        vec3 by=vec3(0.012,0.006,0.03)+vec3(0.16,0.10,0.025)*pow(max(0.0,d.y*0.5+0.5),3.0)*(0.6+0.4*sw)+vec3(0.06,0.02,0.12)*pow(max(1.0-abs(d.y),0.0),2.0); col=mix(col,by,uBeyond); a=max(a,uBeyond);
         gl_FragColor=vec4(col,1.0); }`}));
   sky.renderOrder=-2000; sky.frustumCulled=false; sky.name='descent-sky'; g.add(sky); DSC.sky=sky;
   const gnd=new THREE.Mesh(new THREE.SphereGeometry(1,48,32),new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,depthTest:true,transparent:true,
@@ -26592,7 +26613,7 @@ const DSC_GLSL_NOISE=`
   vec4 dscCratersD(vec3 x,float k,float p,out float ray){ vec3 i=floor(x), f=x-i, o=step(0.5,f)*2.0-1.0; float h=0.0; vec3 g=vec3(0.0); ray=0.0;
     for(int a=0;a<2;a++) for(int b=0;b<2;b++) for(int c=0;c<2;c++){ vec3 cell=i+vec3(a==0?0.0:o.x,b==0?0.0:o.y,c==0?0.0:o.z), H=dscH3(cell+vec3(k*17.0,k*5.0,k*11.0));
       if(H.x>p) continue; vec3 cen=cell+0.15+0.7*dscH3(cell+vec3(3.0,7.0,1.0)+k); float r=0.16+0.30*H.y; vec3 v=x-cen; float L=length(v), t=L/r; if(t>2.4) continue;
-      float s=0.55+0.45*H.z, e=exp(-pow((t-1.0)/0.26,2.0)), sk=t>1.0?exp(-(t-1.0)*3.0):0.0;
+      float s=0.55+0.45*H.z, e=exp(-pow(abs((t-1.0)/0.26),2.0)), sk=t>1.0?exp(-(t-1.0)*3.0):0.0;
       float P=(t<1.0?(t*t-1.0)*0.40:0.0)+0.085*e+0.03*sk, dP=(t<1.0?0.80*t:0.0)-0.085*e*2.0*(t-1.0)/(0.26*0.26)-(t>1.0?0.09*sk:0.0);
       h+=P*r*s; if(L>1e-6) g+=s*dP*v/L;
       if(H.z>0.86) ray+=smoothstep(2.4,1.0,t)*(0.35+0.65*smoothstep(-0.15,0.55,dscN(vec3(atan(v.y,v.x)*2.3,L*1.7,H.y*41.0)))); }
@@ -26728,10 +26749,10 @@ function dscRouteEarth(R,b,anchor,level){
         }`,
         fragmentShader:DSC_LOGD_F+`uniform vec3 uSun; uniform float uFade; varying vec3 vN; varying vec3 vW; void main(){
           #include <logdepthbuf_fragment>
-          vec3 n=normalize(vN), v=normalize(cameraPosition-vW), s=normalize(uSun); if(!gl_FrontFacing) n=-n; float nv=max(dot(n,v),0.0), f=0.02+0.98*pow(1.0-nv,5.0);
+          vec3 n=normalize(vN), v=normalize(cameraPosition-vW), s=normalize(uSun); if(!gl_FrontFacing) n=-n; float nv=max(dot(n,v),0.0), f=0.02+0.98*pow(max(1.0-nv,0.0),5.0);
           vec3 h=normalize(s+v); float sp=pow(max(dot(n,h),0.0),400.0)*3.0+pow(max(dot(n,h),0.0),40.0)*0.15;
           vec3 sky=mix(vec3(0.45,0.62,0.85),vec3(0.95,0.97,1.0),0.5+0.5*reflect(-v,n).y), col=sky*f*0.92+vec3(1.0,0.98,0.92)*sp*0.8+vec3(0.55,0.75,0.85)*0.06;
-          float a=gl_FrontFacing?(0.10+0.85*f+sp):(0.05+0.4*pow(1.0-nv,3.0)); gl_FragColor=vec4(col,clamp(a,0.0,1.0)*uFade); }`});
+          float a=gl_FrontFacing?(0.10+0.85*f+sp):(0.05+0.4*pow(max(1.0-nv,0.0),3.0)); gl_FragColor=vec4(col,clamp(a,0.0,1.0)*uFade); }`});
       const g=new THREE.Group(), m=new THREE.Mesh(new THREE.SphereGeometry(1,96,64),mat); g.add(m); g.userData.m=m;
       const L=dscLabel(TT('a cloud droplet · r = 10 μm · water, n = 1.333','капля облака · r = 10 мкм · вода, n = 1,333','ein Wolkentröpfchen · r = 10 μm'),'#cfefff'); L.position.set(0,0,1.25); g.add(L); g.userData.L=L; g.userData.labN=[142.5,150]; return g; },
     tick(f,N){ const u=this.obj.userData.m.material.uniforms; u.uSun.value.copy(DSC.sunW); u.uFade.value=f; } });
@@ -26789,7 +26810,7 @@ function dscH2OLevel(def){ return {id:def.id, anchor:def.anchor, unit:1e-10, ban
 /* a cloud of puffs about an anchor: icospheres, flat-based, lit by the Sun, the rim brightened as sunlit cloud is */
 function dscCloudLevel(def){ return {id:def.id, anchor:def.anchor, unit:def.unit, band:def.band, build(){ const rnd=mulberry(def.seed), n=72, geo=new THREE.IcosahedronGeometry(1,3), S=def.scale||1;
       const mat=new THREE.MeshStandardMaterial({color:def.col,roughness:1,metalness:0,emissive:def.emissive,emissiveIntensity:0.55,transparent:true});
-      mat.onBeforeCompile=sh=>{ sh.fragmentShader=sh.fragmentShader.replace('#include <dithering_fragment>','#include <dithering_fragment>\n  { float rim=pow(1.0-abs(dot(normalize(vNormal),normalize(vViewPosition))),2.2); gl_FragColor.rgb+=vec3(0.9,0.93,1.0)*rim*0.35; }'); };
+      mat.onBeforeCompile=sh=>{ sh.fragmentShader=sh.fragmentShader.replace('#include <dithering_fragment>','#include <dithering_fragment>\n  { float rim=pow(max(1.0-abs(dot(normalize(vNormal),normalize(vViewPosition))),0.0),2.2); gl_FragColor.rgb+=vec3(0.9,0.93,1.0)*rim*0.35; }'); };
       const im=new THREE.InstancedMesh(geo,mat,n), M=new THREE.Matrix4(), q=new THREE.Quaternion();
       for(let i=0;i<n;i++){ const h=Math.pow(rnd(),0.85), z=-430+h*880, r=390-230*h+50*rnd(), rho=(1-0.55*h)*430*Math.sqrt(rnd()), a=rnd()*Math.PI*2;
         const flat=h<0.22?0.62:1; M.compose(new THREE.Vector3(rho*Math.cos(a)*S,rho*Math.sin(a)*S,Math.max(z,-480+r*flat*0.95)*S),q,new THREE.Vector3(r*S,r*S,r*S*flat)); im.setMatrixAt(i,M); }
@@ -26921,7 +26942,7 @@ void main(){
   vec3 V=normalize(vV), N=normalize(vN); if(!gl_FrontFacing) N=-N;
   vec3 L1=normalize(vec3(-0.5,0.72,0.55)), L2=normalize(vec3(0.75,0.15,0.6)), L3=normalize(vec3(0.15,-0.25,-1.0));
   float d1=max(dot(N,L1),0.0), d2=max(dot(N,L2),0.0), d3=max(dot(N,L3),0.0), ndv=max(dot(N,V),0.0);
-  float sp=pow(max(dot(N,normalize(L1+V)),0.0),70.0)+0.35*pow(max(dot(N,normalize(L2+V)),0.0),40.0), fr=pow(1.0-ndv,3.0);
+  float sp=pow(max(dot(N,normalize(L1+V)),0.0),70.0)+0.35*pow(max(dot(N,normalize(L2+V)),0.0),40.0), fr=pow(max(1.0-ndv,0.0),3.0);
   float p=0.5+0.5*cos(2.0*(vPs-uT)), pk=p*p; pk*=pk; pk*=pk; pk*=p; float nf=smoothstep(0.0,uNear,length(vV)); sp*=nf; pk*=nf;
   vec3 c=vCol*(0.13+0.6*d1+0.2*d2)+vec3(1.0,0.96,0.88)*sp*0.6+vCol*fr*0.35+vec3(0.55,0.65,1.0)*d3*fr*0.6+vCol*pk*vGain*1.6;
   if(!gl_FrontFacing) c=vCol*0.42+vCol*0.25*smoothstep(uWedge-0.15,uWedge,cw);
@@ -26941,7 +26962,7 @@ function dscTubeMesh(n,S,M){ const g=new THREE.InstancedBufferGeometry(), V=new 
 function dscBackdrop(){ const m=new THREE.Mesh(new THREE.SphereGeometry(1,48,24),new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:true,depthTest:true,transparent:false,
     blending:THREE.CustomBlending,blendEquation:THREE.AddEquation,blendSrc:THREE.SrcAlphaFactor,blendDst:THREE.OneMinusSrcAlphaFactor,uniforms:{uFade:{value:1},uDir:{value:new THREE.Vector3(0,0,1)}},
     vertexShader:DSC_LOGD_V+'varying vec3 vBd; void main(){ vBd=position; vec4 mv=modelViewMatrix*vec4(position,1.0); gl_Position=projectionMatrix*mv;\n#include <logdepthbuf_vertex>\n}',
-    fragmentShader:DSC_LOGD_F+'uniform float uFade; uniform vec3 uDir; varying vec3 vBd; void main(){\n#include <logdepthbuf_fragment>\n float c=max(dot(normalize(vBd),-uDir),0.0); vec3 col=mix(vec3(0.004,0.005,0.012),vec3(0.05,0.055,0.11),pow(c,6.0))+vec3(0.09,0.07,0.03)*pow(c,40.0); gl_FragColor=vec4(col,uFade); }'}));
+    fragmentShader:DSC_LOGD_F+'uniform float uFade; uniform vec3 uDir; varying vec3 vBd; void main(){\n#include <logdepthbuf_fragment>\n float c=max(dot(normalize(vBd),-uDir),0.0); vec3 col=mix(vec3(0.004,0.005,0.012),vec3(0.05,0.055,0.11),pow(max(c,0.0),6.0))+vec3(0.09,0.07,0.03)*pow(max(c,0.0),40.0); gl_FragColor=vec4(col,uFade); }'}));
   m.renderOrder=-5; m.frustumCulled=false; return m; }
 /* the dive: until the rung N₁ the shells stand at their own size; below it the view is magnified across the last fibre
    so that the rung's own torus keeps the tube it had at N₁ — every rung inward, φ-fold more */
@@ -27194,7 +27215,7 @@ void main(){
   float env=exp(-r*r*2.3), wave=0.5+0.5*cos(6.2831853*(r*uRip-uT*0.7)), core=exp(-r*r*22.0);
   vec3 glow=vec3(0.5,0.84,1.0)*env*(0.18+0.82*wave*wave)*0.95+vec3(0.92,0.98,1.0)*core*0.7;
   float inS=uSh>1e-4?1.0-smoothstep(uSh-aa,uSh+aa,r):0.0, w=max(0.008,0.03*uSh)+aa, on=uSh>1e-4?1.0:0.0;
-  float ring=exp(-pow((r-uSh)/w,2.0))*on, ring2=exp(-pow((r-uSh*1.04)/(0.45*w),2.0))*on*0.35, halo=exp(-max(r-uSh,0.0)/(0.35*uSh+0.02))*on*0.18;
+  float ring=exp(-pow(abs((r-uSh)/w),2.0))*on, ring2=exp(-pow(abs((r-uSh*1.04)/(0.45*w)),2.0))*on*0.35, halo=exp(-max(r-uSh,0.0)/(0.35*uSh+0.02))*on*0.18;
   vec3 rc=vec3(1.0,0.84,0.56)*(0.95*ring+ring2)+vec3(1.0,0.66,0.36)*halo*0.6*(1.0-inS);
   gl_FragColor=vec4((glow*(1.0-inS)+rc)*uFade,inS*uFade); }`}));
       q.frustumCulled=false; q.renderOrder=2; g.add(q); g.userData.q=q;
@@ -27233,7 +27254,7 @@ void main(){
   float bit=step(0.5,h1(j*1.618+floor(uT*0.22+h1(j)*5.0)*7.31)), part=uNb<1.0?step(1.0-2.0*uNb,p.z):1.0;
   vec3 c1=vec3(1.0,0.78,0.38), c0=vec3(0.07,0.11,0.24), base=mix(mix(c0,c1,0.5),mix(c0,c1,bit),lod);
   if(uNb<1.0) base=mix(c0*0.6,c1,part);
-  vec3 L1=normalize(vec3(-0.5,0.72,0.55)), L2=normalize(vec3(0.75,0.15,0.6)); float dif=0.22+0.62*max(dot(Nn,L1),0.0)+0.18*max(dot(Nn,L2),0.0), sp=pow(max(dot(Nn,normalize(L1+V)),0.0),60.0), fr=pow(1.0-max(dot(Nn,V),0.0),3.0);
+  vec3 L1=normalize(vec3(-0.5,0.72,0.55)), L2=normalize(vec3(0.75,0.15,0.6)); float dif=0.22+0.62*max(dot(Nn,L1),0.0)+0.18*max(dot(Nn,L2),0.0), sp=pow(max(dot(Nn,normalize(L1+V)),0.0),60.0), fr=pow(max(1.0-max(dot(Nn,V),0.0),0.0),3.0);
   vec3 col=base*dif+vec3(1.0,0.95,0.86)*sp*0.45+vec3(0.45,0.6,1.0)*fr*0.35+c1*bit*lod*0.35*(uNb<1.0?part:1.0);
   col*=1.0-0.75*line*lod;
   gl_FragColor=vec4(col*uFade,1.0); }`}));
@@ -27975,7 +27996,7 @@ function fbsGlyph(it){ const g=new THREE.Group(), k=it.kind, col=new THREE.Color
         a wave packet whose rings are its standing wave — a bound is a dashed sphere: nothing seen above this radius */
       const nu=k==='nupoint', bound=k==='bound', halo=new THREE.Mesh(new THREE.SphereGeometry(0.5,40,28),new THREE.ShaderMaterial({transparent:true,depthWrite:false,uniforms:{uC:{value:new THREE.Color(nu?'#7fe6d0':bound?'#e9e2cf':it.col)},uFade:{value:1},uT:{value:0},uB:{value:bound?1:0}},
         vertexShader:DSC_LOGD_V+'varying vec3 vN; varying vec3 vV; varying vec3 vP; void main(){ vP=position; vN=normalize(normalMatrix*normal); vec4 mv=modelViewMatrix*vec4(position,1.0); vV=normalize(-mv.xyz); gl_Position=projectionMatrix*mv;\n#include <logdepthbuf_vertex>\n}',
-        fragmentShader:DSC_LOGD_F+'uniform vec3 uC; uniform float uFade,uT,uB; varying vec3 vN; varying vec3 vV; varying vec3 vP; void main(){\n#include <logdepthbuf_fragment>\n float f=pow(1.0-abs(dot(normalize(vN),normalize(vV))),2.0); float rings=uB>0.5?step(0.5,fract((atan(vP.z,vP.x)+vP.y*3.0)*4.0)):0.55+0.45*sin(length(vP.xz)*40.0-uT*3.0); float a=(uB>0.5?0.5*f*rings:0.08+0.55*f*rings)*uFade; gl_FragColor=vec4(uC*(0.6+0.8*f),a); }'}));
+        fragmentShader:DSC_LOGD_F+'uniform vec3 uC; uniform float uFade,uT,uB; varying vec3 vN; varying vec3 vV; varying vec3 vP; void main(){\n#include <logdepthbuf_fragment>\n float f=pow(max(1.0-abs(dot(normalize(vN),normalize(vV))),0.0),2.0); float rings=uB>0.5?step(0.5,fract((atan(vP.z,vP.x)+vP.y*3.0)*4.0)):0.55+0.45*sin(length(vP.xz)*40.0-uT*3.0); float a=(uB>0.5?0.5*f*rings:0.08+0.55*f*rings)*uFade; gl_FragColor=vec4(uC*(0.6+0.8*f),a); }'}));
       g.add(halo); g.userData.halo=halo; g.add(dscGlow('#ffffff',0.06,1)); break; }
     case 'wave': case 'gw': { /* Maxwell: E and B in phase, at right angles to each other and to the direction of travel, two wavelengths drawn */
       const lam=it.E/2, nm=lam*1e9, c=nm>=380&&nm<=750?new THREE.Color(sxNmRGB(nm)):new THREE.Color((sxEm(lam)||[0,0,0,'#ffd27a'])[3]); g.userData.wave={c:[c.r,c.g,c.b]}; const z=dscV(0,0,0); g.add(fbsCaps(new Array(132).fill([z,z,[0,0,0]]),2.0)); if(k==='gw') g.userData.gw=true; break; }
@@ -28081,7 +28102,7 @@ function fbsGlyphCosmos(it,g,k,rnd,sph){ const key=it.key||'';
 /* a horizon or a halo: a sphere seen only at its rim, as a shell of the ladder is */
 function fbsShell(col,r,op){ return new THREE.Mesh(new THREE.SphereGeometry(r,64,48),new THREE.ShaderMaterial({transparent:true,depthWrite:false,uniforms:{uC:{value:new THREE.Color(col)},uFade:{value:op}},
   vertexShader:DSC_LOGD_V+'varying vec3 vN; varying vec3 vV; void main(){ vN=normalize(normalMatrix*normal); vec4 mv=modelViewMatrix*vec4(position,1.0); vV=normalize(-mv.xyz); gl_Position=projectionMatrix*mv;\n#include <logdepthbuf_vertex>\n}',
-  fragmentShader:DSC_LOGD_F+'uniform vec3 uC; uniform float uFade; varying vec3 vN; varying vec3 vV; void main(){\n#include <logdepthbuf_fragment>\n float f=pow(1.0-abs(dot(normalize(vN),normalize(vV))),2.6); gl_FragColor=vec4(uC*f*1.3,f*0.85*uFade); }'})); }
+  fragmentShader:DSC_LOGD_F+'uniform vec3 uC; uniform float uFade; varying vec3 vN; varying vec3 vV; void main(){\n#include <logdepthbuf_fragment>\n float f=pow(max(1.0-abs(dot(normalize(vN),normalize(vV))),0.0),2.6); gl_FragColor=vec4(uC*f*1.3,f*0.85*uFade); }'})); }
 /* the directions on the shells, chosen once: on the golden spiral at N·137.5°, each moved over its shell — by angle, then
    by height — only until it touches no model already placed. Positions and sizes are both ∝ the true length, so the
    test is made in metres and holds at every rung. */
@@ -29757,7 +29778,7 @@ function cmbBackdropBuild(){ if(CMB_BACKDROP.mesh) return CMB_BACKDROP.mesh; if(
       const float PI_=3.141592653589793;
       vec3 planck(float t, float R){ return texture2D(uCmap,vec2(clamp((t+R)/(2.0*R),0.0,1.0)*(255.0/256.0)+0.5/256.0,0.5)).rgb; }
       void main(){ vec3 d=normalize(vD); float gx=dot(d,uGx), gy=dot(d,uGy), gz=clamp(dot(d,uGz),-1.0,1.0);
-        float l=atan(gy,gx); if(l<0.0) l+=2.0*PI_; float u=l/(2.0*PI_), v=0.5+asin(gz)/PI_, u2=fract(u+0.5)-0.5;
+        float l=atan(gy,gx); if(l<0.0) l+=2.0*PI_; float u=l/(2.0*PI_), v=0.5+asin(clamp(gz,-1.0,1.0))/PI_, u2=fract(u+0.5)-0.5;
         vec2 g1=vec2(dFdx(u),dFdy(u)), g2=vec2(dFdx(u2),dFdy(u2)), gu=dot(g1,g1)<dot(g2,g2)?g1:g2;
         float dT=(textureGrad(uT,vec2(u,v),vec2(gu.x,dFdx(v)),vec2(gu.y,dFdy(v))).r*2.0-1.0)*uRange;
         vec3 col;
@@ -33270,7 +33291,7 @@ function hccShellMaterial(col,op,grid){ const m=new THREE.ShaderMaterial({unifor
       float gridLine(float x, float n){ float t=x*n, w=max(fwidth(t),1e-4); return 1.0-clamp(abs(fract(t-0.5)-0.5)/(w*1.1),0.0,1.0); }
       void main(){
         #include <logdepthbuf_fragment>
-        float mu=abs(dot(normalize(vN),normalize(vV))), f=pow(1.0-mu,5.0), a=uOp*(0.02+0.98*f);
+        float mu=abs(dot(normalize(vN),normalize(vV))), f=pow(max(1.0-mu,0.0),5.0), a=uOp*(0.02+0.98*f);
         if(uGrid>0.5){ float g=max(gridLine(vUv.x,24.0),gridLine(vUv.y,12.0)), eq=1.0-clamp(abs(vUv.y-0.5)/max(fwidth(vUv.y)*1.4,1e-4),0.0,1.0);
           a=max(a, (0.10+0.22*(1.0-mu))*g*min(1.0,uOp*4.0) + 0.35*eq*min(1.0,uOp*4.0)) + 0.04*min(1.0,uOp*4.0); }   /* hairline meridians every 15°, parallels every 15°, a brighter equator, a faint fill: an extent you can measure by eye */
         gl_FragColor=vec4(uCol,a); }`,   /* the face nearly clear, the limb bright: nested horizons never veil each other */
@@ -33483,12 +33504,12 @@ precision highp float;
 uniform vec3 uCam; uniform float uOrb; uniform int uSteps; uniform float uEncode; uniform float uGain; uniform float uRout;
 varying vec3 vPos;
 vec3 diskEmit(float rc,float g,float phi,float om){
-  float t=clamp(g*pow(3.0/rc,0.75),0.0,2.2);
+  float t=clamp(g*pow(max(3.0/rc,0.0),0.75),0.0,2.2);
   vec3 base=mix(vec3(1.0,0.36,0.08),vec3(1.0,0.93,0.78),clamp(t-0.35,0.0,1.0));
   base=mix(base,vec3(0.72,0.82,1.0),clamp((t-1.25)*1.4,0.0,1.0));
   /* turbulence carried at the local Keplerian rate, phase-locked to the ISCO clock */
   float streak=0.72+0.28*sin(phi*7.0-om*uOrb+rc*2.3)*sin(phi*3.0-0.5*om*uOrb+rc*1.1);
-  return base*(9.0/(rc*rc))*streak*pow(g,3.0);
+  return base*(9.0/(rc*rc))*streak*pow(max(g,0.0),3.0);
 }
 void main(){
   bool inside=length(uCam)<34.0;
@@ -33505,7 +33526,7 @@ void main(){
     v+=0.5*dl*k*x; prevX=x; x+=dl*v;
     float r2b=dot(x,x);
     if(r2b<1.0){ captured=1.0; break; } // crossing on the final permitted step still captures
-    float invRb=inversesqrt(r2b); float kb=-1.5*h2*invRb*invRb*invRb*invRb*invRb;
+    float invRb=inversesqrt(max(r2b,1e-12)); float kb=-1.5*h2*invRb*invRb*invRb*invRb*invRb;
     v+=0.5*dl*kb*x;
     if(prevY*x.y<0.0){
       float t=prevY/(prevY-x.y); vec3 hit=mix(prevX,x,t); float rc=length(vec2(hit.x,hit.z));
@@ -33515,7 +33536,7 @@ void main(){
         float gam=1.0/sqrt(max(1e-4,1.0-beta*beta));
         float dopp=1.0/(gam*(1.0+beta*dot(tang,normalize(v))));   /* the photon travels along −v */
         float gred=sqrt(max(0.0,1.0-1.0/rc));                  /* static redshift √(1 − Rs/r); with 1/γ in the Doppler term the product is √(1 − 3M/r)/(1 + β t·v) */
-        float om=pow(3.0/rc,1.5);                                /* Keplerian rate relative to the ISCO */
+        float om=pow(max(3.0/rc,0.0),1.5);                                /* Keplerian rate relative to the ISCO */
         float edge=smoothstep(3.0,3.3,rc)*(1.0-smoothstep(uRout*0.8,uRout,rc));
         acc+=diskEmit(rc,dopp*gred,atan(hit.z,hit.x),om)*edge*0.55;
       }
@@ -33524,7 +33545,7 @@ void main(){
   }
   vec3 col=acc*uGain; col=col/(1.0+col);
   float a=captured>0.5?1.0:clamp(max(col.r,max(col.g,col.b))*2.4,0.0,1.0);
-  if(uEncode>0.5) col=pow(col,vec3(0.4545));
+  if(uEncode>0.5) col=pow(max(col,0.0),vec3(0.4545));
   gl_FragColor=vec4(col,a);
 }`;
 /* the gateway itself: one sphere carrying the traced image, magnified, oriented by the caller */
@@ -35920,7 +35941,7 @@ function hopfFibreTubes(defs){
       uniform float uTime; uniform float uGlow; uniform float uFlow;
       varying vec3 vCol; varying vec3 vN; varying vec3 vV; varying vec2 vP;
       void main(){
-        float f=pow(1.0-abs(dot(normalize(vN),normalize(vV))),5.0);      // Fresnel rim
+        float f=pow(max(1.0-abs(dot(normalize(vN),normalize(vV))),0.0),5.0);      // Fresnel rim
         float ph=vP.x*6.2831853*3.0 - uTime*uFlow*2.0 + vP.y;            // the S¹ action
         float wave=0.5+0.5*sin(ph);
         float beat=0.5+0.5*sin(ph*0.5+vP.y*1.7);                         // two phases, interfering
@@ -36072,7 +36093,7 @@ void main(){
   float lon=atan(b.y,b.x), hue=lon/(2.0*PI)+0.5, lat=acos(clamp(b.z,-1.0,1.0))/PI; vec3 col=0.5+0.5*cos(6.2831853*(hue+vec3(0.0,0.33,0.67))); col=mix(col,mix(vec3(1.0,0.82,0.5),vec3(0.55,0.7,1.0),lat),0.45);
   vec4 x=pull(X); float psi=length(x.zw)>0.25?atan(x.w,x.z):atan(x.y,x.x)-lon, p=0.5+0.5*cos(2.0*(psi-uT)), pk=p*p; pk*=pk; pk*=pk;
   vec3 L1=normalize(vec3(-0.5,0.72,0.55)), L2=normalize(vec3(0.75,0.15,0.6)), L3=normalize(vec3(0.15,-0.25,-1.0));
-  float d1=max(dot(Nv,L1),0.0), d2=max(dot(Nv,L2),0.0), d3=max(dot(Nv,L3),0.0), ndv=max(dot(Nv,V),0.0), sp=pow(max(dot(Nv,normalize(L1+V)),0.0),60.0), fr=pow(1.0-ndv,3.0);
+  float d1=max(dot(Nv,L1),0.0), d2=max(dot(Nv,L2),0.0), d3=max(dot(Nv,L3),0.0), ndv=max(dot(Nv,V),0.0), sp=pow(max(dot(Nv,normalize(L1+V)),0.0),60.0), fr=pow(max(1.0-ndv,0.0),3.0);
   vec3 c=col*(0.14+0.62*d1+0.2*d2)+vec3(1.0,0.96,0.88)*sp*0.55+col*fr*0.3+vec3(0.55,0.65,1.0)*d3*fr*0.5+col*pk*0.9;
   gl_FragColor=vec4(c*uFade,1.0);
   #ifdef USE_LOGDEPTHBUF
@@ -42558,7 +42579,7 @@ function relSetup(){
     const coneMat=(future)=>new THREE.ShaderMaterial({transparent:true,depthWrite:false,side:THREE.DoubleSide,blending:THREE.AdditiveBlending,uniforms:{uT:{value:0}},
       vertexShader:`varying vec3 vP; varying vec3 vN; varying vec3 vV; void main(){ vP=position; vN=normalize(normalMatrix*normal); vec4 mv=modelViewMatrix*vec4(position,1.0); vV=normalize(-mv.xyz); gl_Position=projectionMatrix*mv; }`,
       fragmentShader:`uniform float uT; varying vec3 vP; varying vec3 vN; varying vec3 vV;
-        void main(){ float r=length(vP.xz), stripe=pow(0.5+0.5*sin(12.0*(r-uT)),6.0), rim=pow(1.0-abs(dot(vN,vV)),2.5);
+        void main(){ float r=length(vP.xz), stripe=pow(max(0.5+0.5*sin(12.0*(r-uT)),0.0),6.0), rim=pow(max(1.0-abs(dot(vN,vV)),0.0),2.5);
           vec3 c=${future?'vec3(1.0,0.8,0.42)':'vec3(0.55,0.72,1.0)'}; gl_FragColor=vec4(c*(0.05+0.55*stripe*exp(-r*0.35)+0.35*rim),1.0); }`});
     const cg=new THREE.ConeGeometry(A,A,96,24,true);
     const coneF=new THREE.Mesh(cg,coneMat(true)); coneF.position.y=A/2; coneF.rotation.x=Math.PI; relGroup.add(coneF);
@@ -46362,17 +46383,17 @@ vec3 starBG(vec3 d){
     col+=b*mix(vec3(0.7,0.8,1.0),vec3(1.0,0.85,0.6),hash13(cell+1.7))*(L==0?1.0:1.8);
   }
   // faint galactic band
-  col+=exp(-pow(d.y*3.2,2.0))*vec3(0.05,0.055,0.09);
+  col+=exp(-pow(abs(d.y*3.2),2.0))*vec3(0.05,0.055,0.09);
   return col;
 }
 vec3 diskEmit(float rc,float doppler,float phi){
   // thin-disk temperature falloff T ~ r^-3/4 shifted by the total Doppler/redshift factor
-  float t=clamp(doppler*pow(3.0/rc,0.75),0.0,2.2);
+  float t=clamp(doppler*pow(max(3.0/rc,0.0),0.75),0.0,2.2);
   vec3 base=mix(vec3(1.0,0.36,0.08),vec3(1.0,0.93,0.78),clamp(t-0.35,0.0,1.0));
   base=mix(base,vec3(0.72,0.82,1.0),clamp((t-1.25)*1.4,0.0,1.0));   // blue-shifted limb
   float streak=0.75+0.25*sin(phi*9.0-uTime*1.4+rc*3.0)*sin(phi*4.0+rc*1.7);
   float emiss=9.0/(rc*rc)*streak;
-  return base*emiss*pow(doppler,3.0);                                // relativistic beaming ~ delta^3
+  return base*emiss*pow(max(doppler,0.0),3.0);                                // relativistic beaming ~ delta^3
 }
 void main(){
   vec3 ro=uCam, rd=normalize(vPos-uCam);
@@ -46390,7 +46411,7 @@ void main(){
     v+=0.5*dl*k*x; prevX=x; x+=dl*v;
     float r2b=dot(x,x);
     if(r2b<1.0){ captured=1.0; break; } // crossing on the final permitted step still captures
-    float invRb=inversesqrt(r2b); float kb=-1.5*h2*invRb*invRb*invRb*invRb*invRb;
+    float invRb=inversesqrt(max(r2b,1e-12)); float kb=-1.5*h2*invRb*invRb*invRb*invRb*invRb;
     v+=0.5*dl*kb*x; // velocity Verlet per step; adaptive dl is not globally symplectic
     // accretion-disk crossing (equatorial plane y=0, ISCO 3Rs to 9Rs)
     if(uDisk>0.5 && prevY*x.y<0.0){
@@ -46418,7 +46439,7 @@ void main(){
   // Reinhard tonemap; gamma-encode ONLY when rendering direct to canvas
   // (uEncode=0 under the HDR composer, whose OutputPass applies sRGB once)
   col=col/(1.0+col);
-  if(uEncode>0.5) col=pow(col,vec3(0.4545));
+  if(uEncode>0.5) col=pow(max(col,0.0),vec3(0.4545));
   gl_FragColor=vec4(col,1.0);
 }`;
 function bhrTraceJS(b,nSteps){   // JS twin of the shader integrator — asserted vs the exact quadrature
@@ -46862,7 +46883,7 @@ function qsoSetup(){
     vertexShader:`attribute float aRadius;attribute float aAngle;attribute float aHeight;attribute vec3 aColor;uniform float uTime;uniform float uRin;uniform float uRout;varying vec3 vDustColor;varying float vDustAlpha;
       #include <common>
       #include <logdepthbuf_pars_vertex>
-      void main(){float rn=(aRadius-uRin)/(uRout-uRin);float omega=.085*pow(uRin/aRadius,1.5);float a=aAngle+uTime*omega;vec3 p=vec3(aRadius*cos(a),aHeight+.006*sin(a*7.0+uTime*.13),aRadius*sin(a));float dop=.52+.94*(.5+.5*cos(a-1.5707963));vDustColor=aColor*dop;vDustAlpha=.15+.31*(1.0-rn);vec4 mv=modelViewMatrix*vec4(p,1.0);gl_Position=projectionMatrix*mv;gl_PointSize=1.0+1.65*(1.0-rn);
+      void main(){float rn=(aRadius-uRin)/(uRout-uRin);float omega=.085*pow(max(uRin/aRadius,0.0),1.5);float a=aAngle+uTime*omega;vec3 p=vec3(aRadius*cos(a),aHeight+.006*sin(a*7.0+uTime*.13),aRadius*sin(a));float dop=.52+.94*(.5+.5*cos(a-1.5707963));vDustColor=aColor*dop;vDustAlpha=.15+.31*(1.0-rn);vec4 mv=modelViewMatrix*vec4(p,1.0);gl_Position=projectionMatrix*mv;gl_PointSize=1.0+1.65*(1.0-rn);
         #include <logdepthbuf_vertex>
       }`,
     fragmentShader:`varying vec3 vDustColor;varying float vDustAlpha;
@@ -65155,9 +65176,9 @@ function bbhSetup(){ labWipe(bbhGroup); const m1=GAL_DATA.gc.bhMassSolar, m2=GAL
     uniforms:{uTau:{value:tau0}, uEta:{value:eta}, uU:{value:BBH_UNIT}, uRd:{value:0}, uMw:{value:Q.Mw/B.Mf}, uMt:{value:Q.Mtau*B.Mf}, uAmp:{value:1.0}, uR:{value:BBH_R}},
     vertexShader:`uniform float uTau,uEta,uU,uMw,uMt,uAmp,uR; varying float vH; varying float vR;
       float h(float tauRet,float phi,float r){
-        if(tauRet>0.0){ float ph=-(2.0/uEta)*pow(uEta*tauRet/5.0,0.625); float A=pow(5.0/(256.0*uEta*max(tauRet,6.0)),0.25);   /* ∝ (πf)^{2/3} ∝ τ^{-1/4} */
+        if(tauRet>0.0){ float ph=-(2.0/uEta)*pow(max(uEta*tauRet/5.0,0.0),0.625); float A=pow(max(5.0/(256.0*uEta*max(tauRet,6.0)),0.0),0.25);   /* ∝ (πf)^{2/3} ∝ τ^{-1/4} */
           return A*cos(2.0*phi-ph)/max(r,12.0)*12.0; }
-        float t=-tauRet; float A0=pow(5.0/(256.0*uEta*6.0),0.25);
+        float t=-tauRet; float A0=pow(max(5.0/(256.0*uEta*6.0),0.0),0.25);
         return A0*exp(-t/uMt)*cos(2.0*phi-uMw*t)/max(r,12.0)*12.0; }   /* the same sense of rotation the inspiral had */
       void main(){ vec3 p=position; float r=length(p.xz)/uU, phi=atan(p.z,p.x);
         float tauRet=uTau+r;                                            /* the wave at radius r left the source r ago */
@@ -67412,7 +67433,7 @@ function gmodeCloudMaterial(){ return new THREE.ShaderMaterial({transparent:true
       else { f=yv.x; }
       float a=clamp(abs(f)*uGain,0.0,1.4), eq=clamp(pow(0.5*(1.0+r*r),1.5),0.35,1.5);
       vec3 pos=vec3(1.0,0.76,0.36), neg=vec3(0.36,0.70,1.0), lit=vec3(0.86,0.93,1.0);
-      vC=(uMode>1.5)?mix(vec3(0.26,0.34,0.95),vec3(0.62,0.52,1.0),clamp(a,0.0,1.0)):(f>=0.0?pos:neg); vI=(uMode>1.5?0.10*a*a:pow(a,0.9))*eq*(0.82+0.36*rn);
+      vC=(uMode>1.5)?mix(vec3(0.26,0.34,0.95),vec3(0.62,0.52,1.0),clamp(a,0.0,1.0)):(f>=0.0?pos:neg); vI=(uMode>1.5?0.10*a*a:pow(max(a,0.0),0.9))*eq*(0.82+0.36*rn);
       vec4 mv=modelViewMatrix*vec4(v*kk*uS,1.0); gl_Position=projectionMatrix*mv; gl_PointSize=uPx*(uMode>1.5?1.2+2.2*min(a,1.0):1.4+5.4*min(a,1.0))*clamp(11.0/max(1.0,-mv.z),0.6,2.0);
       if(vI<(uMode>1.5?0.008:0.02)) gl_Position=vec4(2.0,2.0,2.0,1.0); }`,
   fragmentShader:`uniform float uOp; varying vec3 vC; varying float vI; void main(){ vec2 q=gl_PointCoord-0.5; float r=dot(q,q); if(r>0.25) discard; float g=exp(-r*11.0)+0.28*exp(-r*42.0); gl_FragColor=vec4(vC*vI*g*uOp,1.0); }`}); }
@@ -67501,7 +67522,7 @@ function gmodeFlatSetup(O){ const mob=typeof MOBILE_GPU!=='undefined'&&MOBILE_GP
   for(let i=0;i<N;i++){ let x; do{ x=[2*rnd()-1,2*rnd()-1,2*rnd()-1]; }while(Math.hypot(...x)>1); const r=2.6*Math.cbrt(rnd()), l=Math.hypot(...x)||1; x=x.map(v=>v/l*r); X.push(x); P.set(x.map(v=>v*F.S),3*i); }
   const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(P,3)); g.setAttribute('u',new THREE.Float32BufferAttribute(new Float32Array(N),1));
   const m=new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,uniforms:{uPx:{value:1},uMax:{value:1}},
-    vertexShader:`attribute float u; uniform float uPx,uMax; varying float vI; void main(){ float a=clamp(u/uMax,0.0,1.0); vI=pow(a,0.7); vec4 mv=modelViewMatrix*vec4(position,1.0); gl_Position=projectionMatrix*mv; gl_PointSize=uPx*(1.0+5.0*a)*clamp(10.0/max(1.0,-mv.z),0.6,2.0); if(vI<0.03) gl_Position=vec4(2.0,2.0,2.0,1.0); }`,
+    vertexShader:`attribute float u; uniform float uPx,uMax; varying float vI; void main(){ float a=clamp(u/uMax,0.0,1.0); vI=pow(max(a,0.0),0.7); vec4 mv=modelViewMatrix*vec4(position,1.0); gl_Position=projectionMatrix*mv; gl_PointSize=uPx*(1.0+5.0*a)*clamp(10.0/max(1.0,-mv.z),0.6,2.0); if(vI<0.03) gl_Position=vec4(2.0,2.0,2.0,1.0); }`,
     fragmentShader:`varying float vI; void main(){ vec2 q=gl_PointCoord-0.5; float r=dot(q,q); if(r>0.25) discard; float g=exp(-r*12.0)+0.25*exp(-r*44.0); gl_FragColor=vec4(mix(vec3(0.35,0.42,1.0),vec3(1.0,0.86,0.62),vI)*vI*g*0.85,1.0); }`});
   F.cloud=new THREE.Points(g,m); F.cloud.frustumCulled=false; root.add(F.cloud); F.X=X; F.N=N;
   F.Bm=pxDyn(F,12*260,0.9,1.25); F.Em=pxDyn(F,6*260,0.9,1.15); F.lab=mkLabel('','label dim'); F.lab.position.set(0,-3.9,0); root.add(F.lab);
@@ -67772,7 +67793,7 @@ function nbgLinksSetup(O,P,mob){ const S=0.85; O.S=S; O.bt=-1.2;
   const N=mob?1800:4200, rnd=gmodeRng(4243), pos=new Float32Array(3*N), X=[]; for(let i=0;i<N;i++){ let x; do{ x=[2*rnd()-1,2*rnd()-1,2*rnd()-1]; }while(Math.hypot(...x)>1); const rr=5.2*Math.cbrt(rnd()), l=Math.hypot(...x)||1; x=x.map(v=>v/l*rr); X.push(x); pos.set(x.map(v=>v*S),3*i); }
   const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3)); g.setAttribute('u',new THREE.Float32BufferAttribute(new Float32Array(N),1));
   const mat=new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,uniforms:{uPx:{value:1},uMax:{value:1}},
-    vertexShader:`attribute float u; uniform float uPx,uMax; varying float vI; void main(){ float a=clamp(u/uMax,0.0,1.0); vI=pow(a,0.55); vec4 mv=modelViewMatrix*vec4(position,1.0); gl_Position=projectionMatrix*mv; gl_PointSize=uPx*(1.0+4.4*a)*clamp(10.0/max(1.0,-mv.z),0.6,2.0); if(vI<0.04) gl_Position=vec4(2.0,2.0,2.0,1.0); }`,
+    vertexShader:`attribute float u; uniform float uPx,uMax; varying float vI; void main(){ float a=clamp(u/uMax,0.0,1.0); vI=pow(max(a,0.0),0.55); vec4 mv=modelViewMatrix*vec4(position,1.0); gl_Position=projectionMatrix*mv; gl_PointSize=uPx*(1.0+4.4*a)*clamp(10.0/max(1.0,-mv.z),0.6,2.0); if(vI<0.04) gl_Position=vec4(2.0,2.0,2.0,1.0); }`,
     fragmentShader:`varying float vI; void main(){ vec2 q=gl_PointCoord-0.5; float r=dot(q,q); if(r>0.25) discard; float g=exp(-r*12.0)+0.25*exp(-r*44.0); gl_FragColor=vec4(mix(vec3(0.30,0.40,1.0),vec3(1.0,0.84,0.55),vI)*vI*g*0.75,1.0); }`});
   O.cloud=new THREE.Points(g,mat); O.cloud.frustumCulled=false; O.root.add(O.cloud); O.X=X; O.N=N; O.next=0; O.umax=1e-30;
   /* the lattice to be dragged by Φ_t: three families of lines in the box |x| ≤ 2.4 */
@@ -74373,7 +74394,7 @@ function triCapsuleMaterial(op,world){ return new THREE.ShaderMaterial({transpar
       #include <logdepthbuf_fragment>
       if(vOk<0.5) discard; float s=clamp(vP.x,0.0,vLen), dd=length(vec2(vP.x-s,vP.y))/max(vHW,1e-3);
       float core=exp(-dd*dd*2.2), glow=exp(-dd*dd*0.32)*0.30*uGlow, along=vLen>1e-3?s/vLen:1.0;
-      float fade=mix(1.0,mix(0.06,1.0,pow(along,1.5)),vHead), head=vHead*exp(-pow((vP.x-vLen)/max(vHW,1e-3),2.0)*1.3)*0.85;
+      float fade=mix(1.0,mix(0.06,1.0,pow(max(along,0.0),1.5)),vHead), head=vHead*exp(-pow(abs((vP.x-vLen)/max(vHW,1e-3)),2.0)*1.3)*0.85;
       float I=((core+glow)*fade+head*core)*uOp; if(I<0.003) discard; gl_FragColor=vec4(vC*I,1.0); }`}); }
 /* n strokes; h4/t4 are the head and tail ON S³ (or world points with world=true), col their colour, wh = (width, head) */
 function triCapsules(n,op,world){ const g=new THREE.InstancedBufferGeometry();
@@ -74402,7 +74423,7 @@ function hccGlossMaterial(col,op){ return new THREE.ShaderMaterial({transparent:
     void main(){
       #include <logdepthbuf_fragment>
       vec3 n=normalize(vN), v=normalize(vV); if(!gl_FrontFacing) n=-n; float ndv=max(dot(n,v),0.0); vec3 L=normalize(vec3(0.35,0.78,0.55)), h=normalize(L+v);
-      float diff=0.32+0.68*max(dot(n,L),0.0), spec=pow(max(dot(n,h),0.0),56.0), rim=pow(1.0-ndv,2.6);
+      float diff=0.32+0.68*max(dot(n,L),0.0), spec=pow(max(dot(n,h),0.0),56.0), rim=pow(max(1.0-ndv,0.0),2.6);
       gl_FragColor=vec4(uCol*diff+vec3(1.0,0.95,0.84)*spec*0.6+uCol*rim*0.55,uOp); }`}); }
 /* the per-frame uniforms: the 4-D turn, the chart, and the drawing buffer in device pixels (so widths are true pixels) */
 const _tcV=new THREE.Vector2();
@@ -92835,7 +92856,7 @@ function scientificFresnelMaterial(color=SCI_CYAN,accent=SCI_GOLD,opacity=.34,in
       #include <logdepthbuf_pars_fragment>
       void main(){
         #include <logdepthbuf_fragment>
-        float rim=pow(1.0-abs(dot(normalize(vNormalV),normalize(vViewV))),2.7);
+        float rim=pow(max(1.0-abs(dot(normalize(vNormalV),normalize(vViewV))),0.0),2.7);
         /* Stable object-space structure: motion belongs to tracers and transport,
            never to a high-frequency transparency mask that shimmers at sub-pixel
            scale. uTime remains in the ABI so old stations need no material churn. */
@@ -97736,12 +97757,12 @@ function pxAberrate(d,n,beta,psi){ const c=d.dot(n), p=d.clone().addScaledVector
 function pxStarMaterial(){ return new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,
   uniforms:{uR:{value:2.45},uBeta:{value:0},uGamma:{value:1},uN:{value:new THREE.Vector3(1,0,0)},uPsi:{value:0},uPx:{value:1},uOp:{value:1},uDop:{value:1}},
   vertexShader:`attribute vec3 dir; attribute float mag; attribute float bv; uniform float uR,uBeta,uGamma,uPsi,uPx,uDop; uniform vec3 uN; varying vec3 vC; varying float vI;
-    vec3 bb(float T){ float t=clamp(T,1200.0,40000.0)/100.0; float r=t<=66.0?1.0:clamp(1.292936*pow(t-60.0,-0.1332047),0.0,1.0); float g=t<=66.0?clamp(0.3900816*log(t)-0.6318414,0.0,1.0):clamp(1.1298909*pow(t-60.0,-0.0755148),0.0,1.0);
+    vec3 bb(float T){ float t=clamp(T,1200.0,40000.0)/100.0; float r=t<=66.0?1.0:clamp(1.292936*pow(max(t-60.0,1e-6),-0.1332047),0.0,1.0); float g=t<=66.0?clamp(0.3900816*log(t)-0.6318414,0.0,1.0):clamp(1.1298909*pow(max(t-60.0,1e-6),-0.0755148),0.0,1.0);
       float b=t>=66.0?1.0:(t<=19.0?0.0:clamp(0.5432068*log(t-10.0)-1.1962541,0.0,1.0)); return vec3(r,g,b); }
     void main(){ float c=dot(dir,uN); vec3 p=dir-c*uN; float pl=length(p); float c2=(c+uBeta)/(1.0+uBeta*c); float s2=sqrt(max(0.0,1.0-c2*c2)); vec3 d=pl>1e-6?c2*uN+p*(s2/pl):uN*sign(c2);
       vec3 k=uN; d=d*cos(uPsi)+cross(k,d)*sin(uPsi)+k*dot(k,d)*(1.0-cos(uPsi));
       float D=uGamma*(1.0+uBeta*c); float T=4600.0*(1.0/(0.92*bv+1.7)+1.0/(0.92*bv+0.62)); vC=bb(T*mix(1.0,D,uDop));
-      float flux=pow(10.0,-0.4*(mag-1.0))*pow(mix(1.0,D,uDop),4.0); vI=clamp(sqrt(flux),0.05,3.0);
+      float flux=pow(10.0,-0.4*(mag-1.0))*pow(max(mix(1.0,D,uDop),0.0),4.0); vI=clamp(sqrt(flux),0.05,3.0);
       vec4 mv=modelViewMatrix*vec4(d*uR,1.0); gl_Position=projectionMatrix*mv; gl_PointSize=uPx*clamp(1.6+2.4*sqrt(vI),1.4,9.0); }`,
   fragmentShader:`uniform float uOp; varying vec3 vC; varying float vI; void main(){ vec2 q=gl_PointCoord-0.5; float r=dot(q,q); if(r>0.25) discard; float g=exp(-r*16.0)+0.22*exp(-r*50.0); gl_FragColor=vec4(vC*min(vI,1.6)*g*uOp,1.0); }`}); }
 function pxNulBuild(){ const station=state.nulStation||'null'; const root=pxRoot(nulGroup,'nul-premium'); pxWipe(root); const P={root, caps:[], station, t:0, eta:0, psi:0}; PX.nul=P;
@@ -100686,7 +100707,7 @@ function ucShadeMesh(){ const m=new THREE.ShaderMaterial({transparent:true,depth
         float r=length(vP); if(r<1e-4) discard; float N=uD+log(r)/uLnPhi; if(N<0.0) discard;
         float d=atan(vP.y,vP.x)-uTh0; d=mod(d+3.14159265,6.28318531)-3.14159265;
         float aS=uK*(N-uL2), aC=-uK*N, w=0.01;
-        float heavy=smoothstep(aS-w,aS+w,d), light=1.0-smoothstep(aC-w,aC+w,d), edge=exp(-pow((d-aS)/0.02,2.0))+exp(-pow((d-aC)/0.02,2.0));
+        float heavy=smoothstep(aS-w,aS+w,d), light=1.0-smoothstep(aC-w,aC+w,d), edge=exp(-pow(abs((d-aS)/0.02),2.0))+exp(-pow(abs((d-aC)/0.02),2.0));
         float fall=smoothstep(0.015,0.2,r)*(1.0-smoothstep(uR*0.3,uR,r));
         vec3 col=(vec3(1.0,0.42,0.36)*heavy+vec3(0.40,0.80,1.0)*light)*(0.075+0.05*edge);
         if(heavy+light<0.002) discard; gl_FragColor=vec4(col*fall*uOp,1.0); }`});
@@ -106486,8 +106507,8 @@ const fractalScene = new THREE.Scene();
           if(r>2.0) break;
           float theta = acos(clamp(z.z/r,-1.0,1.0));
           float phi = atan(z.y, z.x);
-          dr = pow(r, uPower-1.0)*uPower*dr + 1.0;
-          float zr = pow(r, uPower);
+          dr = pow(max(r,0.0), uPower-1.0)*uPower*dr + 1.0;
+          float zr = pow(max(r,0.0), uPower);
           theta *= uPower; phi *= uPower;
           z = zr*vec3(sin(theta)*cos(phi), sin(phi)*sin(theta), cos(theta)) + pos;
         }
@@ -106499,25 +106520,25 @@ const fractalScene = new THREE.Scene();
       }
       vec3 metalSilver(float t){
         t=clamp(t,0.0,1.0);
-        return mix(vec3(.008,.010,.014),vec3(.72,.76,.82),pow(t,.72))
-          +vec3(.28,.30,.34)*pow(t,5.0);
+        return mix(vec3(.008,.010,.014),vec3(.72,.76,.82),pow(max(t,0.0),.72))
+          +vec3(.28,.30,.34)*pow(max(t,0.0),5.0);
       }
       vec3 gold(float t){
         t=clamp(t,0.0,1.0);
-        return mix(vec3(.008,.004,.0015),vec3(.58,.30,.045),pow(t,.72))
-          +vec3(.45,.28,.07)*pow(t,4.0);
+        return mix(vec3(.008,.004,.0015),vec3(.58,.30,.045),pow(max(t,0.0),.72))
+          +vec3(.45,.28,.07)*pow(max(t,0.0),4.0);
       }
       vec3 copper(float t){
         t=clamp(t,0.0,1.0);
-        vec3 cu=mix(vec3(0.006,0.0025,0.0015),vec3(0.42,0.115,0.022),pow(t,.72));
-        vec3 metal=mix(vec3(0.0),vec3(0.88,0.43,0.075),pow(t,3.4));
+        vec3 cu=mix(vec3(0.006,0.0025,0.0015),vec3(0.42,0.115,0.022),pow(max(t,0.0),.72));
+        vec3 metal=mix(vec3(0.0),vec3(0.88,0.43,0.075),pow(max(t,0.0),3.4));
         return cu+metal;
       }
       vec3 palette(float t){
         t=clamp(t,0.0,1.0);
         if(uPalette==1) return gold(t);
         if(uPalette==2) return copper(t);
-        if(uPalette==3) return mix(vec3(.005,.016,.027),vec3(.34,.82,1.0),pow(t,.68))+vec3(.35)*pow(t,5.0);
+        if(uPalette==3) return mix(vec3(.005,.016,.027),vec3(.34,.82,1.0),pow(max(t,0.0),.68))+vec3(.35)*pow(max(t,0.0),5.0);
         if(uPalette==4) return hsl2rgb(vec3(fract(uHue+.78*t),.62,.12+.58*t));
         return metalSilver(t);
       }
@@ -106600,7 +106621,7 @@ const fractalScene = new THREE.Scene();
               col=mix(col,bcol,onB*0.92);
             }
           }
-          gl_FragColor=vec4(pow(col,vec3(.9)),1.0); return;
+          gl_FragColor=vec4(pow(max(col,0.0),vec3(.9)),1.0); return;
         }
         // roll the raymarch screen basis by uRot so the Mandelbulb also honours the 90° view rotation
         float mcr=cos(uRot), msr=sin(uRot);
@@ -106638,7 +106659,7 @@ const fractalScene = new THREE.Scene();
           float st = fract(sin(dot(floor(gl_FragCoord.xy/1.5), vec2(12.9898,78.233)))*43758.5453);
           if(st>0.9985) col += vec3(0.8);
         }
-        gl_FragColor = vec4(pow(col, vec3(0.92)), 1.0);
+        gl_FragColor = vec4(pow(max(col,0.0), vec3(0.92)), 1.0);
       }`,
   });
   const quad = new THREE.Mesh(new THREE.PlaneGeometry(2,2), mat);
@@ -111344,13 +111365,13 @@ function skyDome(){
         float dayK=smoothstep(-0.07,0.12,sh);
         if(a< -sin(uDip)){
           float lit=0.03+0.97*smoothstep(-0.2,0.25,sh);
-          vec3 g=vec3(0.16,0.17,0.12)*lit*(0.55+0.45*smoothstep(-0.35,0.0,a))+vec3(0.5,0.25,0.1)*0.06*exp(-pow((sh+0.04)/0.09,2.0));
+          vec3 g=vec3(0.16,0.17,0.12)*lit*(0.55+0.45*smoothstep(-0.35,0.0,a))+vec3(0.5,0.25,0.1)*0.06*exp(-pow(abs((sh+0.04)/0.09),2.0));
           gl_FragColor=vec4(g,1.0);
         } else {
-          float up=max(a,0.0), hz=pow(1.0-up,3.0);
+          float up=max(a,0.0), hz=pow(max(1.0-up,0.0),3.0);
           vec3 day=mix(vec3(0.16,0.36,0.78),vec3(0.62,0.76,0.93),hz)*(0.75+0.25*(1.0+mu*mu))+vec3(1.0,0.95,0.85)*pow(max(mu,0.0),48.0)*0.9;
-          float tw=exp(-pow((sh+0.04)/0.09,2.0));
-          vec3 dusk=vec3(1.0,0.45,0.16)*pow(1.0-abs(a),7.0)*(0.35+0.65*max(mu*0.5+0.5,0.0))*tw+vec3(0.10,0.14,0.32)*tw*(1.0-hz)*0.6;
+          float tw=exp(-pow(abs((sh+0.04)/0.09),2.0));
+          vec3 dusk=vec3(1.0,0.45,0.16)*pow(max(1.0-abs(a),0.0),7.0)*(0.35+0.65*max(mu*0.5+0.5,0.0))*tw+vec3(0.10,0.14,0.32)*tw*(1.0-hz)*0.6;
           vec3 col=(day*dayK+dusk*(1.0-dayK*0.7))*mix(0.25,1.0,uK);
           float al=uA;
           if(acos(clamp(mu,-1.0,1.0))<uRs*1.15) al=0.0;
