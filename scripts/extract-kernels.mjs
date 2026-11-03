@@ -866,6 +866,8 @@ export const ROOTS = [
   'HI_S', 'hiU', 'hiN', 'hiGap', 'hiDegree', 'hiDet4', 'hiDegreeIntegral', 'hiFFT', 'hiFFT3', 'hiHopf', 'hiH0', 'hiInterp125', 'hiGrid', 'hiPreimageOn', 'hiPreimage', 'hiChain', 'hiCurrent', 'hiOrient', 'hiCycle', 'hiLink', 'hiRing', 'hiPieces', 'hiResample', 'HI_REFS', 'hiCalibMatrix', 'hiSolve', 'hiBestDeletion', 'hiMinimax', 'HI_TARGETS', 'hiMeasure',
   /* the Hopf-triad universe (v4.408) */
   'htMul', 'HT_E', 'htN', 'htIsotropy', 'htOmegaAvg', 'htBounce', 'htEnergy', 'htEss', 'htWindow', 'htWindowByRoot', 'htTcrit', 'htBase', 'htFibre',
+  /* certified reachability and Fibonacci coherence (v4.411) */
+  'VX_PHI', 'vxEnvelope', 'vxH', 'vxG', 'vxQuad', 'vxPumpEnv', 'vxP11Series', 'vxFiniteV', 'vxEnergy', 'vxMixedPair', 'vxAllTimeB', 'vxGroupBound', 'vxActivation', 'vxShots', 'vxZeros', 'vxMul', 'vxDag', 'vxGKSL', 'vxEvolve', 'vxSuperop', 'vxExpm', 'vxPropagate', 'vxRydberg', 'vxJumps', 'vxPop', 'vxVacuum', 'VX_DARK_EDGES', 'vxDarkModel', 'vxDarkMoments', 'vxDarkP', 'vxJacobi', 'vxTwoQubitP11', 'vxZmul', 'vxZconj', 'VX_S2', 'vxKadd', 'vxKneg', 'vxKmul', 'vxKconj', 'vxKeq', 'vxKnum', 'vxZpow', 'VX_ONE', 'VX_ZERO', 'VX_C', 'VX_S', 'VX_U', 'VX_V', 'vxN', 'vxF', 'vxR', 'vxPentagon', 'vxHexagon', 'vxM2mul', 'vxM2eq', 'VX_F2', 'VX_R2', 'VX_I2', 'vxBraid', 'vxBraidP', 'vxBraidPnum', 'vxYangBaxter', 'vxNoiseWindow', 'vxFusionPaths', 'vxWordOf', 'vxFibBig', 'vxLucasBig', 'vxRungGap', 'vxMaxEnt', 'vxTree', 'vxTreeDir',
   /* Gauss's theorem on S³ (v4.410) */
   'GS_PHI', 'gsG', 'gsGp', 'gsGamma', 'gsFlux', 'gsFluxNum', 'gsLapR', 'gsSpectral', 'gsEnd', 'gsShellFlux', 'gsHierNet', 'gsHierPartial', 'gsDist', 'gsField', 'gsLine', 'gsSphereFlux', 'gsFrame', 'gsGL', 'gsChart2', 'gsCross',
   /* the Yang–Mills threshold on S³ (v4.409) */
