@@ -22723,7 +22723,7 @@ function sxFbsGo(N,final){ const lo=Number.isFinite(state.fbsNmin)?state.fbsNmin
 function sxObsBand(){ const fov2=2*Math.tan(camera.fov*Math.PI/360), m=HCC_GLY_M*fov2;
   /* v4.404: it ends at the carrier's seam whether or not the zoom crosses that seam by itself — with the switch off the
      strip used to steer out past the seam and offer nothing, as the zoom did */
-  const up=!state.quantShells&&!state.obsFibWhole&&state.scaleChain!==false;
+  const up=!state.quantShells&&!(state.obsFibShown===true&&state.obsFibWhole)&&state.scaleChain!==false;
   const dLo=Math.max((controls.minDistance||0)*1.02, SCALE_SEAMS.obsSolarInGly*1.12);
   const dHi=Math.max(dLo*1.5, Math.min((controls.maxDistance||Infinity)*0.98, up?SCALE_SEAMS.obsS3OutGly*0.9:Infinity));
   return {lo:levelOf(dLo*m), hi:levelOf(dHi*m), dLo, dHi, up}; }
@@ -28780,7 +28780,7 @@ function buildQuantileShells(){
 function obsApplyZoomLimits(){
   const bandOn=!!state.quantShells;
   const outer=Math.max(bandOn ? S3R.shells[S3R.shells.length-1].RcGly*1.18
-                     : SCALE_SEAMS.obsS3OutGly*1.35, state.obsFibWhole ? 2.45*Math.PI*S3.R : 0);   /* v4.389: the whole S³ of the fibration, the antipode's sphere in view */
+                     : SCALE_SEAMS.obsS3OutGly*1.35, (state.obsFibShown===true&&state.obsFibWhole) ? 2.45*Math.PI*S3.R : 0);   /* v4.389: the whole S³ of the fibration, the antipode's sphere in view */
   try{ setControlDistanceLimits(SCALE_SEAMS.obsSolarInGly*0.6, outer,{owner:'observable-world',reason:bandOn?'curvature-band reachability':'scale-seam reachability',unit:'Gly'}); }catch(e){}
   return outer;
 }
@@ -28808,11 +28808,14 @@ function curvatureBandPanelHTML(){
   </div>`;
 }
 /* the fibration's controls belong to the world that draws it, and say beside them what they do (v4.389) */
-function obsFibPanelHTML(){ const on=state.obsFib!==false, wh=!!state.obsFibWhole, R=S3.R, ru=state.lang==='ru', g=x=>Math.round(x).toLocaleString(ru?'ru':'en'), dec=x=>ru?x.replace('.',','):x;
+function obsFibPanelHTML(){ const on=state.obsFibShown===true, wh=on&&!!state.obsFibWhole, R=S3.R, ru=state.lang==='ru', g=x=>Math.round(x).toLocaleString(ru?'ru':'en'), dec=x=>ru?x.replace('.',','):x;
   const xp=S3.Dparticle/R, ph=(xp/Math.sin(xp)-1)*100;   /* the chart's stretch χ/sin χ at the particle horizon (written out: this runs before the module's helpers exist at boot) */
   return `<div class="sect"><b>${TT('The model S³ — its Hopf fibration and modes','Модельная S³ — расслоение Хопфа и моды','Das Modell-S³ — Hopf-Faserung und Moden')}</b>
-    <div class="ctlrow"><label>${TT('Draw it inside the observable sphere — faint, our fibre on the quasar axis','Рисовать внутри наблюдаемой сферы — тускло, наше волокно по оси квазаров','Innerhalb der beobachtbaren Sphäre zeichnen — schwach, unsere Faser auf der Quasar-Achse')}</label><input type="checkbox" id="obsFibOn" ${on?'checked':''}></div>
-    <div class="ctlrow"><label>${TT('The whole S³, to the antipode','Всю S³, до антипода','Das ganze S³')}</label><input type="checkbox" id="obsFibWholeOn" ${wh?'checked':''}></div>
+    <div class="ctlrow"><label>${TT('Show the model’s Hopf fibration — a mathematical structure of a hypothetical closed S³, not anything observed','Показать расслоение Хопфа модели — математическая структура гипотетической замкнутой S³, а не наблюдаемый объект','Hopf-Faserung des Modells zeigen — mathematische Struktur eines hypothetischen geschlossenen S³, nichts Beobachtetes')}</label><input type="checkbox" id="obsFibOn" ${on?'checked':''}></div>
+    <div class="note" style="font-size:10.4px;line-height:1.5;border-left:2px solid #ff9c7a;padding-left:8px;margin:2px 0 4px">${TT(`Off by default, and why. The fibres are great circles of the model S³ (R = ${g(R)} Gly), hence geodesics: across our ${g(S3.Dparticle)} Gly they are straight to within ${(2*Math.pow(S3.Dparticle,3)/(9*Math.sqrt(3)*R*R)).toPrecision(2)} Gly, so they look like lines drawn through the universe — yet nothing lies along them: no matter, no field, no signal. On a round S³ this fibration is one of infinitely many equivalent ones (every rotation of S³ gives another); it would single out physical directions only if space were the lens space L(p,1), which a search for matched circles in the CMB tests. The rope, the tori and the fibres through the catalogue’s structures are coordinates of the model, like meridians on a globe — not objects in the sky.`,
+      `Выключено по умолчанию — и вот почему. Волокна — большие окружности модельной S³ (R = ${g(R)} Гсв), то есть геодезические: на наших ${g(S3.Dparticle)} Гсв они прямые с точностью до ${dec((2*Math.pow(S3.Dparticle,3)/(9*Math.sqrt(3)*R*R)).toPrecision(2))} Гсв и выглядят как линии, проведённые через Вселенную, — но вдоль них нет ничего: ни вещества, ни поля, ни сигнала. На круглой S³ это расслоение — одно из бесконечного множества равноправных (любой поворот S³ даёт другое); физические направления оно выделяло бы, только если бы пространство было линзовым L(p,1), а это проверяется поиском совпадающих окружностей в реликтовом излучении. Жгут, торы и волокна через структуры каталога — координаты модели, как меридианы на глобусе, а не объекты на небе.`,
+      `Standardmäßig aus: Die Fasern sind Großkreise des Modell-S³ (R = ${g(R)} Gly), also Geodäten — innerhalb unserer ${g(S3.Dparticle)} Gly gerade Linien, entlang derer nichts liegt. Koordinaten des Modells, keine Objekte am Himmel.`)}</div>
+    <div class="ctlrow"><label>${TT('The whole S³, to the antipode','Всю S³, до антипода','Das ganze S³')}</label><input type="checkbox" id="obsFibWholeOn" ${wh?'checked':''} ${on?'':'disabled'}></div>
     <div class="note" style="margin:4px 0 2px">${TT('Our fibre points at:','Наше волокно направлено на:','Unsere Faser zeigt auf:')}</div>
     <div class="chips">${OBS_FIB_ANCHORS.map(a=>`<button class="chip ${(state.obsFibAnchor||'qsoaxis')===a.id?'on':''}" data-fibanchor="${a.id}">${esc(TT(a.t[0],a.t[1],a.t[2]))}</button>`).join('')}</div>
     <div class="note" id="obsFibDir" style="font-size:10.4px;line-height:1.5;border-left:2px solid #ffd27a;padding-left:8px;margin-top:4px">${obsFibDirHTML()}</div>
@@ -29009,7 +29012,7 @@ void main(){
   return T; }
 /* the chart's stretch across the line of sight at the angle χ, and the rope's twist over a length — both exact */
 const obsFibStretch=chi=>chi<1e-9?1:chi/Math.sin(chi), obsFibTwistDeg=L=>L/S3.R*180/Math.PI;   /* the lean of the fibre through the torus's nearest point is η itself, exactly */
-function obsFibTick(dt){ const on=state.mode==='obs'&&state.obsFib!==false; if(!on){ obsFibGroup.visible=false; return; }
+function obsFibTick(dt){ const on=state.mode==='obs'&&state.obsFibShown===true; if(!on){ obsFibGroup.visible=false; return; }
   /* two thresholds: our fibre and the fibres through the catalogue's structures come in among the quasars (25 → 60 Gly out);
      the rope, the tori and the modes from 110 Gly, where they read */
   const d=camera.position.distanceTo(controls.target), f=dscSmooth(110,330,d), fn=dscSmooth(25,60,d); obsFibGroup.visible=Math.max(f,fn)>0.003; if(!obsFibGroup.visible) return;
@@ -35317,7 +35320,7 @@ const hccSeamAuto=()=>state.autoScaleHandoff!==false&&state.scaleChain!==false;
 /* the band of radii (in Gly, the target at home) a world shows without reaching one of its seams — inside every seam's
    hysteresis, so a view placed in it stays in its world */
 function hccSeamBand(w){
-  if(w==='obs') return {lo:SCALE_SEAMS.obsSolarInGly*1.08, hi:(!state.quantShells&&!state.obsFibWhole)?SCALE_SEAMS.obsS3OutGly*0.95:Infinity};
+  if(w==='obs') return {lo:SCALE_SEAMS.obsSolarInGly*1.08, hi:(!state.quantShells&&!(state.obsFibShown===true&&state.obsFibWhole))?SCALE_SEAMS.obsS3OutGly*0.95:Infinity};
   if(w==='s3') return {lo:SCALE_SEAMS.s3ObsInGly*1.06, hi:Infinity};
   if(w==='solar') return {lo:0, hi:SCALE_SEAMS.solarObsOutGly*0.92};
   return {lo:0, hi:Infinity}; }
@@ -113553,7 +113556,7 @@ function buildCtl(){
     if(ss) ss.onchange=e=>{ state.fbsSpectro=e.target.checked;
       try{ fbsSpectroApply(); buildCtl(); }catch(err){} }; }
   { const fo=ctl.querySelector('#obsFibOn'), fw=ctl.querySelector('#obsFibWholeOn');
-    if(fo) fo.onchange=e=>{ state.obsFib=e.target.checked; };
+    if(fo) fo.onchange=e=>{ state.obsFibShown=e.target.checked; try{ resetContentMark(); if(state.mode==='obs') obsApplyZoomLimits(); buildCtl(); }catch(err){} };
     ctl.querySelectorAll('[data-fibanchor]').forEach(b=>b.onclick=()=>{ state.obsFibAnchor=b.dataset.fibanchor; ctl.querySelectorAll('[data-fibanchor]').forEach(x=>x.classList.toggle('on',x===b)); try{ OBS_FIB.anchorId=null; OBS_FIB.shownN=-1; }catch(err){}
       const dd=ctl.querySelector('#obsFibDir'); if(dd) dd.innerHTML=obsFibDirHTML(); });
     /* the ceiling has to open the moment the whole S³ is asked for, and the hand-off waits while it is drawn */
@@ -130194,7 +130197,7 @@ function tickBody(now, frame){
         /* the observer-centred R³ projection has shown the canonical curvature modulus: past it lies the compact carrier
            (S³ has finite volume 2π²R³ and NO outer boundary). Through hccSeamCross — routed, the radius mapped exactly
            with the display unit changing 1 Gly → 1/100 and the target AT THE OBSERVER — or, with the switch off, a door */
-        const _outS3=homeAim && dObs>SCALE_SEAMS.obsS3OutGly && !state.quantShells && !state.obsFibWhole && state.scaleChain!==false;
+        const _outS3=homeAim && dObs>SCALE_SEAMS.obsS3OutGly && !state.quantShells && !(state.obsFibShown===true&&state.obsFibWhole) && state.scaleChain!==false;
         const _inSolar=homeAim && dObs<SCALE_SEAMS.obsSolarInGly && state.scaleChain!==false;
         if(_outS3&&hccSeamAuto()) hccSeamCross('s3');
         else if(_inSolar&&hccSeamAuto()) hccSeamCross('solar');
