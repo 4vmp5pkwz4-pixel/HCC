@@ -67,9 +67,10 @@ try {
     ok('the section’s modes are the zonal eigenfunctions of the Laplacian of S³: (sin²χ f′)′/sin²χ = −n(n+2) f, nodes at χ = jπ/(n+1), 1 at us — and the shader draws exactly that',
       eig < 1e-5 && nodes < 1e-12 && shader, `eigenvalue to ${eig.toExponential(1)} · nodes ${nodes.toExponential(1)} · shader ${shader ? '✓' : '✗'}`); }
   /* 6 */
-  { const zl = fn('obsApplyZoomLimits'), panel = fn('obsFibPanelHTML'), ceil = /state\.obsFibWhole \? 2\.45\*Math\.PI\*S3\.R : 0/.test(zl), fits = Math.asin(1 / 2.45) < 27.5 * Math.PI / 180;
-    /* v4.404: the switch is read by hccSeamAuto, for all four crossings alike; the wait is still this seam's own */
-    const wait = SRC.includes('dObs>SCALE_SEAMS.obsS3OutGly && !state.quantShells && !state.obsFibWhole && state.scaleChain!==false;') && /hccSeamBand\(w\)\{\s*\n\s*if\(w==='obs'\) return \{lo:SCALE_SEAMS\.obsSolarInGly\*1\.08, hi:\(!state\.quantShells&&!state\.obsFibWhole\)\?/.test(SRC);
+  { const zl = fn('obsApplyZoomLimits'), panel = fn('obsFibPanelHTML'), ceil = /\(state\.obsFibShown===true&&state\.obsFibWhole\) \? 2\.45\*Math\.PI\*S3\.R : 0/.test(zl), fits = Math.asin(1 / 2.45) < 27.5 * Math.PI / 180;
+    /* v4.404: the switch is read by hccSeamAuto, for all four crossings alike; the wait is still this seam's own.
+       v4.410: the fibration is off by default (a structure of the model, not an observation), and «the whole S³» acts only while it is shown */
+    const wait = SRC.includes('dObs>SCALE_SEAMS.obsS3OutGly && !state.quantShells && !(state.obsFibShown===true&&state.obsFibWhole) && state.scaleChain!==false;') && /hccSeamBand\(w\)\{\s*\n\s*if\(w==='obs'\) return \{lo:SCALE_SEAMS\.obsSolarInGly\*1\.08, hi:\(!state\.quantShells&&!\(state\.obsFibShown===true&&state\.obsFibWhole\)\)\?/.test(SRC);
     const says = /the zoom ceiling opens to/.test(panel) && /the automatic hand-off to the S³ carrier is suspended/.test(panel) && /not a detection/.test(panel) && /\$\{\(100\*S3R\.pClosed\)\.toFixed\(2\)\}% of the curvature posterior/.test(panel);
     const words = /this whole sphere is one point/.test(SRC) && /a model, not a detection/.test(SRC) && /our fibre — through us, toward \$\{anm\}, and the antipode/.test(SRC);
     const wired = /try\{ obsFibTick\(dt\); \}catch\(e\)\{/.test(SRC) && /\$\{obsFibPanelHTML\(\)\}/.test(SRC) && (SRC.match(/\$\{obsFibPanelHTML\(\)\}/g) || []).length === 1;
