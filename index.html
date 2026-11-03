@@ -28942,10 +28942,12 @@ function obsFibAnchorDir(id){ const P=id==='hugelqg'||id==='cclqg'||id==='hyperi
 /* the fibre of the model through a point P (Gly, in the fibration's own frame): the S³ point x with χ = |P|/R in P's
    direction — x₁ = cos χ, (x₄, x₂, x₃) = sin χ · P/|P| in the chart's own order — carried round by e^{it}(z₁, z₂), and
    charted back; [x, y, z, t] runs, split where the curve crosses the antipode's sphere */
-function obsFibThrough(P,R,n){ const r=Math.hypot(P[0],P[1],P[2]), chi=r/R, s=Math.sin(chi), d=r>1e-12?P.map(v=>v/r):[0,1,0];
+function obsFibThrough(P,R,n,lim){ const r=Math.hypot(P[0],P[1],P[2]), chi=r/R, s=Math.sin(chi), d=r>1e-12?P.map(v=>v/r):[0,1,0];
   const x1=Math.cos(chi), x2=s*d[1], x3=s*d[2], x4=s*d[0], out=[], runs=[]; let prev=null, o=0;
   for(let i=0;i<=n;i++){ const t=2*Math.PI*i/n, c=Math.cos(t), sn=Math.sin(t), y1=c*x1-sn*x2, y2=sn*x1+c*x2, y3=c*x3-sn*x4, y4=sn*x3+c*x4;
     const ch=Math.acos(Math.max(-1,Math.min(1,y1))), k=ch>1e-12?R*ch/Math.sin(ch):R, q=[y4*k,y2*k,y3*k];
+    /* v4.410: the fibres through the catalogue's structures stay inside the observable sphere too — cut where they leave it */
+    if(lim&&Math.hypot(q[0],q[1],q[2])>lim){ if(out.length/4-o>1) runs.push({o,len:out.length/4-o,closed:false}); o=out.length/4; prev=null; continue; }
     if(prev&&Math.hypot(q[0]-prev[0],q[1]-prev[1],q[2]-prev[2])>0.6*Math.PI*R){ if(out.length/4-o>1) runs.push({o,len:out.length/4-o,closed:false}); o=out.length/4; }
     out.push(q[0],q[1],q[2],t); prev=q; }
   if(out.length/4-o>1) runs.push({o,len:out.length/4-o,closed:false}); return {P:out, runs}; }
@@ -29017,7 +29019,7 @@ function obsFibTick(dt){ const on=state.mode==='obs'&&state.obsFib!==false; if(!
   if(T.anchorId!==aid||T.thrLang!==state.lang){ T.anchorId=aid; T.thrLang=state.lang; obsFibGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),obsFibAnchorDir(aid)); obsFibGroup.updateMatrixWorld(true);
     const qi=obsFibGroup.quaternion.clone().invert(), runs=[], Pall=[], cols={hugelqg:[0.86,0.72,1.0],cclqg:[0.78,0.66,0.96],bossgw:[0.69,0.78,0.94],hyperion:[1.0,0.72,0.85]};
     for(const L of Object.values(T.thrL)){ L.visible=false; L.userData.on=false; }
-    for(const key of OBS_FIB_STRUCT){ if(key===aid) continue; const P=COSMOS_POS.get(key); if(!P) continue; const l=P.clone().applyQuaternion(qi), f=obsFibThrough([l.x,l.y,l.z],R,400), o=Pall.length/4;
+    for(const key of OBS_FIB_STRUCT){ if(key===aid) continue; const P=COSMOS_POS.get(key); if(!P) continue; const l=P.clone().applyQuaternion(qi), f=obsFibThrough([l.x,l.y,l.z],R,400,S3.Dparticle), o=Pall.length/4;
       for(const r of f.runs) runs.push({o:o+r.o,len:r.len,closed:false,c:cols[key]||[0.8,0.8,1],g:0.8,w:1.45}); Pall.push(...f.P);
       const s0=COSMOS.find(x=>x.key===key), nm=s0?s0.name:key; let Lb=T.thrL[key]; if(!Lb){ Lb=mkLabel('','label dim'); Lb.element.style.color='#e2d4ff'; Lb.center.set(0,0.5); obsFibGroup.add(Lb); T.thrL[key]=Lb; }
       Lb.position.copy(l); Lb.userData.on=true; Lb.element.textContent=TT(`the fibre through ${nm} · 2πR round · linked once with ours`,`волокно через ${nm} · длиной 2πR · сцеплено с нашим один раз`,`die Faser durch ${nm}`); }
