@@ -99,10 +99,16 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
   ok('and a laboratory no measurement mentions is TOLD SO rather than handed empty arrays',
     typeof miss.note === 'string' && /no measurement mentions/.test(miss.note),
     miss.note || 'no note');
-  const cmb = CORE.measurements({ kind: 'sensitivity', lab: 'cmb' });
+  /* the laboratory is taken from the measurement itself (v4.411): which inputs saturate inside a 900 ms budget is a timed fact —
+     cmb.grid_phi was caught in v4.410 and stopped at 82–91 % of its sweep in two runs of v4.411 — while what this clause
+     checks is the filter: that asking by laboratory reaches into the rows keyed by input name */
+  const SENS = JSON.parse(require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'api', 'sensitivity.json'), 'utf8'));
+  const satLab = ((SENS.saturating || [])[0] || {}).input ? SENS.saturating[0].input.split('.')[0] : null;
+  const want = satLab ? SENS.saturating.filter(r => r.input.split('.')[0] === satLab).length : 0;
+  const pick = satLab ? CORE.measurements({ kind: 'sensitivity', lab: satLab }) : null;
   ok('the laboratory filter reaches into each artifact\'s own row shape, which are four different shapes',
-    cmb.note === null && cmb.measurements.sensitivity.saturating.length > 0,
-    `cmb: ${cmb.measurements.sensitivity.saturating.length} saturating input(s) found by filtering on the input name`);
+    !!pick && pick.note === null && pick.measurements.sensitivity.saturating.length === want && want > 0,
+    satLab ? `${satLab}: ${pick.measurements.sensitivity.saturating.length} saturating input(s) found by filtering on the input name (the artifact lists ${want})` : 'no saturating input in this measurement');
 
   /* ── and the generated contracts advertise it ────────────────────────────── */
   const openapi = JSON.parse(fs.readFileSync(path.join(ROOT, 'api/openapi.json'), 'utf8'));

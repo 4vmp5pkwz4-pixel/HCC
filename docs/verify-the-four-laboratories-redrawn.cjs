@@ -36,7 +36,7 @@ const randDir = () => { const z = 2 * rnd() - 1, p = 2 * Math.PI * rnd(), r = Ma
   ok('the boosted sky: the aberration the stars are drawn with is exactly the Möbius map ζ → e^{±η}ζ of the celestial sphere (SL(2,C) acting on CP¹)', !!pxAberrate && worst < 1e-12, `worst ${worst.toExponential(1)} over 600 stars and three rapidities`); }
 /* 2 · Doppler */
 { let worst = 0; const n = new V3(0, 0, 1); for (let t = 0; t < 300; t++) { const eta = 2 * rnd(), b = Math.tanh(eta), g = Math.cosh(eta), d = randDir(), a = pxAberrate(d, n, b, 0), D = g * (1 + b * d.dot(n)), Dp = g * (1 - b * a.dot(n)); worst = Math.max(worst, Math.abs(D * Dp - 1)); }
-  ok('the Doppler factor the stars are coloured and brightened by inverts exactly: γ(1+β cos θ)·γ(1−β cos θ′) = 1', worst < 1e-12 && /float D=uGamma\*\(1\.0\+uBeta\*c\);/.test(SRC) && /pow\(mix\(1\.0,D,uDop\),4\.0\)/.test(SRC), `worst ${worst.toExponential(1)}`); }
+  ok('the Doppler factor the stars are coloured and brightened by inverts exactly: γ(1+β cos θ)·γ(1−β cos θ′) = 1', worst < 1e-12 && /float D=uGamma\*\(1\.0\+uBeta\*c\);/.test(SRC) && /pow\(max\(mix\(1\.0,D,uDop\),0\.0\),4\.0\)/.test(SRC), `worst ${worst.toExponential(1)}`); }
 /* 3 · circles stay circles */
 { let worst = 0; for (let t = 0; t < 40; t++) { const ax = randDir(), n = randDir(), half = 0.2 + 1.2 * rnd(), eta = 0.2 + 2.2 * rnd(), psi = 6 * rnd(); let tt = new V3(0, 0, 1); if (Math.abs(ax.dot(tt)) > 0.9) tt = new V3(1, 0, 0);
     const u = ax.clone().cross(tt).normalize(), v = ax.clone().cross(u).normalize(), img = [];
