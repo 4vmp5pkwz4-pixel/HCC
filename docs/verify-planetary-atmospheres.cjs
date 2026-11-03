@@ -71,12 +71,12 @@ ok('Rayleigh is computed from the wavelengths rather than entered as a colour',
 
 ok('the phase functions are the ones the physics names, not a rim light with a comment on it',
   /float rayleigh=0\.75\*\(1\.0\+cosT\*cosT\);/.test(src)
-  && /float mie=\(1\.0-gg\)\/pow\(1\.0\+gg-2\.0\*g\*cosT, 1\.5\)\*0\.25;/.test(src)
+  && /float mie=\(1\.0-gg\)\/pow\(max\(1\.0\+gg-2\.0\*g\*cosT,1e-6\), 1\.5\)\*0\.25;/.test(src)
   && /uSun\.value\.copy\(sunMesh\.position\)\.sub\(o\.mesh\.position\)\.normalize\(\)/.test(src),
   'Rayleigh ¾(1 + cos²θ) and Henyey-Greenstein for the haze, lit from where the Sun is rather than from wherever the camera happens to be');
 
 ok('the limb is where the air shows, because a grazing ray crosses more of it',
-  /float grazing=pow\(1\.0-abs\(dot\(N,V\)\),2\.4\);/.test(src),
+  /float grazing=pow\(max\(1\.0-abs\(dot\(N,V\)\),0\.0\),2\.4\);/.test(src),
   'an atmosphere is a ring of colour and not a wash over the disc, and the geometry is what makes it one');
 
 /* ── what is drawn, and what is refused ─────────────────────────────────────── */

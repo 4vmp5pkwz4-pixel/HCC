@@ -33,7 +33,7 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
   /* 2 · the wave runs at twice the orbit */
   { let worst = 0, fw = 0; for (const a of [7, 10, 20, 40]) { const t = bbhTauOfA(a, eta), h = 1e-5 * t, w = (bbhPhase(t - h, eta) - bbhPhase(t + h, eta)) / (2 * h);
       worst = Math.max(worst, Math.abs(w / (2 * Math.pow(a, -1.5)) - 1)); fw = Math.max(fw, Math.abs(bbhFgw(t, eta) / (Math.pow(a, -1.5) / Math.PI) - 1)); }
-    ok('the wave runs at twice the orbit: dΦ/dτ = 2Ω = 2a^{-3/2} at every separation, and f_GW = Ω/π', worst < 1e-6 && fw < 1e-12 && /float ph=-\(2\.0\/uEta\)\*pow\(uEta\*tauRet\/5\.0,0\.625\);/.test(SRC), `worst ${worst.toExponential(1)}`); }
+    ok('the wave runs at twice the orbit: dΦ/dτ = 2Ω = 2a^{-3/2} at every separation, and f_GW = Ω/π', worst < 1e-6 && fw < 1e-12 && /float ph=-\(2\.0\/uEta\)\*pow\(max\(uEta\*tauRet\/5\.0,0\.0\),0\.625\);/.test(SRC), `worst ${worst.toExponential(1)}`); }
 
   /* 3 · the fits */
   { const E = bbhRemnant(0.25), kicks = Array.from({ length: 999 }, (_, i) => { const q = (i + 1) / 1000, e = q / (1 + q) ** 2; return [q, bbhRemnant(e).vkick]; }), best = kicks.reduce((m, k) => k[1] > m[1] ? k : m);
