@@ -85,7 +85,10 @@ dir.forEach(([hip,ra,de,V,bv,plx,e,pa,pd],i)=>{ const o=i*REC;
 const SN=JSON.parse(fs.readFileSync(path.join(D3,'starnames.json'),'utf8'));
 const CN=JSON.parse(fs.readFileSync(path.join(D3,'constellations.json'),'utf8')).features;
 const conNames={};
-for(const f of CN){ const p=f.properties; conNames[f.id]=[p.en||p.name,p.ru||p.name,p.de||p.name]; }
+/* Japanese (v4.412): the official names (国立天文台), by IAU abbreviation — d3-celestial carries no Japanese, and its
+   English common names cannot be the key: Circinus and Pyxis are both "Compass" there */
+const CON_JA={And:'アンドロメダ座',Ant:'ポンプ座',Aps:'ふうちょう座',Aqr:'みずがめ座',Aql:'わし座',Ara:'さいだん座',Ari:'おひつじ座',Aur:'ぎょしゃ座',Boo:'うしかい座',Cae:'ちょうこくぐ座',Cam:'きりん座',Cnc:'かに座',CVn:'りょうけん座',CMa:'おおいぬ座',CMi:'こいぬ座',Cap:'やぎ座',Car:'りゅうこつ座',Cas:'カシオペヤ座',Cen:'ケンタウルス座',Cep:'ケフェウス座',Cet:'くじら座',Cha:'カメレオン座',Cir:'コンパス座',Col:'はと座',Com:'かみのけ座',CrA:'みなみのかんむり座',CrB:'かんむり座',Crv:'からす座',Crt:'コップ座',Cru:'みなみじゅうじ座',Cyg:'はくちょう座',Del:'いるか座',Dor:'かじき座',Dra:'りゅう座',Equ:'こうま座',Eri:'エリダヌス座',For:'ろ座',Gem:'ふたご座',Gru:'つる座',Her:'ヘルクレス座',Hor:'とけい座',Hya:'うみへび座',Hyi:'みずへび座',Ind:'インディアン座',Lac:'とかげ座',Leo:'しし座',LMi:'こじし座',Lep:'うさぎ座',Lib:'てんびん座',Lup:'おおかみ座',Lyn:'やまねこ座',Lyr:'こと座',Men:'テーブルさん座',Mic:'けんびきょう座',Mon:'いっかくじゅう座',Mus:'はえ座',Nor:'じょうぎ座',Oct:'はちぶんぎ座',Oph:'へびつかい座',Ori:'オリオン座',Pav:'くじゃく座',Peg:'ペガスス座',Per:'ペルセウス座',Phe:'ほうおう座',Pic:'がか座',Psc:'うお座',PsA:'みなみのうお座',Pup:'とも座',Pyx:'らしんばん座',Ret:'レチクル座',Sge:'や座',Sgr:'いて座',Sco:'さそり座',Scl:'ちょうこくしつ座',Sct:'たて座',Ser:'へび座',Sex:'ろくぶんぎ座',Tau:'おうし座',Tel:'ぼうえんきょう座',Tri:'さんかく座',TrA:'みなみのさんかく座',Tuc:'きょしちょう座',UMa:'おおぐま座',UMi:'こぐま座',Vel:'ほ座',Vir:'おとめ座',Vol:'とびうお座',Vul:'こぎつね座'};
+for(const f of CN){ const p=f.properties; conNames[f.id]=[p.en||p.name,p.ru||p.name,p.de||p.name,CON_JA[f.id]||p.en||p.name]; }
 /* A name another shard already translates keeps that translation: those
    shards were reviewed string by string, this one is generated. */
 const curated=new Set();
