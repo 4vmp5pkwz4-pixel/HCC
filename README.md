@@ -4,7 +4,7 @@ A rigorous, source-auditable, fully interactive 3D explorer for the **Solar Syst
 the **compact S³ Light-Trisphere universe** (Preece & Batenin 2026, v38
 "light sphere screens") and the **FB(S³)R golden-ratio fractal ladder**
 (Preece & Batenin 2025). One self-contained `index.html`, desktop **and**
-smartphone, localized in English/Russian/German, with per-object formula provenance.
+smartphone, localized in English/Russian/German/Japanese (日本語, since v4.412), with per-object formula provenance.
 
 > Discipline: everything here is a **conditional reconstruction** of the cited
 > publications — never a claim of topology detection. Light-sphere screens are

@@ -143,5 +143,16 @@ const T = makeT(dictJSON.replace(/<\\\//g, '</'));
   check(ok, 'the catalogue sheet searches what the reader can read: every laboratory name and description in every language — Japanese descriptions as the dictionary renders them — and the section names, word by word (it compared the query with the English only, so «ホップ» found nothing)',
     ok ? 'sheet → labHaystack · names ×4 languages · ja descriptions · sections ×4' : 'search path changed');
 }
+/* 8. the Emerald Tablet, whose rows pick their language by index, carries Japanese at the index Japanese reads */
+{
+  const a = src.indexOf('const HERMES_TABLET=['), b = src.indexOf('const HERMES_CK={}', a);
+  const deps = ['vxExactChecks','vxTree','TT','vxFusionPaths','vxFibBig','vxLucasBig','VX_PHI','vxRungGap','vxRydberg','vxGKSL','vxJumps','vxPropagate','vxVacuum','vxPop','vxEnvelope','vxDarkMoments','vxAllTimeB','FBS','vxWordOf'];
+  const H = new Function(...deps, src.slice(a, b) + ';return {HERMES_TABLET,HERMES_ST};')();
+  const rows = H.HERMES_TABLET.length === 13 && H.HERMES_TABLET.every(r => r.t.length === 4 && r.s.length === 4 && JP.test(r.t[3]) && JP.test(r.s[3]));
+  const st = Object.values(H.HERMES_ST).every(x => x.length === 5 && /^#[0-9a-f]{6}$/.test(x[3]) && JP.test(x[4]));
+  const read = /L=state\.lang==='ru'\?1:state\.lang==='de'\?2:state\.lang==='ja'\?3:0, SL=state\.lang==='ja'\?4:L;/.test(src) && /\$\{st\[SL\]\}/.test(src);
+  check(rows && st && read, 'the Emerald Tablet — thirteen lines and the statement each can honestly name — reads in Japanese, and its status labels take their Japanese without the colour, which stays at the index every reader of the table expects',
+    `rows ${rows} · statuses ${st} · reader ${read}`);
+}
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
