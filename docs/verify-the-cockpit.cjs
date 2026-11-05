@@ -41,7 +41,9 @@ const rule = sel => { const i = CSS.indexOf(sel + '{'); if (i < 0) return ''; re
   const sels = []; body.replace(/([^{}@]+)\{[^{}]*\}/g, (m, s) => { sels.push(s.trim()); return m; });
   const loose = sels.flatMap(s => s.split(',').map(x => x.trim())).filter(x => x && !x.startsWith('html.land') && !x.startsWith('#tmMore') && x !== '#timeMachine .tmBreak');
   const pred = fn('phoneLandscape');
-  const sync = /const land=phoneLandscape\(\); document\.documentElement\.classList\.toggle\('land',land\); document\.body\.classList\.toggle\('land',land\);\s*if\(!land\) document\.documentElement\.classList\.remove\('tm-more'\);/.test(SRC);
+  /* v4.412: a phone held upright folds its time machine the same way (html.port, its own stylesheet), so the unfolded state is
+     dropped only when the phone is in neither cockpit */
+  const sync = /const land=phoneLandscape\(\); document\.documentElement\.classList\.toggle\('land',land\); document\.body\.classList\.toggle\('land',land\);[\s\S]{0,420}?if\(!land&&!port\) document\.documentElement\.classList\.remove\('tm-more'\);/.test(SRC);
   ok('one class from one predicate: html.land is set from phoneLandscape() — a coarse pointer, wider than tall, at most 560 px high, the very test the column layout and the arrival use — and dropping it folds the time machine back; the cockpit\'s stylesheet is the LAST in the document and every one of its rules is scoped to html.land (the time machine\'s chevron and its row break, both HIDDEN everywhere else, are the only exceptions)',
     mine > 0 && mine === last && sync && /matchMedia\('\(pointer:coarse\)'\)\.matches\s*&& innerWidth>innerHeight && innerHeight<=560/.test(pred)
     && loose.length === 0 && /const on=phoneLandscape\(\);/.test(fn('landscapeColumnLayout')),
@@ -62,7 +64,7 @@ const rule = sel => { const i = CSS.indexOf(sel + '{'); if (i < 0) return ''; re
   const top = /html\.land body #topbar,[^{]*\{display:none!important\}/.test(CSS) && /#hccCrumb button\.crumbBack\{width:44px!important;height:44px!important/.test(CSS)
     && /html\.land body #labBar\{top:calc\(4px \+ env\(safe-area-inset-top,0px\)\)!important;[^}]*height:44px!important/.test(CSS)
     && /function syncTopbarH\(\)\{[\s\S]{0,400}?classList\.contains\('land'\) \? 52/.test(SRC)
-    && /function labBarPlace\(b\)\{[\s\S]{0,300}?if\(document\.documentElement\.classList\.contains\('land'\)\)\{/.test(SRC);
+    && /function labBarPlace\(b\)\{[\s\S]{0,300}?if\(document\.documentElement\.classList\.contains\('land'\)(\|\|document\.documentElement\.classList\.contains\('port'\))?\)\{/.test(SRC);
   ok('the chrome stands at the EDGES: the title bar put away and the top band one row — Back (44 × 44) and the laboratory bar; the time machine ONE row at the bottom that stops at the rail, with direction, Agora and the jumps one chevron away on a SECOND row that a full-width break keeps whole; the tab bar a rail down the right edge the FULL height of the screen, every tab with its word under its sign (a word wider than the rail set smaller, not cut)',
     top && /flex-direction:column!important/.test(rail) && /top:0!important;bottom:0!important/.test(rail) && /overflow-y:auto!important/.test(rail)
     && /flex:1 1 0!important/.test(btn) && minH >= 36 && words
