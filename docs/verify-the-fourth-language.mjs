@@ -21,7 +21,7 @@ const check = (ok, claim, nums) => { if (ok) pass++; else fail++; console.log(`$
 const between = (a, b) => { const i = src.indexOf(a); const j = src.indexOf(b, i); return i < 0 || j < 0 ? '' : src.slice(i, j); };
 const JP = /[぀-ヿ㐀-鿿]/, CYR = /[А-Яа-яЁё]/;
 /* the floor: raise it when a batch lands, never lower it */
-const FLOOR_JA = 0.77;
+const FLOOR_JA = 0.80;
 
 /* 1. wiring */
 {
