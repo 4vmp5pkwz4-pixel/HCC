@@ -21,7 +21,7 @@ const check = (ok, claim, nums) => { if (ok) pass++; else fail++; console.log(`$
 const between = (a, b) => { const i = src.indexOf(a); const j = src.indexOf(b, i); return i < 0 || j < 0 ? '' : src.slice(i, j); };
 const JP = /[぀-ヿ㐀-鿿]/, CYR = /[А-Яа-яЁё]/;
 /* the floor: raise it when a batch lands, never lower it */
-const FLOOR_JA = 0.55;
+const FLOOR_JA = 0.77;
 
 /* 1. wiring */
 {
@@ -133,5 +133,15 @@ const T = makeT(dictJSON.replace(/<\\\//g, '</'));
     `${(100 * ja).toFixed(1)} % (floor ${(100 * FLOOR_JA).toFixed(0)} %) · RU ${(100 * ru).toFixed(1)} %`);
 }
 
+/* 7. the catalogue sheet finds a laboratory by the words a Japanese reader can see */
+{
+  const sheet = between('function renderAtlasNav(){', 'const pass=L=>');
+  const hay = between('function labHaystack(id){', 'h=h.toLowerCase();');
+  const ok = /const qt=q\.split\(\/\\s\+\/\)\.filter\(Boolean\);/.test(sheet) && /labHaystack\(L\.id\); return qt\.every\(t=>h\.includes\(t\)\)/.test(sheet)
+    && /h\+=' '\+hccTx\(d,'ja'\)/.test(hay) && /for\(const lg of \['en','ru','de','ja'\]\)/.test(hay) && /h\+=' '\+labNamesAllLangs\(id\);/.test(hay)
+    && /for\(const L of Object\.values\(S3_VIEW_I18N\)\)/.test(src);
+  check(ok, 'the catalogue sheet searches what the reader can read: every laboratory name and description in every language — Japanese descriptions as the dictionary renders them — and the section names, word by word (it compared the query with the English only, so «ホップ» found nothing)',
+    ok ? 'sheet → labHaystack · names ×4 languages · ja descriptions · sections ×4' : 'search path changed');
+}
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
