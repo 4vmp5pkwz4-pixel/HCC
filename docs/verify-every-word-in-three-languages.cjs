@@ -99,7 +99,7 @@ const D = T.hccTxLoad();
   ok('its own card carries the world, the laboratory, the object it hangs from in the scene graph and the three nearest registered objects as typed DISPLAY relations — never a physical one',
     /\[owner,'caption of',/.test(src) && /near\.map\(k=>\[k,'display proximity',/.test(src)
     && /try\{ for\(const r of \(s\?\.relations\?\.\(\)\|\|\[\]\)\) add\(r\[0\],r\[1\],r\[2\]\); \}catch\(e\)\{\}/.test(src));
-  ok('and in English the observer is not connected at all, so a reader who never switches pays nothing for the other two languages',
+  ok('and in English the observer is not connected at all, so a reader who never switches pays nothing for the other languages (three since v4.412)',
     /hccTxConnect\(HCC_TX_LANG!=='en'\);/.test(src) && /else HCC_TX_OBS\.disconnect\(\);/.test(src) && /try\{ hccTxSetLang\(L\); \}catch\(e\)\{\}/.test(src));
 }
 

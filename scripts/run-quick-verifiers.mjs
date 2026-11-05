@@ -204,6 +204,9 @@ const allChecks = [
   "docs/verify-gauss-on-s3.mjs",
   "docs/verify-certified-reachability.mjs",
   "docs/verify-no-nan-into-the-bloom.mjs",
+  "docs/verify-the-fourth-language.mjs",
+  "docs/verify-the-glow-waits-to-be-asked.mjs",
+  "docs/verify-the-phone-upright-is-one-row.mjs",
   "docs/verify-the-critical-strip.mjs",
   "docs/verify-the-mahler-volume-product.mjs",
   "docs/verify-the-irrationality-exponent-of-pi.mjs",
@@ -578,6 +581,9 @@ if (fullMode) {
     'docs/verify-gauss-on-s3.mjs',
     'docs/verify-certified-reachability.mjs',
     'docs/verify-no-nan-into-the-bloom.mjs',
+    'docs/verify-the-fourth-language.mjs',
+    'docs/verify-the-glow-waits-to-be-asked.mjs',
+    'docs/verify-the-phone-upright-is-one-row.mjs',
     'docs/verify-the-critical-strip.mjs',
     'docs/verify-the-mahler-volume-product.mjs',
     'docs/verify-the-irrationality-exponent-of-pi.mjs',
@@ -592,8 +598,9 @@ if (fullMode) {
     'docs/verify-the-descent.cjs',
   ]);
 
-  route(/\b(i18n|translation|translate|language|languages|russian|german|trilingual|caption|captions|label|labels)\b/, [
+  route(/\b(i18n|translation|translate|language|languages|russian|german|japanese|trilingual|caption|captions|label|labels)\b/, [
     'docs/verify-every-word-in-three-languages.cjs',
+    'docs/verify-the-fourth-language.mjs',
   ]);
 
   route(/\b(description|describes|doc|docs|world|worlds|says what)\b/, [
