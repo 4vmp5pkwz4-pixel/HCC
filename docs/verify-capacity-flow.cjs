@@ -21,13 +21,13 @@ function ok(title, cond, detail) {
   if (detail) console.log(`         ${detail}`);
 }
 
-/* ── CODATA 2018/2022 and IAU ─────────────────────────────────────────────── */
+/* ── CODATA 2022 and IAU ─────────────────────────────────────────────── */
 const c     = 299792458;              // m/s exact
 const G     = 6.67430e-11;            // m^3 kg^-1 s^-2
 const hbar  = 1.054571817e-34;        // J s
 const e     = 1.602176634e-19;        // C exact
-const eps0  = 8.8541878128e-12;       // F/m
-const me     = 9.1093837015e-31;      // kg
+const eps0  = 8.8541878188e-12;       // F/m
+const me     = 9.1093837139e-31;      // kg
 const lP    = 1.616255e-35;           // m  (NIST Planck length, as the paper cites)
 const Mpc   = 3.0856775814913673e22;  // m
 const PHI   = (1 + Math.sqrt(5)) / 2;

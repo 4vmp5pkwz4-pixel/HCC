@@ -22,8 +22,8 @@ const assert = require('assert');
     same_physical_quantity: false,
     ancient_label: 'paramanu',
     modern_label: 'electron Compton wavelength',
-    ancient_value: 2.42631023867e-12,
-    modern_value: 2.42631023867e-12
+    ancient_value: 2.42631023538e-12,
+    modern_value: 2.42631023538e-12
   });
   assert.equal(falseIdentity.status, 'REJECTED');
   assert.ok(falseIdentity.reasons.includes('quantity_identity_missing'));

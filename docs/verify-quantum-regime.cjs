@@ -30,7 +30,7 @@ let pass = 0, fail = 0;
 function ok(t, c, d) { (c ? pass++ : fail++); console.log(`${c ? '  PASS' : '  FAIL'} — ${t}`); if (d) console.log(`         ${d}`); }
 
 const H = 6.62607015e-34, HBAR = 1.054571817e-34, KB = 1.380649e-23, C = 299792458;
-const ME = 9.1093837015e-31, MU = 1.66053906660e-27, E = 1.602176634e-19;
+const ME = 9.1093837139e-31, MU = 1.66053906892e-27, E = 1.602176634e-19;
 /* zeta(3/2), computed rather than quoted, because it is the condensation threshold */
 let ZETA = 0; for (let k = 1; k <= 4000000; k++) ZETA += 1 / (k * Math.sqrt(k));
 ZETA += 2 / Math.sqrt(4000000);                 /* the tail, integrated */

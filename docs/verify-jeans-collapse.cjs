@@ -38,7 +38,7 @@ function ok(t, c, d) { (c ? pass++ : fail++); console.log(`${c ? '  PASS' : '  F
 
 /* the kernels, re-derived here from the constants rather than imported, so this file
    is a second opinion and not an echo of the one it is checking */
-const G = 6.67430e-11, kB = 1.380649e-23, mH = 1.67262192369e-27;
+const G = 6.67430e-11, kB = 1.380649e-23, mH = 1.67262192595e-27;
 const MSUN = 1.98892e30, PC = 3.0856775814913673e16, YR = 3.155693e7;
 const cs = (T, mu) => Math.sqrt(kB * T / (mu * mH));
 const rho = (n, mu) => mu * mH * n;

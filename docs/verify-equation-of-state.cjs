@@ -40,8 +40,8 @@
 let pass = 0, fail = 0;
 function ok(t, c, d) { (c ? pass++ : fail++); console.log(`${c ? '  PASS' : '  FAIL'} — ${t}`); if (d) console.log(`         ${d}`); }
 
-const KB = 1.380649e-23, MU = 1.66053906660e-27, ARAD = 7.5657332500e-16;
-const H = 6.62607015e-34, ME = 9.1093837015e-31, C = 299792458;
+const KB = 1.380649e-23, MU = 1.66053906892e-27, ARAD = 7.5657332500e-16;
+const H = 6.62607015e-34, ME = 9.1093837139e-31, C = 299792458;
 const G = 6.67430e-11, MSUN = 1.98892e30;
 const LAMC = H / (ME * C), MEC2 = ME * C * C, L3 = LAMC ** 3;
 

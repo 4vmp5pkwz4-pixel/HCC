@@ -25,10 +25,10 @@ const A = JSON.parse(readFileSync(join(ROOT, 'api', 'invariants.json'), 'utf8'))
 const M = JSON.parse(readFileSync(join(ROOT, 'api', 'manifest.json'), 'utf8'));
 const identity = JSON.parse(readFileSync(join(ROOT, 'version.json'), 'utf8'));
 
-/* the constants: CODATA 2018 values and dimensions over M, L, T, Θ. ħ is h/2π from the EXACT h —
+/* the constants: CODATA 2022 values and dimensions over M, L, T, Θ. ħ is h/2π from the EXACT h —
    the ten-digit 1.054571817e-34 is off by 6e-10, enough to hide π²/60 in Stefan–Boltzmann */
 export const CONSTS = [['G', 6.6743e-11, [-1, 3, -2, 0]], ['c', 299792458, [0, 1, -1, 0]], ['ħ', 6.62607015e-34 / (2 * Math.PI), [1, 2, -1, 0]], ['k_B', 1.380649e-23, [1, 2, -2, -1]],
-  ['m_e', 9.1093837015e-31, [1, 0, 0, 0]], ['m_p', 1.67262192369e-27, [1, 0, 0, 0]]];
+  ['m_e', 9.1093837139e-31, [1, 0, 0, 0]], ['m_p', 1.67262192595e-27, [1, 0, 0, 0]]];
 /* numbers that nature, not units, has fixed and physics has named — checked after the rational×π forms */
 export const FAMOUS = [['π·e^−γ (the BCS gap Δ/k_BT_c)', Math.PI * Math.exp(-0.5772156649015329)], ['ζ(3)', 1.2020569031595942], ['x_W = 5(1 − e^−x) (Wien, wavelength)', 4.965114231744276],
   ['x = 3(1 − e^−x) (Wien, frequency)', 2.8214393721220787], ['γ (Euler)', 0.5772156649015329], ['ln 2', Math.LN2],

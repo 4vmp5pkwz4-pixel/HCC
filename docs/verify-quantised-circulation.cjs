@@ -53,7 +53,7 @@ function ok(t, c, d) { (c ? pass++ : fail++); console.log(`${c ? '  PASS' : '  F
 /* CODATA / SI defining constants, written out here */
 const H = 6.62607015e-34;          /* exact, SI */
 const E = 1.602176634e-19;         /* exact, SI */
-const U = 1.66053906660e-27;       /* the atomic mass constant */
+const U = 1.66053906892e-27;       /* the atomic mass constant */
 const M4 = 4.002602 * U;
 const M3 = 3.0160293 * U;
 const CORE = 1e-10;
