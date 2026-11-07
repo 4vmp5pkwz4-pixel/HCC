@@ -5,11 +5,11 @@
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
    declarations: 2547   ·   exported names: 2689
-   extracted physics, sha256 4c7adf32e735552eba2643a67b88ca18330e8bbf11ce7ba50f80cc446bfc3cb9 */
+   extracted physics, sha256 ea0f88e302f180bffa1cb731a6d36665cff614b4e380dadd5a0c334edaac103f */
 
-const HCC_VERSION='4.412.0';
+const HCC_VERSION='4.413.0';
 
-const HCC_BUILD='suite-2026.11.04.132';
+const HCC_BUILD='suite-2026.11.07.133';
 
 const HCC_S3C=Object.freeze({
   c:299792458.0, G:6.67430e-11, kB:1.380649e-23, hbar:1.054571817e-34,
@@ -218,7 +218,7 @@ const PHI_ATLAS=[
   ['W boson Compton wavelength',2.455e-18,'qcd','ħ/(m_W c) — the range of the weak force, and the reason it is weak'],
   ['Tau Compton wavelength',1.1105e-16,'qm','ħ/(m_τ c) — the heaviest lepton'],
   ['Neutron charge RMS radius',8e-16,'qcd','udd baryon; free neutron β-decays in ~880 s'],
-  ['Proton charge radius',8.414e-16,'qcd','CODATA 2018: 0.8414 fm'],
+  ['Proton charge radius',8.4075e-16,'qcd','CODATA 2022: 0.84075 fm'],
   ['Pion Compton wavelength',1.46e-15,'qcd','range of the nuclear force'],
   ['Muon Compton wavelength',1.8676e-15,'qm','ħ/(m_μ c) — the middle lepton, between the pion and the classical electron radius'],
   ['Classical electron radius',2.818e-15,'qm','e²/4πε₀mc²'],
@@ -3907,7 +3907,7 @@ const elTimeDelay=(u,thetaE,DL,DS,DLS,z)=>{
 
 const AD_SIGMA=5.670374419e-8, AD_G=6.67430e-11, AD_C=2.99792458e8, AD_MSUN=1.98892e30;
 
-const AD_H=6.62607015e-34, AD_KB=1.380649e-23, AD_MP=1.67262192369e-27, AD_SIGT=6.6524587321e-29;
+const AD_H=6.62607015e-34, AD_KB=1.380649e-23, AD_MP=1.67262192595e-27, AD_SIGT=6.6524587051e-29;
 
 const DISK_PEAK_RATIO=49/36;
 
@@ -3953,7 +3953,7 @@ const diskSpectralSlope=(nu1,nu2,Tpk,xmax)=>Math.log(diskSpectrum(nu2,Tpk,xmax)/
 
 const HE3_HBAR=1.054571817e-34, HE3_KB=1.380649e-23, HE3_H=6.62607015e-34;
 
-const HE3_M3=3.0160293*1.66053906660e-27;
+const HE3_M3=3.0160293*1.66053906892e-27;
 
 const HE3_GAMMA=0.5772156649015329;
 
@@ -4122,7 +4122,7 @@ function tovSolve(rhoc,h,wantProf){
   return {M:m,Rcode:r,Rkm:r*NS_KM,prof};
 }
 
-const SN_DAY=86400,SN_YEAR=365.25*SN_DAY,SN_TAUNI=8.77*SN_DAY,SN_TAUCO=111.3*SN_DAY,SN_ENI=3.9e10,SN_ECO=6.78e9,SN_MSUNG=1.98847e33,SN_C=2.99792458e10,SN_PC=3.085677581491367e18,SN_SIGMA=5.670374419e-5,SN_KB=1.380649e-16,SN_MP=1.67262192369e-24,SN_DIFF_BETA=13.8,SN_ST_XI=1.15167;
+const SN_DAY=86400,SN_YEAR=365.25*SN_DAY,SN_TAUNI=8.77*SN_DAY,SN_TAUCO=111.3*SN_DAY,SN_ENI=3.9e10,SN_ECO=6.78e9,SN_MSUNG=1.98847e33,SN_C=2.99792458e10,SN_PC=3.085677581491367e18,SN_SIGMA=5.670374419e-5,SN_KB=1.380649e-16,SN_MP=1.67262192595e-24,SN_DIFF_BETA=13.8,SN_ST_XI=1.15167;
 
 function snDecayFractions(tSec){const Ni=Math.exp(-Math.max(0,tSec)/SN_TAUNI),Co=(SN_TAUCO/(SN_TAUCO-SN_TAUNI))*(Math.exp(-Math.max(0,tSec)/SN_TAUCO)-Math.exp(-Math.max(0,tSec)/SN_TAUNI));return {Ni,Co,Fe:Math.max(0,1-Ni-Co)};}
 
@@ -4313,7 +4313,7 @@ function cosmoAngularPeak(H0,Om,Or,OL){
   return {z, D_A:cosmoComoving(z,H0,Om,Or,OL,2000)/(1+z)};
 }
 
-const JEANS_G=6.67430e-11, JEANS_KB=1.380649e-23, JEANS_MH=1.67262192369e-27;
+const JEANS_G=6.67430e-11, JEANS_KB=1.380649e-23, JEANS_MH=1.67262192595e-27;
 
 const JEANS_MSUN=1.98892e30, JEANS_PC=3.0856775814913673e16, JEANS_YR=3.155693e7;
 
@@ -4333,9 +4333,9 @@ const jeansFreeFall=(n,mu)=>Math.sqrt(3*Math.PI/(32*JEANS_G*jeansRho(n,mu)));
 
 const jeansCollapses=(M,T,n,mu)=>M>jeansMass(T,n,mu);
 
-const EOS_KB=1.380649e-23, EOS_MU=1.66053906660e-27, EOS_ARAD=7.5657332500e-16;
+const EOS_KB=1.380649e-23, EOS_MU=1.66053906892e-27, EOS_ARAD=7.5657332500e-16;
 
-const EOS_H=6.62607015e-34, EOS_ME=9.1093837015e-31, EOS_C=299792458;
+const EOS_H=6.62607015e-34, EOS_ME=9.1093837139e-31, EOS_C=299792458;
 
 const EOS_G=6.67430e-11, EOS_MSUN=1.98892e30;
 
@@ -4967,7 +4967,7 @@ const CQ_H=6.62607015e-34;
 
 const CQ_E=1.602176634e-19;
 
-const CQ_U=1.66053906660e-27;
+const CQ_U=1.66053906892e-27;
 
 const CQ_M4=4.002602*CQ_U;
 
@@ -5129,7 +5129,7 @@ const LM_DENSITIES=Object.freeze([
 
 const NSY_MEV=1.602176634e-13;
 
-const NSY_U=931.49410242;
+const NSY_U=931.49410372;
 
 const NSY_EXCESS=Object.freeze({
   n:8.07131806, H1:7.28897060, H2:13.13572176, H3:14.94980600,
@@ -5156,7 +5156,7 @@ const nsyQ=(reactants,products)=>{
   return q;
 };
 
-const NSY_ME=0.51099895000;
+const NSY_ME=0.51099895069;
 
 const NSY_DM=NSY_EXCESS.n-NSY_EXCESS.H1+NSY_ME;
 
@@ -5663,7 +5663,7 @@ function invClosedForm(v,tol){ tol=tol||1e-10; if(!(Number.isFinite(v)&&v!==0)) 
         const inner=k>=0?`${P===1&&pk?'':P}${pk}${Q===1?'':'/'+Q}`:`${P}/${Q===1?'':Q}${pk}`; return (s<0?'−':'')+(flip?'1/':'')+'√('+inner+')'; } } }
   return null; }
 
-const INV_PHYS=[['G',6.6743e-11],['c',299792458],['h',6.62607015e-34],['ħ',1.054571817e-34],['k_B',1.380649e-23],['m_p',1.67262192369e-27],['m_e',9.1093837015e-31],['e',1.602176634e-19],['σ_SB',5.670374419e-8]];
+const INV_PHYS=[['G',6.6743e-11],['c',299792458],['h',6.62607015e-34],['ħ',1.054571817e-34],['k_B',1.380649e-23],['m_p',1.67262192595e-27],['m_e',9.1093837139e-31],['e',1.602176634e-19],['σ_SB',5.670374419e-8]];
 
 function invClosedFormPhys(v){ const f0=invClosedForm(v); if(f0) return f0; if(!(Number.isFinite(v)&&v!==0)) return null;
   const sup=p=>({'-2':'⁻²','-1':'⁻¹','2':'²','1':'','0.5':'^½','-0.5':'^−½'})[String(p)];
@@ -6525,9 +6525,9 @@ function xpOverlap(d,R,r){
 
 const QR_H=6.62607015e-34, QR_HBAR=1.054571817e-34, QR_KB=1.380649e-23;
 
-const QR_C=299792458, QR_ME=9.1093837015e-31, QR_MU=1.66053906660e-27;
+const QR_C=299792458, QR_ME=9.1093837139e-31, QR_MU=1.66053906892e-27;
 
-const QR_E=1.602176634e-19, QR_EPS0=8.8541878128e-12;
+const QR_E=1.602176634e-19, QR_EPS0=8.8541878188e-12;
 
 const QR_BEC=2.612375348685488;
 
@@ -8108,7 +8108,9 @@ const DISCOVERY_TRACKS=Object.freeze({
   sixNumbers:[{op:'nav', world:'s3', lab:'nsgal'},{op:'call', fn:'fluid.final', args:{seed:1, killing:0.2, bias:0.3, nu:0.2, time:30}, expect:{killingDrift:{value:0, tol:1e-12}, E:{value:0.1483437, tol:1e-6}, Efinal:{value:0.1483437, tol:1e-6}, H:{value:0.1780125, tol:1e-6}, Hfinal:{value:0.1780125, tol:1e-6}}}],
   twoHosts:[{op:'nav', world:'s3', lab:'rungs'},{op:'call', fn:'phi.audit', args:{M:200}, expect:{K:113, Z:{value:2.0478, tol:0.0005}}}],
   phiAudit:[{op:'nav', world:'s3', lab:'rungs'},{op:'call', fn:'phi.audit', args:{M:200}, expect:{K:113, fiveSigma:0, Z:{value:2.0478, tol:0.0005}}},
-    {op:'call', fn:'hyp.ratio', args:{a:'Proton charge radius', b:'Bohr'}, expect:{delta:{value:0.039, tol:0.001}, survives:0}}],
+    /* v4.413: 0.037, not 0.039 — the proton radius is CODATA 2022's 0.84075 fm (2018: 0.8414 fm), so log_φ(a₀/r_p) = 22.9628 and
+       its rung distance 0.0372; still not a coincidence that survives the catalogue null */
+    {op:'call', fn:'hyp.ratio', args:{a:'Proton charge radius', b:'Bohr'}, expect:{delta:{value:0.037, tol:0.001}, survives:0}}],
   betti:[{op:'nav', world:'s3', lab:'tri'},{op:'call', fn:'atlas.betti', expect:{b0:1}}],
   wiener:[{op:'nav', world:'s3', lab:'cmb'},{op:'call', fn:'wf.experiment', args:{L:24, seed:3}, expect:{fsky:{value:0.658, tol:0.02}}}],
   nullBeltramiClassified:[{op:'nav', world:'s3', lab:'nbg'},{op:'call', fn:'nbg.check', args:{preset:'trefoil'}, expect:{m:3, kappa:{value:5, tol:1e-6}, nullDot:{value:0, tol:1e-9}, shear:{value:0, tol:1e-8}, twist:{value:1, tol:1e-6}, windings:3, crRatio:{value:12, tol:0.1}}},{op:'call', fn:'nbg.check', args:{preset:'double'}, expect:{windings:3, kappa:{value:5, tol:1e-6}}},{op:'call', fn:'nbg.check', args:{preset:'two', eps:0.5}, expect:{kappa:{value:4, tol:1e-6}, shear:{value:0.5, tol:0.3}}}],

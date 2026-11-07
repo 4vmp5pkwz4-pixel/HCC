@@ -7,7 +7,7 @@
    word "exoplanet" zero times.  Six thousand of them are known.
 
    This file shares no code with the atlas.  Every constant is written out from
-   the IAU 2015 nominal values and CODATA 2018, and every formula from the
+   the IAU 2015 nominal values and CODATA 2022, and every formula from the
    physics, so that a number agreeing here and there has agreed twice.
 
    THIRTEEN THINGS ARE CHECKED, and the first two are the ones that matter.
@@ -48,7 +48,7 @@
 let pass = 0, fail = 0;
 function ok(t, c, d) { (c ? pass++ : fail++); console.log(`${c ? '  PASS' : '  FAIL'} — ${t}`); if (d) console.log(`         ${d}`); }
 
-/* IAU 2015 nominal values (B3) and CODATA 2018 -- typed here, not imported */
+/* IAU 2015 nominal values (B3) and CODATA 2022 -- typed here, not imported */
 const GM_SUN = 1.32712440018e20;      /* m^3/s^2, measured directly */
 const G      = 6.67430e-11;           /* m^3 kg^-1 s^-2, 22 ppm */
 const R_SUN  = 6.957e8;               /* m */

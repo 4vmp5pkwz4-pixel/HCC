@@ -121,7 +121,7 @@ console.log('\n4 · the polaron, with the range of its own formula attached\n');
 
 console.log('\n5 · the circulation, which does not depend on the loop\n');
 {
-  const hbar = 1.054571817e-34, m4 = 4.002602 * 1.66053906660e-27;
+  const hbar = 1.054571817e-34, m4 = 4.002602 * 1.66053906892e-27;
   const radii = [1e-12, 1e-9, 1e-6, 1e-3, 1];
   const loops = radii.map(r => X.qpCirculationFromLoop(1, r, hbar, m4));
   const spread = (Math.max(...loops) - Math.min(...loops)) / Math.min(...loops);

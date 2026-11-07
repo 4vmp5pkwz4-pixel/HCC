@@ -10,7 +10,7 @@
    the rail carried no radius, and the bound is a function of nothing else.
 
    This file shares no code with the atlas.  Every constant below is written out
-   from CODATA 2018 and the IAU nominal values, and the Planck area, the bound
+   from CODATA 2022 and the IAU nominal values, and the Planck area, the bound
    and every radius are built from those here.
 
    TEN THINGS ARE CHECKED.
@@ -40,7 +40,7 @@ function ok(t, c, d) { (c ? pass++ : fail++); console.log(`${c ? '  PASS' : '  F
 const KB = 1.380649e-23;          /* exact, SI 2019 */
 const HBAR = 1.054571817e-34;
 const C = 299792458;              /* exact */
-const G = 6.67430e-11;            /* CODATA 2018 */
+const G = 6.67430e-11;            /* CODATA 2022 */
 const MSUN = 1.98892e30;
 const LN2 = Math.LN2;
 const MPC = 3.0856775814913673e22;
