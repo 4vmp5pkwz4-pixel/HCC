@@ -5,7 +5,7 @@
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
    declarations: 2547   ·   exported names: 2689
-   extracted physics, sha256 4655b108e022f65c7b36f1d27c6f118866ce60750b7f77ee357fb0b2bacbfb68 */
+   extracted physics, sha256 ea0f88e302f180bffa1cb731a6d36665cff614b4e380dadd5a0c334edaac103f */
 
 const HCC_VERSION='4.413.0';
 
@@ -8108,7 +8108,9 @@ const DISCOVERY_TRACKS=Object.freeze({
   sixNumbers:[{op:'nav', world:'s3', lab:'nsgal'},{op:'call', fn:'fluid.final', args:{seed:1, killing:0.2, bias:0.3, nu:0.2, time:30}, expect:{killingDrift:{value:0, tol:1e-12}, E:{value:0.1483437, tol:1e-6}, Efinal:{value:0.1483437, tol:1e-6}, H:{value:0.1780125, tol:1e-6}, Hfinal:{value:0.1780125, tol:1e-6}}}],
   twoHosts:[{op:'nav', world:'s3', lab:'rungs'},{op:'call', fn:'phi.audit', args:{M:200}, expect:{K:113, Z:{value:2.0478, tol:0.0005}}}],
   phiAudit:[{op:'nav', world:'s3', lab:'rungs'},{op:'call', fn:'phi.audit', args:{M:200}, expect:{K:113, fiveSigma:0, Z:{value:2.0478, tol:0.0005}}},
-    {op:'call', fn:'hyp.ratio', args:{a:'Proton charge radius', b:'Bohr'}, expect:{delta:{value:0.039, tol:0.001}, survives:0}}],
+    /* v4.413: 0.037, not 0.039 — the proton radius is CODATA 2022's 0.84075 fm (2018: 0.8414 fm), so log_φ(a₀/r_p) = 22.9628 and
+       its rung distance 0.0372; still not a coincidence that survives the catalogue null */
+    {op:'call', fn:'hyp.ratio', args:{a:'Proton charge radius', b:'Bohr'}, expect:{delta:{value:0.037, tol:0.001}, survives:0}}],
   betti:[{op:'nav', world:'s3', lab:'tri'},{op:'call', fn:'atlas.betti', expect:{b0:1}}],
   wiener:[{op:'nav', world:'s3', lab:'cmb'},{op:'call', fn:'wf.experiment', args:{L:24, seed:3}, expect:{fsky:{value:0.658, tol:0.02}}}],
   nullBeltramiClassified:[{op:'nav', world:'s3', lab:'nbg'},{op:'call', fn:'nbg.check', args:{preset:'trefoil'}, expect:{m:3, kappa:{value:5, tol:1e-6}, nullDot:{value:0, tol:1e-9}, shear:{value:0, tol:1e-8}, twist:{value:1, tol:1e-6}, windings:3, crRatio:{value:12, tol:0.1}}},{op:'call', fn:'nbg.check', args:{preset:'double'}, expect:{windings:3, kappa:{value:5, tol:1e-6}}},{op:'call', fn:'nbg.check', args:{preset:'two', eps:0.5}, expect:{kappa:{value:4, tol:1e-6}, shear:{value:0.5, tol:0.3}}}],
