@@ -157,13 +157,13 @@ const rule = sel => { const i = CSS.indexOf(sel + '{'); if (i < 0) return ''; re
     && /const lo=Math\.max\(S\.left\+8,fab\?fab\.right\+8:0\), hi=S\.right-8/.test(H);
   const scale = /return Math\.max\(1,Math\.min\(1\.45,0\.86\/f\)\); \}/.test(K) && /const S=hccLandStage\(\), f=Math\.max\(0\.3,\(S\.bottom-S\.top\)\/S\.H\);/.test(K)
     && /const k=LAND_FRAME_KEEP\.has\(v\)\?1:hccLandFrameScale\(\); if\(k>1\) return \[p\[0\]\*k,p\[1\]\*k,p\[2\]\*k\];/.test(P)
-    && /const LAND_FRAME_KEEP=new Set\(\['chmem','ois'\]\);/.test(SRC)
+    && /const LAND_FRAME_KEEP=new Set\(\['chmem','ois','fibflag'\]\);/.test(SRC)   /* v4.414: the flagged qubit has a layout of its own for the band */
     && /if\(mode==='fbs'\|\|mode==='field'\|\|mode==='fractal'\)\{ const k=hccLandFrameScale\(\); if\(k>1\) camera\.position\.sub\(controls\.target\)\.multiplyScalar\(k\)\.add\(controls\.target\); \}/.test(SRC)
     && (fn('setFractalType').match(/hccLandFrameScale\(\)/g) || []).length === 2;
   /* the arithmetic, over the phones held sideways: the free stage's share of the height and how far a preset stands back */
   const TOP = 52, TM = 51, PH = [[932, 430], [932, 321], [852, 393], [844, 390], [812, 375], [800, 360], [667, 375], [667, 300]];
   const ks = PH.map(([W, Hh]) => { const f = (Hh - TOP - TM) / Hh; return { W, Hh, f, k: Math.max(1, Math.min(1.45, 0.86 / f)) }; });
-  ok('every world and laboratory, sideways: the grips\' hint stands at the stage\'s foot — on the ladder\'s strip or the time machine, past the tour button, short of the rail or an open column — instead of over the subject in the middle; and a laboratory\'s preset (and the framing of FBS3R, the field and the fractals) stands back by what the cockpit takes of the height, never nearer and at most 1.45× (the two laboratories that fit their stations to the open band do it themselves)',
+  ok('every world and laboratory, sideways: the grips\' hint stands at the stage\'s foot — on the ladder\'s strip or the time machine, past the tour button, short of the rail or an open column — instead of over the subject in the middle; and a laboratory\'s preset (and the framing of FBS3R, the field and the fractals) stands back by what the cockpit takes of the height, never nearer and at most 1.45× (the three laboratories that fit their stations to the open band do it themselves — the causal memory, the information spectrum and, since v4.414, the flagged qubit)',
     hint && scale && ks.every(r => r.k >= 1 && r.k <= 1.45) && ks.some(r => r.k > 1.25),
     ks.map(r => `${r.W}×${r.Hh} stage ${(r.f * 100).toFixed(0)}% → ×${r.k.toFixed(2)}`).join(' · ')); }
 
