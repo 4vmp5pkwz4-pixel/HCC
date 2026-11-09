@@ -103,15 +103,27 @@ const REL = [...blk.matchAll(/^\s*\['([a-z0-9]+)','([a-z0-9]+)','([a-z]+)'/gm)].
        does (it stands fifth ON the seam, |v| 1.4e-3); without the new laboratory both still would (fourteenth and
        seventeenth). The graph is not bent to keep the sentence: the cut CMB is pinned by the robust half (five times
        below the median, which its authors already named the robust one), and "either one alone" becomes "at least one
-       alone — the statement that the sky can show S³/Γ" — with both printed every build. */
+       alone — the statement that the sky can show S³/Γ" — with both printed every build.
+       v4.415: the sphere's AI records declare an exact relation to the harmonics — a set of points is a spherical t-design
+       exactly when its harmonic components of degree 1 … t vanish — and that ONE relation draws the harmonics off the seam
+       to the sphere side: 33rd nearest of 151, |v| 9.3e-3, 2.5 times below the median 2.3e-2. Measured on the way: cut
+       only that relation and they stand ninth (|v| 2.8e-3, 8.5 times below); cut the new laboratory and eighth (11.7 times
+       below); any other of its seven relations cut, they stay 28th–35th. The relation is true and stays — the graph is not
+       bent to keep the sentence — so the finding is measured both ways, as the CMB's has been since v4.335: with the design
+       relation cut the harmonics stand ON the seam (among the twelve nearest, five times below the median); with it they
+       stay nearer the seam than the median by more than two. Both printed every build; the ledger records the revision
+       (seamDesign415). */
     const rk = x => F.onSeam.findIndex(([y]) => y === x), rkAll = x => G.V.map((y, i) => [y, Math.abs(F.vector[i])]).sort((p, q) => p[1] - q[1]).findIndex(([y]) => y === x), vc = Math.abs(F.vector[G.ix.get('cmb')]), vs = Math.abs(F.vector[G.ix.get('sh')]);
     const cut = (R, a, b) => R.filter(r => !(r[0] === a && r[1] === b) && !(r[0] === b && r[1] === a));
     const G0 = atlasRelGraph(atlasCore2(cut(cut(REL, 's3gamma', 'cmb'), 'ois', 'cmb')).rels), F0 = atlasFiedler(G0, 'mainseq'), rk0 = G0.V.map((y, i) => [y, Math.abs(F0.vector[i])]).sort((p, q) => p[1] - q[1]).findIndex(([y]) => y === 'cmb');
     const each = ['s3gamma', 'ois'].map(o => { const G1 = atlasRelGraph(atlasCore2(cut(REL, o === 's3gamma' ? 'ois' : 's3gamma', 'cmb')).rels), F1 = atlasFiedler(G1, 'mainseq'); return !F1.sky.includes('cmb') && F1.onSeam.findIndex(([y]) => y === 'cmb') < 0; });
     const v0 = Math.abs(F0.vector[G0.ix.get('cmb')]);
-    ok('FOUND — the seam is the harmonic analysis of the sphere: the spherical harmonics stand ON it (among the twelve nearest zero, five times below the median); the CMB stands on it without its relations to the sphere side — "the CMB can show S³/Γ" and, since v4.400, "the singlet the low multipoles lose" — five times below the median, and "the sky can show S³/Γ" alone carries it to the sphere side; with both it stays near the seam, more than twice below the median',
-      rkAll('sh') >= 0 && rkAll('sh') < 12 && vs * 5 < F.medAbs && v0 * 5 < F0.medAbs && !F.sky.includes('cmb') && vc * 2 < F.medAbs && vc > v0 && each[0],
-      `|v_sh| ${vs.toExponential(1)} (rank ${rkAll('sh')}) · CMB without its two relations to the sphere side: rank ${rk0}, |v| ${v0.toExponential(1)} (${(F0.medAbs / v0).toFixed(1)}× below its median) · alone: s3gamma→cmb ${each[0] ? 'carries it across' : 'does NOT'}, ois→cmb ${each[1] ? 'carries it across' : 'leaves it on the seam'} · with both: sphere side, |v| ${vc.toExponential(1)} · median ${F.medAbs.toExponential(1)}`); }
+    /* the harmonics with the sphere records' design relation cut (v4.415) */
+    const Gd = atlasRelGraph(atlasCore2(cut(REL, 'aesphere', 'sh')).rels), Fd = atlasFiedler(Gd, 'mainseq'),
+      rkD = Gd.V.map((y, i) => [y, Math.abs(Fd.vector[i])]).sort((p, q) => p[1] - q[1]).findIndex(([y]) => y === 'sh'), vD = Math.abs(Fd.vector[Gd.ix.get('sh')]);
+    ok('FOUND — the seam is the harmonic analysis of the sphere, measured both ways: with the sphere records’ design relation cut («a design kills the harmonics», v4.415) the spherical harmonics stand ON it (among the twelve nearest zero, five times below the median), and with it they stay nearer the seam than the median by more than two; the CMB stands on it without its relations to the sphere side — "the CMB can show S³/Γ" and, since v4.400, "the singlet the low multipoles lose" — five times below the median, and "the sky can show S³/Γ" alone carries it to the sphere side; with both it stays near the seam, more than twice below the median',
+      rkD >= 0 && rkD < 12 && vD * 5 < Fd.medAbs && vs * 2 < F.medAbs && v0 * 5 < F0.medAbs && !F.sky.includes('cmb') && vc * 2 < F.medAbs && vc > v0 && each[0],
+      `|v_sh| ${vs.toExponential(1)} (rank ${rkAll('sh')}, ${(F.medAbs / vs).toFixed(1)}× below the median) · without the design relation ${vD.toExponential(1)} (rank ${rkD}, ${(Fd.medAbs / vD).toFixed(1)}× below) · CMB without its two relations to the sphere side: rank ${rk0}, |v| ${v0.toExponential(1)} (${(F0.medAbs / v0).toFixed(1)}× below its median) · alone: s3gamma→cmb ${each[0] ? 'carries it across' : 'does NOT'}, ois→cmb ${each[1] ? 'carries it across' : 'leaves it on the seam'} · with both: sphere side, |v| ${vc.toExponential(1)} · median ${F.medAbs.toExponential(1)}`); }
 
   /* 5 · the bus */
   { const links = MAN.bus.links, lab = s => s.split('.')[0], g = new Map(); for (const l of links) { const x = lab(l.from), y = lab(l.to); if (!g.has(x)) g.set(x, new Set()); if (!g.has(y)) g.set(y, new Set()); if (x !== y) g.get(x).add(y); }
