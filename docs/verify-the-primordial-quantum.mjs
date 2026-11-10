@@ -103,5 +103,27 @@ const ALL = {};
   const langs = (MATH.match(/TT\(/g) || []).length === 0;   /* the mathematics carries no prose and nothing from the page */
   check(!miss.length && rel >= 9 && langs && !/\b(document|window|THREE|state|renderer|camera)\s*[.\[(]/.test(MATH), 'the laboratory reaches every registry: the declaration in four languages, the native contract, the instrument, the catalogue and its descriptions, the scene’s dispatch, the navigator and the journeys, a discovery, the agent handle, two bus publications, two touch grips and a grab for the headset’s controller, nine relations — and its mathematics names nothing of the page',
     `${need.length - miss.length}/${need.length} sites · ${rel} relations${miss.length ? ' · MISSING ' + miss.join(', ') : ''}`); }
+/* 12 · v4.417 — the scene fits the stage the cockpit leaves, and the dock stands on it. The free rectangle and the choice of
+   arrangement are lifted from the atlas and run against the cockpits photographed on a desk and on phones. */
+{ const FIT = cut('const INQ_BLOCK=Object.freeze(', 'const inqFitOff=');
+  const run = (vw, vh, boxes) => { const doc = { getElementById: id => boxes[id] ? { getBoundingClientRect: () => { const [l, t, r, b] = boxes[id]; return { left: l, top: t, right: r, bottom: b, width: r - l, height: b - t }; } } : null };
+    return new Function('document', 'getComputedStyle', 'innerWidth', 'innerHeight', 'window', `${FIT}\nconst F=inqFreeRect(); return {F, arr:(w,h)=>inqArrange(w,h), L:INQ_LAYOUT, B:INQ_BLOCK};`)(doc, () => ({ display: 'block', visibility: 'visible', opacity: '1' }), vw, vh, {}); };
+  const desk = run(1440, 900, { topbar: [0, 0, 1440, 92], panelDock: [898, 101, 1426, 139], ctl: [14, 313, 350, 835], labPanel: [14, 159, 482, 305], hccCrumb: [14, 99, 414, 130], hccInspector: [424, 99, 714, 134], timeMachine: [0, 849, 1440, 900], labBar: [440, 793, 1000, 841], hud: [722, 633, 1201, 783], hierarchyLegend: [1214, 623, 1426, 835] });
+  const up = run(390, 844, { topbar: [0, 0, 390, 84], hccTabs: [0, 788, 390, 844], timeMachine: [0, 733, 390, 788], labBar: [58, 90, 382, 134], hud: [8, 140, 382, 207] });
+  const upSheet = run(390, 844, { topbar: [0, 0, 390, 84], ctl: [7, 496, 383, 723], hccTabs: [0, 788, 390, 844], timeMachine: [0, 733, 390, 788], labBar: [58, 90, 382, 134] });
+  const side = run(852, 393, { hccTabs: [796, 0, 852, 393], timeMachine: [0, 342, 796, 393], labBar: [125, 4, 725, 48], hud: [8, 52, 400, 111] });
+  const sideSheet = run(852, 393, { ctl: [415, 4, 790, 335], hccTabs: [796, 0, 852, 393], timeMachine: [0, 342, 796, 393], labBar: [58, 4, 407, 48] });
+  const box = R => `${R.l},${R.t}–${R.r},${R.b}`, wh = R => [R.r - R.l, R.b - R.t], eq = (R, l, t, r, b) => R.l === l && R.t === t && R.r === r && R.b === b;
+  const overlaps = (R, boxes) => Object.values(boxes).some(([l, t, r, b]) => l < R.r && r > R.l && t < R.b && b > R.t);
+  const D = desk.F.withHud, okRects = eq(D, 482, 139, 1440, 623) && eq(desk.F.bare, 482, 139, 1214, 793) && eq(up.F.withHud, 0, 207, 390, 733) && eq(upSheet.F.bare, 0, 134, 390, 496) && eq(side.F.bare, 0, 48, 796, 342) && eq(sideSheet.F.bare, 0, 48, 415, 342);
+  const arr = [desk.arr(...wh(D)), up.arr(...wh(up.F.withHud)), side.arr(690, 231), upSheet.arr(...wh(upSheet.F.bare))];
+  const L = desk.L, B = desk.B, blocks = Math.abs(L.h.W - (B.sw + 0.3 + B.cW)) < 1e-9 && L.h.H === B.sh && L.v.W === B.sw && Math.abs(L.v.H - (B.sh + B.cH)) < 1e-9;
+  const need = [['function inqFitSolve(O,R){', 'the fit through the camera’s projection'], ['.project(camera)', 'projection with the view offset'], ['function inqFitTick(O,dt){', 'solved on change'], ['const inqFitOff=()=>!!(renderer.xr&&renderer.xr.isPresenting)', 'no fit in a headset or the multiview'],
+    ['<div id="inqDock" role="toolbar">', 'the dock'], ['@media (pointer:coarse){#inqDock button{min-width:44px;height:44px}}', '44-pixel targets'], ["d.classList.toggle('col',col);", 'a column on a phone held sideways'], ["if(document.body.classList.contains('panel-open')&&matchMedia('(max-width:900px),(pointer:coarse)').matches){ d.style.display='none'; return R; }", 'the dock steps aside for the sheet'],
+    ['function inqSheetTick(){', 'the sheet opens on the laboratory’s controls'], ['id="inqTop"', 'its anchor'], ["hccGrip({ id:'inqSkyTurn'", 'the sky under the finger'], ["{id:'stageFit417', kind:'revises'", 'the ledger']];
+  const miss = need.filter(([x]) => !src.includes(x)).map(([, n]) => n);
+  check(okRects && !overlaps(D, { ctl: [14, 313, 350, 835], labPanel: [14, 159, 482, 305], hud: [722, 633, 1201, 783], labBar: [440, 793, 1000, 841], hierarchyLegend: [1214, 623, 1426, 835] }) && arr.join('') === 'hvhv' && blocks && !miss.length,
+    'v4.417 — the scene fits the stage the cockpit leaves: the free rectangle is the largest one of the viewport on which no bar, panel, sheet or readout stands — found exactly, where a greedy cut gave a corner legend a fifth of a desk’s stage (run here on the cockpits of a desk and of a phone upright and sideways, sheet open and closed), the two blocks stand side by side or stacked, whichever is larger in it, and the dock, the sheet’s anchor and the sky’s grip are in place',
+    `desk ${box(D)} → ${arr[0]} · upright ${box(up.F.withHud)} → ${arr[1]} · sideways ${box(side.F.bare)} → ${arr[2]} · upright with the sheet ${box(upSheet.F.bare)} → ${arr[3]} · sideways with the sheet ${box(sideSheet.F.bare)}${miss.length ? ' · MISSING ' + miss.join(', ') : ''}`); }
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

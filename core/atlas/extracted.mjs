@@ -5,11 +5,11 @@
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
    declarations: 2548   ·   exported names: 2690
-   extracted physics, sha256 0bf423a7f8b24791455df5ac512ef8bec3d45c7364a1cd0a9a1d2912c77bba9f */
+   extracted physics, sha256 bb6017361ea1d10362b7694347496f995de1483683df40d7b9e9b2c302c19cad */
 
-const HCC_VERSION='4.416.0';
+const HCC_VERSION='4.417.0';
 
-const HCC_BUILD='suite-2026.11.09.136';
+const HCC_BUILD='suite-2026.11.10.137';
 
 const HCC_S3C=Object.freeze({
   c:299792458.0, G:6.67430e-11, kB:1.380649e-23, hbar:1.054571817e-34,
@@ -7986,6 +7986,10 @@ const DISCOVERIES=Object.freeze([
    en:'Inflation holds the CMB among the observed: one statement alone no longer carries it across the atlas’s seam', ru:'Инфляция удерживает реликтовое излучение среди наблюдаемого: одно утверждение больше не переносит его через шов атласа', de:'Die Inflation hält den CMB beim Beobachteten: eine Aussage allein trägt ihn nicht mehr über die Naht des Atlas',
    claim:'The primordial quantum declares that the measured low multipoles are one draw from the spectrum inflation computes — a relation from the sky side of the atlas’s first mode, and true. Since v4.335 the atlas had measured that the statement «the sky can show S³/Γ» alone carries the CMB from the seam to the sphere side. With the new relation it no longer does: it takes both statements about the sphere together. With the inflation relation cut, the one statement alone carries it across as before; the robust half of the finding — the CMB on the seam without its relations to the sphere side, 6.3 times below the median of |v| — is untouched. The relation was kept: the graph is not bent to keep a sentence.',
    numbers:{rankWithoutSphereRelations:14, belowMedian:6.3, withBoth:3.9e-3, median:2.1e-2}},
+  {id:'stageFit417', kind:'revises', domain:'self', v:'4.417.0', labs:['inflate'], verifier:'docs/verify-the-primordial-quantum.mjs',
+   en:'A laboratory that measures the stage it is given: the scene fits what the cockpit leaves, and its controls stand on it', ru:'Лаборатория, измеряющая отведённую ей сцену: картина вписывается в то, что оставляет кокпит, а органы управления стоят на ней', de:'Ein Labor, das seine Bühne misst: die Szene füllt, was das Cockpit lässt, und ihre Bedienung steht darauf',
+   claim:'The primordial quantum shipped with two fixed layouts. Photographed at 390 × 844, 360 × 640, 852 × 393 and 667 × 375 it stood under the controls panel on a desk, used about a third of a phone’s stage when the phone was held sideways, lost half its scene behind the sheet whenever the sheet was open, and kept its own controls two screens down that sheet. Now it measures the free rectangle — the largest rectangle of the viewport on which no bar, panel, sheet or readout stands — chooses whether its two blocks stand side by side or one above the other, and moves and scales itself through the camera’s own projection until it fills that rectangle; solved when the rectangle changes, never against the reader’s own zoom. The views, the potential, the e-folds and the pause stand on the stage as a dock of 44-pixel targets — a row, or a column of two against the rail when the phone is on its side, where height is what is scarce — and step aside while the sheet is open; the sheet opens on the laboratory’s own controls. The sky turns under a finger and a tap draws another universe.',
+   numbers:{viewports:5, dockTargetPx:44, arrangements:2}},
   {id:'inflateTested416', kind:'tested', domain:'cosmo', v:'4.416.0', labs:['inflate','cmb','cosmicweb'], verifier:'docs/verify-the-primordial-quantum.mjs',
    en:'Inflation integrated mode by mode: R² inflation lands on Planck’s n_s and 2.8σ below ACT’s', ru:'Инфляция, проинтегрированная мода за модой: R²-инфляция попадает в n_s Planck и на 2,8σ ниже ACT', de:'Inflation, Mode für Mode integriert: R²-Inflation trifft Plancks n_s und liegt 2,8σ unter ACT',
    claim:'The Mukhanov–Sasaki equation is integrated on the exact background, each mode from its Bunch–Davies vacuum at k = 200·aH to seven e-folds past the horizon. Against power-law inflation, the one closed form, the tilt agrees to 10⁻¹³ and the amplitude with its Γ-function factor to 2·10⁻⁵; the Wronskian of a mode is conserved to 5·10⁻⁷. For R² inflation at N* = 55 the integration gives n_s = 0.96490 and r = 0.00355: Planck 2018 measured 0.9649 ± 0.0042, ACT DR6 with Planck and DESI 0.9743 ± 0.0034 — the same model is 0.0σ from one and −2.8σ from the other. Second-order slow roll agrees with the integration to 10⁻⁵; the first-order formula 1 − 2/N is off by 4.5·10⁻⁴. BICEP/Keck’s r < 0.036 excludes φ², φ and φ^⅔ for N* ≤ 60. Whether inflation happened is not tested by any of this.',
