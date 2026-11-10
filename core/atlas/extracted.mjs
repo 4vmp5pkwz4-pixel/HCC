@@ -5,11 +5,11 @@
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
    declarations: 2548   ·   exported names: 2690
-   extracted physics, sha256 1b4b8211ed317779aba6ae44bcbd809985c32768893663822dc0ddf0757eb9e4 */
+   extracted physics, sha256 0e9f7e23225de3d608099c04aadf01b2df2ad0f4b04fcccdcdbd446875e9d32b */
 
-const HCC_VERSION='4.418.0';
+const HCC_VERSION='4.419.0';
 
-const HCC_BUILD='suite-2026.11.10.138';
+const HCC_BUILD='suite-2026.11.10.139';
 
 const HCC_S3C=Object.freeze({
   c:299792458.0, G:6.67430e-11, kB:1.380649e-23, hbar:1.054571817e-34,
@@ -7993,6 +7993,10 @@ const DISCOVERIES=Object.freeze([
    en:'Inflation holds the CMB among the observed: one statement alone no longer carries it across the atlas’s seam', ru:'Инфляция удерживает реликтовое излучение среди наблюдаемого: одно утверждение больше не переносит его через шов атласа', de:'Die Inflation hält den CMB beim Beobachteten: eine Aussage allein trägt ihn nicht mehr über die Naht des Atlas',
    claim:'The primordial quantum declares that the measured low multipoles are one draw from the spectrum inflation computes — a relation from the sky side of the atlas’s first mode, and true. Since v4.335 the atlas had measured that the statement «the sky can show S³/Γ» alone carries the CMB from the seam to the sphere side. With the new relation it no longer does: it takes both statements about the sphere together. With the inflation relation cut, the one statement alone carries it across as before; the robust half of the finding — the CMB on the seam without its relations to the sphere side, 6.3 times below the median of |v| — is untouched. The relation was kept: the graph is not bent to keep a sentence.',
    numbers:{rankWithoutSphereRelations:14, belowMedian:6.3, withBoth:3.9e-3, median:2.1e-2}},
+  {id:'stageAll419', kind:'revises', domain:'self', v:'4.419.0', labs:['inflate','hpage','fibflag','chaos'], verifier:'docs/verify-every-laboratory-fits-its-stage.mjs',
+   en:'Every laboratory framed in the stage it is given, with its own controls on it', ru:'Каждая лаборатория вписана в отведённую ей сцену, и её органы управления стоят на ней', de:'Jedes Labor in die Bühne gerahmt, die es bekommt, mit seiner eigenen Bedienung darauf',
+   claim:'Two laboratories arranged themselves for the free rectangle; the others cannot be re-arranged from outside, so they are framed from outside. What each draws is measured through the camera — capsule strokes by their endpoints, picking surfaces skipped, the outer 1.5 % dropped — slid to the centre of the largest rectangle no bar, panel, sheet or readout stands on, and once, on arrival, brought to fill it: standing back whenever it overflows, coming nearer only when steady and never past six-tenths of the arrival distance, and not at all after the reader touches the camera. A dock mirrors each laboratory’s own first row of choices, its pause and its tempo: a tap on it is a click on the laboratory’s chip. Measured over every S³ laboratory with the framing off and then on: the pictures standing outside the free rectangle fell from 85 to 16 at 1440 × 900, from 78 to 14 at 390 × 844 and from 66 to 25 at 852 × 393; those overflowing it from 67, 63 and 20 to 4, 5 and 2. Fifty-four laboratories have no scene group of their own and are centred and docked but not measured. The ones still outside are named in the census.',
+   numbers:{outsideBeforeDesk:85, outsideBeforeUpright:78, outsideBeforeSideways:66, outsideAfterDesk:16, outsideAfterUpright:14, outsideAfterSideways:25, overflowBeforeDesk:67, overflowAfterDesk:4, overflowAfterUpright:5, overflowAfterSideways:2, measured:99, centredOnly:54}},
   {id:'seamHawkingPage418', kind:'revises', domain:'self', v:'4.418.0', labs:['hpage','sh','cmb'], verifier:'docs/verify-the-atlas-knows-its-own-shape.cjs',
    en:'The seam of the atlas, restated as what has survived every laboratory added since it was found', ru:'Шов атласа, переформулированный как то, что пережило каждую добавленную с тех пор лабораторию', de:'Die Naht des Atlas, neu gefasst als das, was jedes seither hinzugefügte Labor überstanden hat',
    claim:'The Hawking–Page laboratory ties the sphere side of the atlas’s first mode (the lowest gluon, the modes of S³, Gauss’s law) to its observed side (black-hole thermodynamics, inflation) with eight relations, all true. Under them, with the design relation cut, the spherical harmonics stand 17th nearest the seam of 153 instead of within the twelve — still more than six times below the median; the CMB without its two relations to the sphere side stands 4.9 times below its median instead of five; and with both it now sits nearer the seam than without. The thresholds the check carried were the values measured the day it was written. They are restated as what has held throughout — the twenty nearest, five times below; four times below; on the sphere side, twice below — and the reversed ordering is printed, not asserted. The relations were kept: the graph is not bent to keep a sentence.',
