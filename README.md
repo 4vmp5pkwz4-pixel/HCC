@@ -23,7 +23,7 @@ Three entry points share one origin:
 
 | page | for | needs a GPU |
 |---|---|---|
-| `index.html` | the atlas — **154** laboratories across 7 worlds, **166** typed instruments, φ-ladder, WebXR | yes |
+| `index.html` | the atlas — **155** laboratories across 7 worlds, **167** typed instruments, φ-ladder, WebXR | yes |
 | `agent.html` | the machine-readable catalogue, read from `api/manifest.json` | no |
 | [`math.html`](math.html) | version-pinned OpenAI Math catalogue, theorem transfer gates and round S³ observability | no |
 
