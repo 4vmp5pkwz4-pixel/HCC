@@ -48,8 +48,8 @@ const SDK = await import(path.join(ROOT, 'api/agent-client.mjs'));
 { const J = read('api/instruments.json'), P = read('docs/data/instrument-parity-v4.422.json');
   const close = (a, b) => typeof a === 'number' && typeof b === 'number' ? (a === b || Math.abs(a - b) <= 1e-9 * Math.max(1, Math.abs(a), Math.abs(b))) : JSON.stringify(a) === JSON.stringify(b);
   let same = 0, values = 0; const off = [];
-  for (const I of J.instruments.filter(x => x.runnable)) { const out = JSON.parse(JSON.stringify((await SDK.evaluateInstrument(I.id)).output)); let ok = true;
-    for (const k of Object.keys(I.sample || {})) { values++; if (!close(out[k], I.sample[k])) ok = false; } if (ok) same++; else off.push(I.id); }
+  for (const I of J.instruments.filter(x => x.runnable)) { const S = (I.sample || {}).output || {}, out = JSON.parse(JSON.stringify((await SDK.evaluateInstrument(I.id, (I.sample || {}).input || {})).output)); let ok = Object.keys(S).length > 0;
+    for (const k of Object.keys(S)) { values++; if (!close(out[k], S[k])) ok = false; } if (ok) same++; else off.push(I.id); }
   const run = J.counts.runnable, all = J.counts.instruments;
   let refused = 0; const withRange = J.instruments.filter(x => x.runnable && x.inputs.some(i => typeof i.default === 'number' && i.max != null));
   for (const I of withRange) { const i = I.inputs.find(i => typeof i.default === 'number' && i.max != null);
