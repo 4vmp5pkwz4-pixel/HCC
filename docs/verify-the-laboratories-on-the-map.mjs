@@ -12,7 +12,9 @@
      5. the ladder moves together: a zero-point shift Δμ moves every distance by 10^(Δμ/5) and H₀ by 10^(−Δμ/5), so H₀·d
         stands still — the repaired sign (the LMC used to come CLOSER while H₀ fell);
      6. the type Ia reach is a luminosity distance, z = 1.06 on the map's cosmology — not the 1.8 of a straight Hubble law;
-     7. the wiring: the clock tick, the two panels, the passports, the cards' actions, and an honest contract on every place. */
+     7. the wiring: the clock tick, the two panels, the passports, the cards' actions, and an honest contract on every place;
+     8. the captions: the chosen place outranks every caption in both label guards, a hidden caption holds no room, and on a
+        narrow screen the chosen shell's label stands at the top of its sphere. */
 import fs from 'node:fs'; import path from 'node:path';
 const ROOT = path.join(path.dirname(new URL(import.meta.url).pathname), '..');
 const src = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
@@ -111,5 +113,15 @@ const run = (id, over) => inst(id)({ ...defaults(id), ...(over || {}) });
   check(w.every(Boolean) && M.SKYMAP_IDS.every(id => forbid.includes(id)) && labsOK,
     'the wiring and the contract: the places follow the atlas clock and the laboratories’ inputs from the one horizons tick; Horizons lists the shells and Sun → Cosmos the Galaxy, both bound; every laboratory passport lists its places and flies there; every place’s card opens its laboratory and sets what its number can set; every place is filed as a model construct, derived here, with what it must not be read as — and none of them is offered as a photographed object',
     `tick ${w[0]} · panels ${w[1]}/${w[3]} bound ${w[2]} · passport ${w[4]}/${w[5]} · card actions ${w[6]} · contract ${w[7]} · not a photograph ${w[8]} · forbidden readings ${forbid.length}/${M.SKYMAP_IDS.length} · laboratories ${labs.map(x => x[1]).join(',')}`); }
+/* 8 — THE CAPTIONS */
+{ const rank = /const LABEL_RANK=d=>d\.classList\.contains\('selected'\)\?-1:d\.classList\.contains\('const'\)\?0:/.test(src);
+  const skip = /if\(d\.classList\.contains\('declutter-hidden'\)\) continue;\n\s*const b=d\.getBoundingClientRect\(\);/.test(src);
+  const anchor = /function skymapSelAnchor\(\)\{[\s\S]{0,200}narrow=\(camera\.aspect\|\|1\)<1/.test(src) && /function skymapTick\(\)\{ if\(!SKYMAP\.items\.size\) return; try\{ skymapSelAnchor\(\); \}catch\(e\)\{\}/.test(src);
+  const pill = /\.label\.skymap\{[^}]*background:rgba\(5,9,20,\.62\)/.test(src);
+  /* the fan of anchors: the five inner labels in rows ordered by radius, alternating sides — a ratio of radius, so it holds at every zoom */
+  const fan = [...(src.match(/for\(const \[id,op,th\] of \[([^\]]*\][^\]]*\][^\]]*\][^\]]*\][^\]]*\])\]\)/) || ['', ''])[1].matchAll(/\['([A-Za-z]+)',[.0-9]+,([0-9]+)\]/g)].map(m => [m[1], +m[2]]);
+  check(rank && skip && anchor && pill && fan.length === 5,
+    'the captions: the place the reader has chosen outranks every other caption in both label guards (the crowd guard ranked it like any plain caption and could step it aside); a caption the declutter pass has hidden no longer holds room in the crowd guard (an invisible «Hyperion» pushed the visible distance-laboratory label out); on a narrow screen the chosen shell’s label stands at the top of its sphere as the reader sees it; the laboratories’ labels carry a dark backing so they read on the bright core of the web',
+    `selected first ${rank} · hidden takes no room ${skip} · narrow-screen anchor ${anchor} · backing ${pill} · fan ${fan.map(f => f.join('@')).join(', ')}`); }
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
