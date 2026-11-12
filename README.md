@@ -23,9 +23,9 @@ Three entry points share one origin:
 
 | page | for | needs a GPU |
 |---|---|---|
-| `index.html` | the atlas — **157** laboratories across 7 worlds, **169** typed instruments, φ-ladder, WebXR | yes |
+| `index.html` | the atlas — **158** laboratories across 7 worlds, **170** typed instruments, φ-ladder, WebXR | yes |
 | `agent.html` | the machine-readable catalogue, read from `api/manifest.json` | no |
-| `api/agent-client.mjs` | `evaluateInstrument(id, input)` — **158** of the 169 instruments run on the page's own formulas, no browser, no server | no |
+| `api/agent-client.mjs` | `evaluateInstrument(id, input)` — **159** of the 170 instruments run on the page's own formulas, no browser, no server | no |
 | [`math.html`](math.html) | version-pinned OpenAI Math catalogue, theorem transfer gates and round S³ observability | no |
 
 The mathematics workspace indexes 372 families and 719 manuscripts from a pinned snapshot, with 23 audited source relations across 21 families and 17 explicit transfer tasks. Coverage markers are metadata, not local Lean verification or physical closure. See [the audit and proofs](docs/MATH_ATLAS_2026-10-10.md).

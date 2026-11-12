@@ -57,7 +57,7 @@ const SDK = await import(path.join(ROOT, 'api/agent-client.mjs'));
   let pageOnly = 0; for (const id of Object.keys(M.PAGE_ONLY)) { try { await SDK.evaluateInstrument(id); } catch (e) { if (e.code === 'PAGE_ONLY') pageOnly++; } }
   const ok = all >= 169 && run >= 150 && run === Object.keys(M.INSTRUMENTS).length && same === run && values > 1000 && refused === withRange.length && withRange.length > 100
     && pageOnly === all - run && M.ATLAS_VERSION === (src.match(/const HCC_VERSION='([^']+)'/) || [])[1]
-    && P.instruments === run && P.agree >= 140 && P.agree + P.differ.length === P.instruments;
+    && P.instruments >= 158 && P.instruments <= run && P.agree >= 140 && P.agree + P.differ.length === P.instruments;
   check(ok, 'every instrument an agent can run: the evaluate() of each computational laboratory is lifted verbatim out of the page with the declarations it names, and all that are pure mathematics run with no browser — each reproduces, here, its outputs at its own defaults; an input beyond its declared range is refused, never clamped; the ones that reach the page say so with the reason instead of answering. Against the page itself in a headless browser the outputs agree to nine digits for most and differ in the last digits of transcendental functions for the rest — chaotic exponents and near-zero residuals — which are listed by name',
     `${run} of ${all} runnable · ${same}/${run} reproduce ${values} sample values · ${refused}/${withRange.length} out-of-range refusals · ${pageOnly} page-only with a reason · page parity ${P.agree}/${P.instruments} (differ: ${P.differ.map(d => d.split(' ')[0]).join(', ')})${off.length ? ' · off ' + off.join(',') : ''}`); }
 
