@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { CORE, LABS } from '../core/index.mjs';
 import { CORE_VERSION } from '../core/version.mjs';
 import { STATUS, STATUS_DOC } from '../core/status.mjs';
+import { listInstruments, evaluateInstrument } from '../api/agent-client.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = Number(process.env.PORT || 8974);
@@ -97,7 +98,7 @@ const json = (res, code, body, extra = {}) => { const s = JSON.stringify(body, n
     'access-control-allow-methods': 'GET,POST,DELETE,OPTIONS', 'content-length': Buffer.byteLength(s), ...extra });
   res.end(s); };
 const errBody = e => ({ error: { code: e.code || 'ERROR', message: e.message, detail: e.detail || null } });
-const httpCodeFor = e => e.code === 'NOT_IMPLEMENTED' ? 501 : e.code === 'NOT_FOUND' ? 404 : e.code === 'BUSY' ? 429 : 422;
+const httpCodeFor = e => e.code === 'NOT_IMPLEMENTED' || e.code === 'PAGE_ONLY' ? 501 : e.code === 'NOT_FOUND' ? 404 : e.code === 'BUSY' ? 429 : 422;
 
 async function readBody(req) {
   const chunks = []; for await (const c of req) chunks.push(c);
@@ -156,7 +157,16 @@ export const TOOLS = [
     call: a => CORE.measurements({ kind: a.kind || null, lab: a.lab || null }) },
   { name: 'list_open_problems', description: 'Every declared gap in the atlas, machine-readable, including the ones it carried only in prose.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
-    call: () => CORE.openProblems() }
+    call: () => CORE.openProblems() },
+  /* the page's own instruments: every laboratory whose evaluate() is pure mathematics, lifted
+     verbatim from index.html. Both calls are async — the module is 1.3 MB and loaded on first use. */
+  { name: 'list_instruments', description: 'Every typed instrument of the interactive atlas (one per computational laboratory): id, inputs with units, defaults and ranges, outputs with units, and whether it runs without a browser. Optional text query.',
+    inputSchema: { type: 'object', properties: { query: { type: 'string' } }, additionalProperties: false },
+    call: async a => { const rows = await listInstruments({ query: a.query || '' });
+      return { count: rows.length, runnable: rows.filter(r => r.runnable).length, instruments: rows }; } },
+  { name: 'evaluate_instrument', description: 'Evaluate one atlas instrument on the exact formulas the page runs (extracted verbatim from index.html). Missing inputs take their declared defaults; an input outside its declared range is REFUSED, never clamped.',
+    inputSchema: { type: 'object', required: ['id'], properties: { id: { type: 'string' }, input: { type: 'object' } }, additionalProperties: false },
+    call: a => evaluateInstrument(a.id, a.input || {}) }
 ];
 const TOOL = new Map(TOOLS.map(t => [t.name, t]));
 
@@ -165,7 +175,7 @@ const TOOL = new Map(TOOLS.map(t => [t.name, t]));
    what the specification requires and what a client that sends notifications/initialized
    will otherwise hang waiting for. */
 const RPC_INVALID_PARAMS = -32602, RPC_METHOD_NOT_FOUND = -32601, RPC_INTERNAL = -32603, RPC_PARSE = -32700;
-function rpcHandle(msg) {
+async function rpcHandle(msg) {
   const { id = null, method, params = {} } = msg || {};
   const ok = result => ({ jsonrpc: '2.0', id, result });
   const err = (code, message, data) => ({ jsonrpc: '2.0', id, error: { code, message, ...(data ? { data } : {}) } });
@@ -186,7 +196,7 @@ function rpcHandle(msg) {
       const t = TOOL.get(params.name);
       if (!t) return err(RPC_INVALID_PARAMS, `no MCP tool "${params.name}"`, { available: TOOLS.map(x => x.name) });
       try {
-        const out = t.call(params.arguments || {});
+        const out = await t.call(params.arguments || {});
         return ok({ content: [{ type: 'text', text: JSON.stringify(out, null, 2) }], structuredContent: out, isError: false });
       } catch (e) {
         /* a refusal is a RESULT, not a transport failure: the agent asked a well-formed
@@ -294,6 +304,17 @@ export const server = createServer(async (req, res) => {
     if (m) { try { return json(res, 200, CORE.measurements({ kind: decodeURIComponent(m[1]) })); }
       catch (e) { return json(res, httpCodeFor(e), errBody(e)); } }
 
+    /* the page's own instruments, evaluated on the formulas lifted verbatim from index.html */
+    if (p === '/api/v1/instruments') {
+      const rows = await listInstruments({ query: new URL(req.url, 'http://x').searchParams.get('query') || '' });
+      return json(res, 200, { count: rows.length, runnable: rows.filter(r => r.runnable).length, instruments: rows });
+    }
+    m = p.match(/^\/api\/v1\/instruments\/([^/]+)\/evaluate$/);
+    if (m && req.method === 'POST') {
+      try { const b = await readBody(req); return json(res, 200, await evaluateInstrument(decodeURIComponent(m[1]), b?.input ?? b ?? {})); }
+      catch (e) { return json(res, httpCodeFor(e), errBody(e)); }
+    }
+
     if (p === '/api/v1/open-problems' || p === '/api/open-problems.json')
       return json(res, 200, CORE.openProblems());
 
@@ -313,7 +334,7 @@ export const server = createServer(async (req, res) => {
       const msgs = batch ? body : [body];
       const out = [];
       for (const msg of msgs) {
-        try { const r = rpcHandle(msg); if (r) out.push(r); }
+        try { const r = await rpcHandle(msg); if (r) out.push(r); }
         catch (e) { out.push({ jsonrpc: '2.0', id: msg?.id ?? null, error: { code: RPC_INTERNAL, message: e.message } }); }
       }
       if (!out.length) { res.writeHead(202, { 'access-control-allow-origin': '*' }); return res.end(); }
@@ -337,7 +358,7 @@ export const server = createServer(async (req, res) => {
       const t = TOOL.get(tool);
       if (!t) return json(res, 400, errBody({ code: 'UNKNOWN_TOOL', message: `no MCP tool "${tool}"`,
         detail: { available: TOOLS.map(x => x.name) } }), dep);
-      try { return json(res, 200, t.call(a), dep); }
+      try { return json(res, 200, await t.call(a), dep); }
       catch (e) { return json(res, httpCodeFor(e), errBody(e), dep); }
     }
 
