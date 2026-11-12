@@ -232,6 +232,7 @@
   .label:hover{color:#fff}
   .label.major{font-size:12px;font-weight:600;letter-spacing:.7px}
   .label.dim{color:#8fa0c0;font-size:10px}
+  .label.skymap{color:#ffe2a6;font-size:10.5px;font-style:italic;letter-spacing:.3px;text-shadow:0 0 6px rgba(0,0,0,.9)}
   .label.static{pointer-events:none;cursor:default}
   .label.selected{color:var(--sel);font-weight:800;font-size:13px;letter-spacing:.6px;
     background:linear-gradient(180deg,rgba(24,19,9,.88),rgba(10,8,4,.78));
@@ -29695,7 +29696,7 @@ function hzFmt(g){ return g>=100?g.toFixed(0)+' Gly':g>=1?g.toFixed(2)+' Gly':g>
 function hzScaleSphere(grp,ratio,label){ const on=ratio!=null&&ratio>0&&Number.isFinite(ratio); grp.scale.setScalar(on?Math.max(1e-9,ratio):1e-9);
   const lab=grp.children.find(c=>c.isCSS2DObject); if(lab){ lab.visible=on&&ratio>1e-4; if(label!=null&&lab.element.textContent!==label) lab.element.textContent=label; } }
 /* called every frame by the Solar and Observable modes; does its work only when the clock has moved */
-function hccHorizonsTick(dt){ HZ_LAST.ui+=dt||0; const now=hzNowGyr(), key=now.toPrecision(10); if(key===HZ_LAST.key&&HZ_LAST.ui<0.5) return HZ_LAST.now; HZ_LAST.key=key;
+function hccHorizonsTick(dt){ try{ skymapTick(); }catch(e){} HZ_LAST.ui+=dt||0; const now=hzNowGyr(), key=now.toPrecision(10); if(key===HZ_LAST.key&&HZ_LAST.ui<0.5) return HZ_LAST.now; HZ_LAST.key=key;
   const t0=hzAgeAtA(1), h0=hzAtT(t0), h=hzAtT(now), labels=HZ_LAST.ui>=0.25; if(labels) HZ_LAST.ui=0; HZ_LAST.now={now, h, h0};
   const tag=h?` · t = ${now<1e-3?(now*1e6).toFixed(1)+' kyr':now<1?(now*1e3).toFixed(1)+' Myr':now<1e4?now.toFixed(2)+' Gyr':now.toExponential(2)+' Gyr'}`:` · ${TT('before the Big Bang','до Большого взрыва','vor dem Urknall')}`;
   /* ABSOLUTE radii from the one chain (v4.359): each shell's scale is its value now over the radius its geometry was built
@@ -34407,6 +34408,457 @@ const galacticLinks=[];
   const lab=mkLabel(name,'label axis'); lab.position.copy(p.clone().multiplyScalar(.5)); solarGalacticGroup.add(line,lab);
   galacticLinks.push([line,lab]);
 });
+
+/* ══ THE LABORATORIES ON THE MAP OF THE UNIVERSE (v4.425) ══════════════════════════════════════════════════════════
+   Asked: find, in the laboratories, everything that can stand on the atlas of the universe and on its horizons. A walk
+   over every typed instrument at its own defaults found 205 outputs that are lengths, times, angles, temperatures, rates or
+   redshifts, in 74 laboratories — and until now not one of them had a place on the map unless an earlier release had put
+   it there by hand. Here each one is CLASSIFIED (SKYMAP_CENSUS below, every one with its reason), and the ones that are
+   places are DRAWN, live, by calling the laboratory's own instrument — the same evaluate() an agent calls — so the map and
+   the laboratory cannot disagree:
+     · on the shared horizons (Horizons, and the edge of Sun → Cosmos, on the atlas clock): the last sphere χ_p(∞) — nothing
+       beyond it will ever be seen — which the closed-sky laboratory computes as an angle; the source of the distance
+       laboratory; the sphere where the angular-diameter distance turns over; the Hubble tension as a band of three c/H₀
+       spheres; the de Sitter radius √(3/Λ), toward which the Hubble sphere and the event horizon both converge as the
+       clock runs; the reach of a type Ia supernova at magnitude 25;
+     · in the Galaxy (Sun → Cosmos): the Fermi bubbles standing on the true Galactic pole; Gaia's parallax reach about the
+       Sun; Leavitt's rung landing on the Large Magellanic Cloud; the measured reach of the rotation curves of the Milky
+       Way and of M31.
+   And back the other way: every laboratory passport lists the places its numbers have on the map and flies there; every
+   one of those places opens its laboratory, and the ones that carry a redshift set it.
+
+   PROJECTING FOUND TWO THINGS THE LABORATORIES HAD WRONG, which is what a map is for:
+     · the distance ladder's zero point moved H₀ one way and every distance the same way — a calibration that makes the
+       Cepheids fainter brought the Large Magellanic Cloud CLOSER and lowered H₀ with it, which no measurement can do
+       (H₀ = v/d at the measured v). Δμ is now what its chip already said: calibrators brighter by Δμ, every distance out by
+       10^(Δμ/5), H₀ down by the same factor — so on the map the LMC, the type Ia sphere and the late Hubble sphere move
+       together, and H₀·d stands still;
+     · the type Ia reach was said to be «redshift 1.8». That is a straight-line Hubble law at H₀ = 73; the reach is a
+       luminosity distance, and on the map's own cosmology 7244 Mpc is z = 1.06. */
+/* ═══ SKYMAP-MATH-BEGIN ═══ (lifted whole by docs/verify-the-laboratories-on-the-map.mjs: pure — no scene, no state, no
+   language; everything it needs from the rest of the atlas arrives as an argument) */
+const SKY_MPC_GLY=3.2615637771674333e-3;            /* one megaparsec in gigalightyears */
+const SKY_C_KMS=299792.458;
+const SKY_PC_AU=206264.80624709636;                /* one parsec in astronomical units: 1 AU / tan(1″) */
+/* WHAT COUNTS AS A CANDIDATE. An output can stand somewhere on a map of the universe only if it is a length, a time, an
+   angle, a solid angle, a temperature, an expansion rate or a rung of the φ-ladder — or if its name says it is a redshift.
+   The name test is deliberately loose: it catches every redshift and also a few things that are not one (a z-component,
+   a z-score, an effective charge), and the census names each of those rather than quietly dropping it. */
+const SKYMAP_UNITS=Object.freeze(['m','km','cm','nm','fm','AU','pc','kpc','Mpc','ly','Gly','R_sun','R_earth','yr','Myr','Gyr',
+  'km s^-1 Mpc^-1','rung','K','deg','arcsec','rad','sr','Gly^2','Gly^3']);
+function skymapCandidate(o){ return !!o&&(SKYMAP_UNITS.includes(o.unit)||/redshift|(^|_)z$|^z_/.test(String(o.name))); }
+/* the places the laboratories now have on the map, in the order the panel lists them */
+const SKYMAP_IDS=Object.freeze(['pinf','cosmoZ','cosmoPeak','tension','desitter','snia','fermi','parallax','cepheid','galrot']);
+/* EVERY CANDIDATE, CLASSIFIED. Per instrument a default (`_`) and per-output exceptions; a class is
+     map:<id>      drawn on the map by this release, as the projection <id>
+     card:<id>     not a place of its own, read on the card of the projection <id>
+     cross:<key>   a place an earlier release already drew, now checked against this laboratory's number
+     drawn:<key>   already on a map before this release, at the selection <key>
+     world:<w>     belongs to its own world's map (the cycles' clocks, the Sun's zodiac, the φ-ladder, the closed sky)
+     not:<why>     not a place in the universe, for the reason <why> */
+const SKYMAP_CENSUS=Object.freeze({
+  adisk:{_:'not:body'}, anyzoo:{_:'not:abstract'}, atom:{_:'not:false'}, bb:{_:'not:lab'}, bbh:{_:'not:duration'},
+  bell:{_:'not:abstract'}, bhr:{_:'not:abstract'}, bht:{_:'not:body'}, capacity:{_:'world:fbs'}, chronometry:{_:'world:cyc'},
+  circ:{_:'not:lab'}, civpclo:{_:'not:toy'}, cmb:{_:'not:false', D3_z:'not:realization'},
+  cosmo:{_:'card:cosmoZ', comoving_distance:'map:cosmoZ', angular_peak_redshift:'map:cosmoPeak', angular_peak_distance:'card:cosmoPeak'},
+  cyc:{_:'world:cyc'}, dip:{_:'not:lab'}, earth:{_:'world:solar'}, edge:{_:'world:fbs'}, elens:{_:'not:unplaced'},
+  emb:{_:'not:abstract'}, eos:{_:'not:body'}, eot:{_:'not:lab'}, everys3:{_:'not:toy'},
+  exo:{_:'not:body'}, fermi:{_:'map:fermi', kinematic_age:'card:fermi'}, flow:{_:'drawn:capHorizon'},
+  galrot:{_:'map:galrot'}, gmode:{_:'not:toy'}, gyro:{_:'not:body'}, he3:{_:'not:lab'}, hol:{_:'not:abstract'},
+  imp:{_:'not:false'}, jeans:{_:'not:body'}, kin:{_:'not:lab'},
+  lam:{_:'map:desitter', hubble_length_gly:'card:desitter', gibbons_hawking_K:'card:desitter'},
+  ladder:{_:'world:fbs'}, lens:{_:'not:abstract'}, lgmerge:{_:'drawn:solarM31'}, localflow:{_:'map:tension', hubble_constant_without_virgo:'card:tension'},
+  localgroup:{_:'drawn:cosmos_localgroup'}, mainseq:{_:'not:body'}, mimg:{_:'not:toy'}, nesting:{_:'drawn:cosmos_laniakea'},
+  noe:{_:'not:abstract'}, ns:{_:'not:body'}, nuosc:{_:'not:lab'}, osc:{_:'not:lab'}, pole:{_:'not:abstract'},
+  psr:{_:'not:body'}, qcd:{_:'not:lab'}, qregime:{_:'not:lab'}, qso:{_:'not:body'}, quasi:{_:'not:lab'},
+  red:{_:'not:toy'}, resolve:{_:'not:lab'}, ret:{_:'not:lab'},
+  rungs:{_:'card:parallax', parallax_reach_10pc_error:'map:parallax', parallax_reach_1pc_error:'map:parallax',
+    cepheid_distance_pc:'map:cepheid', type_ia_reach_mpc:'map:snia', hubble_constant_late:'map:tension',
+    hubble_constant_early:'map:tension', shifted_h0:'map:tension'},
+  s3gamma:{_:'not:toy'}, s3sky:{_:'world:s3', sky_horizon_angle:'cross:scrPH', sky_future_reach:'cross:scrEvent', sky_total_reach:'map:pinf'},
+  s3tube:{_:'not:false'}, samelength:{_:'world:obs'}, sc:{_:'not:lab'}, scales:{_:'not:lab'}, seis:{_:'not:body'},
+  skyrmion:{_:'not:abstract'}, spin:{_:'not:false'}, su2:{_:'not:false'}, taub:{_:'not:abstract'}, tscale:{_:'not:duration'},
+  unify:{_:'not:body'}, wave:{_:'not:lab'}, wd:{_:'not:body'}, wot:{_:'world:cyc'}, zod3d:{_:'world:solar'}});
+function skymapClass(id,name){ const e=SKYMAP_CENSUS[id], v=e&&(Object.prototype.hasOwnProperty.call(e,name)?e[name]:e._); if(!v) return null;
+  const i=v.indexOf(':'); return {cls:v.slice(0,i), arg:v.slice(i+1)}; }
+/* the census over a list of instrument contracts [{id, world, lab, outputs:[{name, unit}]}]: every candidate, its class */
+function skymapCensusOf(instruments){ const rows=[], missing=[];
+  for(const s of instruments) for(const o of (s.outputs||[])) if(skymapCandidate(o)){ const c=skymapClass(s.id,o.name);
+    if(!c) missing.push(s.id+'.'+o.name); rows.push({id:s.id, world:s.world, lab:s.lab, name:o.name, unit:o.unit, cls:c?c.cls:null, arg:c?c.arg:null}); }
+  const by={}; for(const r of rows) by[r.cls]=(by[r.cls]||0)+1;
+  return {rows, missing, by, total:rows.length, instruments:new Set(rows.map(r=>r.id)).size}; }
+/* invert a luminosity distance D_L = (1 + z) χ(z) on a χ(z) given in Gly: bracket by doubling, then bisect */
+function skyZOfDL(DLmpc,chiOfZ){ if(!(DLmpc>0)) return 0; const DL=z=>(1+z)*chiOfZ(z)/SKY_MPC_GLY; let lo=0, hi=1;
+  while(DL(hi)<DLmpc&&hi<1e5) hi*=2; for(let i=0;i<200;i++){ const m=(lo+hi)/2; if(DL(m)<DLmpc) lo=m; else hi=m; } return (lo+hi)/2; }
+/* A LABORATORY'S NUMBER → WHERE IT STANDS. Each takes the instrument's own output (the same evaluate() the laboratory
+   publishes) and returns the radius the map draws, in the map's units: Gly comoving for the cosmic shells, kpc or pc
+   for the galactic ones. Nothing here is a second formula for the physics; it is only the change of units and of
+   distance measure that putting a number on a map requires. */
+const SKY_PLACE=Object.freeze({
+  /* the source of the distance laboratory, at its comoving distance */
+  cosmoZ:o=>o.comoving_distance*SKY_MPC_GLY,
+  /* where the angular-diameter distance turns over: a comoving radius is D_A (1 + z) */
+  cosmoPeak:o=>o.angular_peak_distance*(1+o.angular_peak_redshift)*SKY_MPC_GLY,
+  /* c/(aH) for a Hubble constant H0 when the chain's own is H0c and its sphere stands at hubC: at fixed a and the same
+     density parameters E(a) is the same, so the comoving Hubble radius scales exactly as 1/H0 */
+  tension:(H0,H0c,hubC)=>hubC*H0c/H0,
+  /* the de Sitter radius is a proper length; at scale factor a the comoving map draws it at L/a */
+  desitter:(o,a)=>o.de_sitter_gly/a,
+  /* the type Ia reach is a LUMINOSITY distance: its redshift on the map's χ(z), and the comoving radius there */
+  snia:(o,chiOfZ)=>{ const z=skyZOfDL(o.type_ia_reach_mpc,chiOfZ); return {z, chi:chiOfZ(z)}; },
+  /* the closed sky's reaches are ANGLES on a three-sphere of curvature radius R_c = (c/H0)/√|Ω_K|: an arc is R_c times it */
+  reachGly:(rad,H0,absOk)=>rad*SKY_C_KMS/H0*SKY_MPC_GLY/Math.sqrt(absOk),
+  fermi:o=>o.lobe_height,                                       /* kpc, above and below the centre */
+  parallax:o=>[o.parallax_reach_1pc_error,o.parallax_reach_10pc_error],   /* pc, about the Sun */
+  cepheid:o=>o.cepheid_distance_pc,                             /* pc, toward the Large Magellanic Cloud */
+  galrot:(o,kpcM)=>o.disc_scale_length/kpcM});                  /* kpc, in the plane of the galaxy */
+/* THE LADDER'S INVARIANT. A zero-point shift Δμ moves every distance above the first rung by 10^(Δμ/5) and the Hubble
+   constant by 10^(−Δμ/5): the product H0·d — a velocity, which is what was measured — cannot move. */
+const skyLadderInvariant=(H0,dist)=>H0*dist;
+/* ═══ SKYMAP-MATH-END ═══ */
+const SKY_COL=Object.freeze({pinf:0xb9a8ff, cosmoZ:0xffc978, cosmoPeak:0xff9f6b, tension:0xff7a9a, desitter:0x7ff0d8, snia:0xfff09a,
+  fermi:0x9db8ff, parallax:0x8fe3ff, cepheid:0xffd27a, galrot:0xc6ff9e});
+const SKY_LAB=Object.freeze({pinf:'s3sky', cosmoZ:'cosmo', cosmoPeak:'cosmo', tension:'rungs', desitter:'lam', snia:'rungs', fermi:'fermi',
+  parallax:'rungs', cepheid:'rungs', galrot:'galrot'});
+const SKY_HOME=Object.freeze({pinf:'obs', cosmoZ:'obs', cosmoPeak:'obs', tension:'obs', desitter:'obs', snia:'obs', fermi:'galactic',
+  parallax:'galactic', cepheid:'galactic', galrot:'galactic'});
+const SKYMAP={items:new Map(), key:'', cache:new Map(), v:{}, ui:0};
+/* the laboratory's own instrument, at the laboratory's own live inputs — cached by its inputs, refused inputs give null */
+function skyEval(id,input){ const k=id+'|'+JSON.stringify(input||{}); if(SKYMAP.cache.has(k)) return SKYMAP.cache.get(k);
+  let v=null; try{ v=hccApiEvaluate(id,input||{}); }catch(e){ v=null; } if(SKYMAP.cache.size>96) SKYMAP.cache.clear(); SKYMAP.cache.set(k,v); return v; }
+const skyClamp=(v,lo,hi,d)=>{ v=+v; return Number.isFinite(v)?Math.max(lo,Math.min(hi,v)):d; };
+/* the inputs each projection reads, from the laboratories' live state */
+function skyInputs(){ return {
+  cosmo:{redshift:skyClamp(state.cosmoZ??1,1e-4,1100,1), H0:skyClamp(state.cosmoH0??67.66,50,90,67.66), omega_m:skyClamp(state.cosmoOm??0.3111,0.05,0.95,0.3111)},
+  rungs:{zero_point_shift_mag:skyClamp(state.dlShift??0,-0.4,0.4,0)},
+  lam:{hubble_constant:skyClamp(lmH0(),50,90,67.66), omega_lambda:skyClamp(lmOL(),0.01,0.99,0.6889)},
+  fermi:{latitude_deg:Math.max(20,Math.min(FERMI_TANGENT_VALID_DEG,state.fermiLatDeg??FERMI_LAT_DEG)), speed_km_s:Math.max(FERMI_V_MIN_KMS,Math.min(FERMI_V_MAX_KMS,state.fermiVKmS??700))}}; }
+const skyGly=v=>v==null||!Number.isFinite(v)?'—':v>=100?v.toFixed(1)+' Gly':v.toFixed(3)+' Gly';
+const skyKpc=v=>v==null||!Number.isFinite(v)?'—':v>=100?v.toFixed(0)+' kpc':v.toFixed(2)+' kpc';
+const skyLabName=lab=>{ try{ return viewNameL(lab); }catch(e){ return lab; } };
+function skyInSolarCosmos(){ return HZ_GROUP.parent!==obsGroup; }
+/* ── the drawing: one look for every laboratory's place, so it reads as one family and never as a horizon. A dashed
+   equator, a faint glass limb, and its label off the vertical where the horizons stack theirs ── */
+const SKY_COSMIC=new THREE.Group(); SKY_COSMIC.name='skymap-cosmic'; HZ_GROUP.add(SKY_COSMIC);
+const SKY_GAL_SUN=new THREE.Group(); SKY_GAL_SUN.name='skymap-sun'; solarGalacticGroup.add(SKY_GAL_SUN);
+function skyDir(az,el){ const a=az*Math.PI/180, e=el*Math.PI/180; return new THREE.Vector3(Math.cos(a)*Math.cos(e),Math.sin(e),Math.sin(a)*Math.cos(e)); }
+/* a label's place on its sphere, by its angle θ around the default view (θ = 0 to the right, 270° straight down) and a little toward the viewer */
+function skyFace(th){ const t=th*Math.PI/180; return new THREE.Vector3(Math.cos(t)*0.94,Math.sin(t)*0.94,0.34); }
+function skyRing(col,op,dash){ const pts=[]; for(let k=0;k<=240;k++){ const a=k/240*2*Math.PI; pts.push(new THREE.Vector3(Math.cos(a),0,Math.sin(a))); }
+  const L=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineDashedMaterial({color:col,transparent:true,opacity:op,dashSize:dash??0.034,gapSize:(dash??0.034)*0.62,depthWrite:false}));
+  L.computeLineDistances(); L.userData.noGrade=true; return L; }
+/* a unit shell: [0] the pick skin, [1] the glass limb, [2] the dashed equator — scaled to its radius by its group */
+function skyShell(col,op){ const g=new THREE.Group();
+  const skin=new THREE.Mesh(new THREE.SphereGeometry(1,48,32),new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.008,side:THREE.BackSide,depthWrite:false}));
+  const glass=hccShellMesh(1,col,op), ring=skyRing(col,Math.min(0.85,op*3.4)); ring.rotation.x=-Math.PI/3; g.add(skin,glass,ring); g.userData={skin,glass,ring}; return g; }
+function skyLabel(id,dir){ const L=mkLabel('','label skymap','sky_'+id); L.position.copy(dir); return L; }
+function skyItem(id){ const P={id, sel:'sky_'+id, lab:SKY_LAB[id], home:SKY_HOME[id], grp:new THREE.Group(), v:{}}; P.grp.name='skymap-'+id; SKYMAP.items.set(id,P); return P; }
+/* COSMIC: the six shells on the shared horizons */
+/* the angles stack the five inner labels under the centre in order of radius, about 19 px apart at the default view and
+   farther as one zooms in (a ratio, so it holds at every zoom), alternating sides; the last sphere's label stands clear right */
+for(const [id,op,th] of [['pinf',.22,350],['cosmoZ',.26,204],['snia',.24,319],['cosmoPeak',.24,241],['desitter',.24,252]]){
+  const P=skyItem(id); P.shell=skyShell(SKY_COL[id],op); P.label=skyLabel(id,skyFace(th)); P.shell.add(P.label); P.grp.add(P.shell); SKY_COSMIC.add(P.grp); }
+{ const P=skyItem('tension'); P.shells=[['late',0xff6f8f],['local',0xffb36b],['early',0x8fd2ff]].map(([k,c],i)=>{ const s=skyShell(c,i===0?.22:.18); s.userData.k=k; if(i>0) s.userData.skin.visible=false; P.grp.add(s); return s; });
+  P.labelDir=skyFace(232); P.label=skyLabel('tension',P.labelDir); P.grp.add(P.label); SKY_COSMIC.add(P.grp); }
+/* GALACTIC: in the Galaxy's own frame (x toward the Sun, y the north Galactic pole), so they wheel with it */
+const SKY_KPC_AU=MILKY_WAY.KPC_LY*LY_AU;
+{ const P=skyItem('fermi'); P.mat=hccGlassMat(SKY_COL.fermi,.34); P.north=new THREE.Mesh(new THREE.BufferGeometry(),P.mat); P.south=new THREE.Mesh(new THREE.BufferGeometry(),P.mat);
+  P.south.rotation.x=Math.PI; P.grp.add(P.north,P.south); P.grp.scale.setScalar(SKY_KPC_AU); P.label=mkLabel('','label skymap','sky_fermi'); P.grp.add(P.label); milkyWayPhysical.add(P.grp); }
+{ const P=skyItem('parallax'); P.shells=[0,1].map(i=>{ const s=skyShell(SKY_COL.parallax,i?.10:.14); if(i) s.userData.skin.visible=false; P.grp.add(s); return s; });
+  P.label=mkLabel('','label skymap','sky_parallax'); P.grp.add(P.label); SKY_GAL_SUN.add(P.grp); }
+{ const P=skyItem('cepheid'); const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:SKY_COL.cepheid,transparent:true,opacity:.95,depthWrite:false,blending:THREE.AdditiveBlending}));
+  P.dot=new THREE.Mesh(new THREE.SphereGeometry(1,20,14),hccGlassMat(SKY_COL.cepheid,.5)); P.glow=sp; P.grp.add(P.dot,sp); P.label=mkLabel('','label skymap','sky_cepheid'); P.grp.add(P.label); SKY_GAL_SUN.add(P.grp);
+  { const lmc=COSMOS.find(s=>s.key==='lmc'); P.dir=raDecDir((lmc?lmc.ra:80.8942)/15,lmc?lmc.dec:-69.7561).normalize(); P.catKpc=lmc&&lmc.dMly?lmc.dMly*1e6/MILKY_WAY.KPC_LY:null;
+    /* the Cloud itself, from the catalogue — position and extent — because the Sun's chain draws no galaxies but M31, and the
+       rung must be seen to land INSIDE something: a glass sphere of the catalogue's diameter at the catalogue's distance */
+    P.lmcKpcR=lmc&&lmc.size?lmc.size*1e9/MILKY_WAY.KPC_LY/2:4.9; P.lmc=new THREE.Mesh(new THREE.SphereGeometry(1,40,28),hccGlassMat(0xaec8ff,.16));
+    P.lmc.scale.setScalar(P.lmcKpcR*SKY_KPC_AU); if(P.catKpc) P.lmc.position.copy(P.dir).multiplyScalar(P.catKpc*1000*SKY_PC_AU); SKY_GAL_SUN.add(P.lmc); } }
+{ const P=skyItem('galrot'); P.mw=[0,1].map(i=>{ const r=skyRing(SKY_COL.galrot,i?.55:.8,i?.02:.05); milkyWayPhysical.add(r); return r; });
+  P.m31=[0,1].map(i=>{ const r=skyRing(SKY_COL.galrot,i?.5:.75,i?.02:.05); m31Physical.add(r); return r; });
+  P.label=mkLabel('','label skymap','sky_galrot'); P.label31=mkLabel('','label skymap','sky_galrotM31'); milkyWayPhysical.add(P.label); m31Physical.add(P.label31); }
+/* ── the numbers, from the laboratories, every time one of their inputs or the clock moves ── */
+function skyCompute(){ const I=skyInputs(), V={I}, now=hzNowGyr(), h=hzAtT(now), H=hzTable(), C=CT_COSMO, t0=hzAgeAtA(1), h0=hzAtT(t0);
+  V.now=now; V.h=h; V.h0=h0; V.Pinf=H.Pinf;
+  V.cosmo=skyEval('cosmo',I.cosmo); V.rungs=skyEval('rungs',I.rungs); V.lam=skyEval('lam',I.lam); V.flow=skyEval('localflow',{});
+  V.fermiO=skyEval('fermi',I.fermi); V.s3sky=skyEval('s3sky',{}); V.mw=skyEval('galrot',{galaxy:'milkyway'}); V.m31=skyEval('galrot',{galaxy:'m31'});
+  const hubC=h?h.hubbleComoving:null, H0c=HCC_S3R.H0_km;
+  if(V.cosmo){ V.cosmoChi=SKY_PLACE.cosmoZ(V.cosmo); V.peakChi=SKY_PLACE.cosmoPeak(V.cosmo); }
+  if(V.rungs){ V.late=V.rungs.shifted_h0; V.early=V.rungs.hubble_constant_early; const S=SKY_PLACE.snia(V.rungs,ctChiOfZ); V.sniaZ=S.z; V.sniaChi=S.chi;
+    V.par=SKY_PLACE.parallax(V.rungs); V.cephPc=SKY_PLACE.cepheid(V.rungs); }
+  V.local=V.flow?V.flow.hubble_constant:null;
+  if(hubC!=null) V.tension={late:V.late?SKY_PLACE.tension(V.late,H0c,hubC):null, local:V.local?SKY_PLACE.tension(V.local,H0c,hubC):null, early:V.early?SKY_PLACE.tension(V.early,H0c,hubC):null};
+  if(V.lam&&h) V.dsChi=SKY_PLACE.desitter(V.lam,h.a);
+  V.RL=C.cH/Math.sqrt(C.OL);
+  if(V.fermiO){ const lat=I.fermi.latitude_deg, v=I.fermi.speed_km_s, hNow=fermiLobeHeightKpc(lat,FERMI_R0_KPC), age=fermiKinematicAgeMyr(hNow,v);
+    V.fermiNow=SKY_PLACE.fermi(V.fermiO); V.fermiAge=age; V.fermiH=Math.max(0,fermiHeightAtEpoch(v,age,state.epochDays||0)); }
+  if(V.mw) V.mwRd=SKY_PLACE.galrot(V.mw,GR_KPC); if(V.m31) V.m31Rd=SKY_PLACE.galrot(V.m31,GR_KPC);
+  { const g=grGalaxy('milkyway'), m=grGalaxy('m31'); V.mwMax=g?g.rmax/GR_KPC:null; V.m31Max=m?m.rmax/GR_KPC:null; V.mwVf=g?g.vflat/1e3:null; V.m31Vf=m?m.vflat/1e3:null; }
+  return V; }
+function skyShowOK(id){ return state.skymapOn!==false&&!(state.skymapHide&&state.skymapHide[id]); }
+function skyScaleShell(s,r){ const on=r!=null&&Number.isFinite(r)&&r>0; s.visible=on; if(on) s.scale.setScalar(r); return on; }
+/* per frame from hccHorizonsTick (Sun → Cosmos and Horizons): cheap when nothing moved */
+function skymapTick(){ if(!SKYMAP.items.size) return; const solarCos=skyInSolarCosmos();
+  const key=[state.skymapOn, JSON.stringify(state.skymapHide||{}), state.cosmoZ, state.cosmoH0, state.cosmoOm, state.dlShift, state.lmH0, state.lmOL, state.fermiLatDeg, state.fermiVKmS,
+    Math.round((state.epochDays||0)/3652.5), solarCos, state.lang||'', (typeof hccLang==='function'?hccLang():'')].join('|');
+  if(key===SKYMAP.key) return; SKYMAP.key=key; let V; try{ V=skyCompute(); }catch(e){ return; } SKYMAP.v=V;
+  const T=(a,b,c)=>TT(a,b,c), it=id=>SKYMAP.items.get(id);
+  for(const P of SKYMAP.items.values()) P.grp.visible=skyShowOK(P.id);
+  { const P=it('galrot'); for(const r of [...P.mw,...P.m31]) r.visible=skyShowOK('galrot'); P.label.visible=P.label31.visible=skyShowOK('galrot'); }
+  /* skins are the Horizons fills: in the Sun's world a screen is its limb, its equator and its name (as v4.359 decided) */
+  for(const id of ['pinf','cosmoZ','cosmoPeak','desitter','snia']){ const s=it(id).shell; s.userData.skin.visible=!solarCos; }
+  it('tension').shells[0].userData.skin.visible=!solarCos;
+  { const P=it('pinf'); skyScaleShell(P.shell,V.Pinf); P.label.element.textContent=`⚗ χ_p(∞) ${skyGly(V.Pinf)} · ${T('the last sphere','последняя сфера','die letzte Sphäre')}`; }
+  { const P=it('cosmoZ'); skyScaleShell(P.shell,V.cosmoChi); P.label.element.textContent=`⚗ ${T('distance lab','лаб. расстояний','Entfernungslabor')} · z ${(+V.I.cosmo.redshift).toFixed(2)} · ${skyGly(V.cosmoChi)}`; }
+  { const P=it('cosmoPeak'); skyScaleShell(P.shell,V.peakChi); P.label.element.textContent=`⚗ ${T('D_A turnover','разворот D_A','D_A-Umkehr')} · z ${V.cosmo?V.cosmo.angular_peak_redshift.toFixed(2):'—'} · ${skyGly(V.peakChi)}`; }
+  { const P=it('desitter'); skyScaleShell(P.shell,V.dsChi); P.label.element.textContent=`⚗ de Sitter √(3/Λ) · ${skyGly(V.dsChi)}${V.h&&Math.abs(V.h.a-1)>1e-3?` (a = ${V.h.a.toFixed(2)})`:''}`; }
+  { const P=it('snia'); skyScaleShell(P.shell,V.sniaChi); P.label.element.textContent=`⚗ ${T('SN Ia reach','досягаемость SN Ia','SN-Ia-Reichweite')} · z ${V.sniaZ!=null?V.sniaZ.toFixed(2):'—'} · ${skyGly(V.sniaChi)}`; }
+  { const P=it('tension'), R=V.tension||{}; P.shells.forEach(s=>skyScaleShell(s,R[s.userData.k])); const rm=R.late||R.early||1; P.label.position.copy(P.labelDir).multiplyScalar(rm);
+    P.label.element.textContent=`⚗ ${T('Hubble tension','напряжение Хаббла','Hubble-Spannung')} c/H₀ · ${R.late?R.late.toFixed(2):'—'}–${R.early?skyGly(R.early):'—'}`; }
+  /* the Fermi lobes: the laboratory's own profile at the laboratory's own height on the atlas clock */
+  { const P=it('fermi'), hk=V.fermiH; const k=Math.round((hk||0)*40); if(P.hk!==k){ P.hk=k; const hh=Math.max(0.001,hk||0.001), prof=fermiLobeProfile(hh,hh*0.45);
+      for(const m of [P.north,P.south]){ m.geometry.dispose(); m.geometry=new THREE.LatheGeometry(prof,48); } }
+    P.north.visible=P.south.visible=(hk||0)>0.002; P.label.position.set(0,(hk||0)*1.08+0.6,0);
+    P.label.element.textContent=`⚗ ${T('Fermi bubbles','пузыри Ферми','Fermi-Blasen')} · ${skyKpc(hk)} ${T('above and below Sgr A*','над и под Sgr A*','über und unter Sgr A*')} · ${T('edge at','край на','Rand bei')} b = ${V.I.fermi.latitude_deg.toFixed(0)}°`; }
+  { const P=it('parallax'); if(V.par){ V.par.forEach((pc,i)=>skyScaleShell(P.shells[i],pc*SKY_PC_AU)); P.label.position.copy(skyDir(200,-24)).multiplyScalar(V.par[1]*SKY_PC_AU); }
+    P.label.element.textContent=`⚗ ${T('Gaia parallax reach','досягаемость параллакса Gaia','Gaia-Parallaxen-Reichweite')} · 1 % ${T('to','до','bis')} ${V.par?V.par[0].toFixed(0):'—'} pc · 10 % ${T('to','до','bis')} ${V.par?(V.par[1]/1000).toFixed(1):'—'} kpc`; }
+  { const P=it('cepheid'), pc=V.cephPc; P.lmc.visible=skyShowOK('cepheid')&&!!P.catKpc; if(pc){ const r=pc*SKY_PC_AU; P.grp.position.copy(P.dir).multiplyScalar(r); P.dot.scale.setScalar(0.6*SKY_KPC_AU); P.glow.scale.setScalar(5*SKY_KPC_AU); P.label.position.set(0,3.2*SKY_KPC_AU,0); }
+    P.label.element.textContent=`⚗ ${T('Leavitt’s rung','ступень Ливитт','Leavitts Sprosse')} · ${T('a 30-day Cepheid at m = 13.09','цефеида 30 сут при m = 13.09','eine 30-Tage-Cepheide bei m = 13,09')} → ${pc?(pc/1000).toFixed(2):'—'} kpc · ${T('the LMC','БМО','die GMW')}`; }
+  { const P=it('galrot'); const set=(rings,lab,Rd,Rmax,name,vf)=>{ if(Rd) rings[0].scale.setScalar(Rd*SKY_KPC_AU); if(Rmax) rings[1].scale.setScalar(Rmax*SKY_KPC_AU);
+      { const a=200*Math.PI/180, R=(Rmax||10)*SKY_KPC_AU; lab.position.set(R*Math.cos(a),0,R*Math.sin(a)); } lab.element.textContent=`⚗ ${T('rotation curve','кривая вращения','Rotationskurve')} · ${name}: ${T('scale length','масштаб диска','Skalenlänge')} ${Rd?Rd.toFixed(2):'—'} kpc · ${T('measured flat to','измерена плоской до','flach gemessen bis')} ${Rmax?Rmax.toFixed(0):'—'} kpc (${vf?vf.toFixed(0):'—'} km/s)`; };
+    set(P.mw,P.label,V.mwRd,V.mwMax,T('Milky Way','Млечный Путь','Milchstraße'),V.mwVf); set(P.m31,P.label31,V.m31Rd,V.m31Max,'M31',V.m31Vf); } }
+/* ── the cards ── */
+const skyAct=(label,fn)=>[label,fn];
+function skyOpenLab(lab,pre){ try{ if(pre) pre(); }catch(e){} try{ navPush(); }catch(e){} try{ hccGo({worldId:'s3',labId:lab}); }catch(e){} }
+function skySetClockGyr(tGyr){ const d=Math.round((tGyr-hzAgeAtA(1))*1e9*365.25); try{ HCC_TIME_FABRIC.setEpochDays(d,'skymap'); HCC_TIME_FABRIC.setPaused(true,'skymap'); }catch(e){ try{ setAtlasTime({epochDays:d,paused:true},'skymap'); }catch(err){} } }
+function skyCosmoAt(z){ state.cosmoZ=Math.max(0.02,Math.min(6,+(+z).toFixed(2))); skyOpenLab('cosmo'); }
+const SKY_DEF={
+  pinf:{name:()=>TT('χ_p(∞) — the last sphere','χ_p(∞) — последняя сфера','χ_p(∞) — die letzte Sphäre'),
+    desc:()=>TT('The particle horizon’s limit as the clock runs to infinity: light that left a place farther than this, even at the Big Bang, never arrives here. Between today’s particle horizon and this sphere lie places not yet seen that will be; beyond it, places that never will be. The closed-sky laboratory computes the same sphere as an ANGLE on a three-sphere — its total reach — and, run on this map’s cosmology, the two programs agree to a few parts in a million.',
+      'Предел горизонта частиц, когда часы идут к бесконечности: свет, ушедший из места дальше этого, даже в момент Большого взрыва, сюда не придёт никогда. Между сегодняшним горизонтом частиц и этой сферой — места, ещё не увиденные, но которые увидят; за ней — те, что не увидят никогда. Лаборатория замкнутого неба вычисляет ту же сферу как УГОЛ на трёхмерной сфере — свою полную досягаемость, — и на космологии этой карты две программы совпадают до нескольких миллионных.',
+      'Die Grenze des Teilchenhorizonts für unendlich späte Zeit: Licht von weiter her kommt nie an, selbst wenn es beim Urknall losging. Das Labor des geschlossenen Himmels rechnet dieselbe Sphäre als Winkel — und beide Programme stimmen auf der Kosmologie dieser Karte auf Millionstel überein.'),
+    rows:V=>{ const s=V.s3sky, P=V.h?V.h.particle:null, f=skyGly, cl=skyChainClosed();
+      return [[TT('χ_p(∞) — the map’s chain','χ_p(∞) — цепочка карты','χ_p(∞) — Kette der Karte'),f(V.Pinf)],
+        [TT('particle horizon at the clock','горизонт частиц на часах','Teilchenhorizont zur Uhrzeit'),P!=null?`${f(P)} — ${(100*P/V.Pinf).toFixed(1)} % ${TT('of the way','пути','des Weges')}`:'—'],
+        [TT('of all that will ever be seen, in view now (by comoving volume)','из всего, что когда-либо увидят, видно сейчас (по сопутствующему объёму)','vom je Sichtbaren jetzt sichtbar (mitbewegtes Volumen)'),P!=null?(100*Math.pow(P/V.Pinf,3)).toFixed(1)+' %':'—'],
+        ['χ_p + χ_e',V.h?`${f(V.h.particle)} + ${f(V.h.event)} = ${f(V.h.particle+V.h.event)}`:'—'],
+        [TT('closed-sky laboratory, its own cosmology (|Ω_K| 0.001, Ω_m 0.315, h 0.674)','лаборатория замкнутого неба, своя космология (|Ω_K| 0.001, Ω_m 0.315, h 0.674)','Labor des geschlossenen Himmels, eigene Kosmologie'),s?`${s.sky_total_reach.toFixed(5)} rad × R_c ${f(SKY_PLACE.reachGly(1,67.4,0.001))} = ${f(SKY_PLACE.reachGly(s.sky_total_reach,67.4,0.001))}`:'—'],
+        [TT('the same program on THIS map’s Ω_m and h, |Ω_K| → 10⁻⁶','та же программа на Ω_m и h ЭТОЙ карты, |Ω_K| → 10⁻⁶','dasselbe Programm mit Ω_m und h DIESER Karte'),cl?`${f(cl.ever)} (${TT('chain','цепочка','Kette')} ${f(V.Pinf)}, Δ ${(Math.abs(cl.ever/V.Pinf-1)*1e6).toFixed(1)} ppm) · ${TT('today','сегодня','heute')} ${f(cl.today)} · ${TT('future','будущее','Zukunft')} ${f(cl.future)}`:'—']]; },
+    acts:()=>[skyAct(TT('⚗ Open the closed-sky laboratory','⚗ Открыть лабораторию замкнутого неба','⚗ Labor des geschlossenen Himmels öffnen'),()=>skyOpenLab('s3sky'))]},
+  cosmoZ:{name:()=>TT('The distance laboratory’s source','Источник лаборатории расстояний','Die Quelle des Entfernungslabors'),
+    desc:()=>TT('Where the source of the distance laboratory stands: at its comoving distance, for the redshift, H₀ and Ω_m set in that laboratory — move its sliders and this sphere moves. Its luminosity and angular-diameter distances are not places but readings of this one place, so they are on this card. The map’s own chain puts the same redshift slightly elsewhere; the difference is the parameters, not the code.',
+      'Где стоит источник лаборатории расстояний: на его сопутствующем расстоянии, для красного смещения, H₀ и Ω_m, заданных в лаборатории, — двигайте её ползунки, и эта сфера движется. Фотометрическое и угловое расстояния — не места, а показания этого одного места, поэтому они здесь, на карточке. Собственная цепочка карты ставит то же z чуть иначе: разница — в параметрах, а не в коде.',
+      'Wo die Quelle des Entfernungslabors steht: in ihrer mitbewegten Entfernung, für z, H₀ und Ω_m des Labors. Die Leuchtkraft- und Winkeldurchmesserentfernung sind Ablesungen dieses einen Ortes.'),
+    rows:V=>{ const o=V.cosmo, I=V.I.cosmo, f=skyGly; if(!o) return [];
+      const zc=ctChiOfZ(I.redshift), lab=cosmoComoving(I.redshift,HCC_S3R.H0_km,CT_COSMO.Om,CT_COSMO.Or,CT_COSMO.OL,4000)*SKY_MPC_GLY, tE=hzAgeAtA(1/(1+I.redshift));
+      return [[TT('the laboratory’s z · H₀ · Ω_m','z · H₀ · Ω_m лаборатории','z · H₀ · Ω_m des Labors'),`${(+I.redshift).toFixed(3)} · ${(+I.H0).toFixed(2)} · ${(+I.omega_m).toFixed(4)}`],
+        [TT('comoving distance — where it stands','сопутствующее расстояние — где оно стоит','mitbewegte Entfernung — wo sie steht'),`${o.comoving_distance.toFixed(1)} Mpc = ${f(V.cosmoChi)}`],
+        [TT('angular-diameter distance D_A','угловое расстояние D_A','Winkeldurchmesserentfernung D_A'),`${o.angular_diameter_distance.toFixed(1)} Mpc`],
+        [TT('luminosity distance D_L','фотометрическое расстояние D_L','Leuchtkraftentfernung D_L'),`${o.luminosity_distance.toFixed(1)} Mpc`],
+        [TT('the light left','свет ушёл','das Licht ging los'),`${o.lookback_time_gyr.toFixed(3)} Gyr ${TT('ago','назад','her')} (${TT('on the map’s chain, at t =','на цепочке карты, при t =','auf der Kette der Karte, bei t =')} ${tE.toFixed(3)} Gyr)`],
+        ['c/H₀ · '+TT('age','возраст','Alter'),`${f(o.hubble_distance*SKY_MPC_GLY)} · ${o.age_gyr.toFixed(3)} Gyr (${TT('map','карта','Karte')}: ${f(CT_COSMO.cH)} · ${hzAgeAtA(1).toFixed(3)} Gyr)`],
+        [TT('the map’s chain at the same z','цепочка карты при том же z','die Kette der Karte beim selben z'),`${f(zc)} — ${TT('the laboratory’s integral on the map’s parameters','интеграл лаборатории на параметрах карты','das Integral des Labors mit den Parametern der Karte')} ${f(lab)} (Δ ${(Math.abs(lab/zc-1)*1e6).toFixed(1)} ppm)`]]; },
+    acts:V=>[skyAct(TT('⚗ Open the distance laboratory','⚗ Открыть лабораторию расстояний','⚗ Entfernungslabor öffnen'),()=>skyOpenLab('cosmo')),
+      skyAct(TT('⏱ Set the clock to when this light left','⏱ Поставить часы на момент, когда ушёл этот свет','⏱ Uhr auf den Abgang dieses Lichts stellen'),()=>skySetClockGyr(hzAgeAtA(1/(1+V.I.cosmo.redshift))))]},
+  cosmoPeak:{name:()=>TT('Where D_A turns over','Где D_A разворачивается','Wo D_A umkehrt'),
+    desc:()=>TT('A galaxy of fixed size looks SMALLEST on this sphere. Inside it, farther means smaller; beyond it, farther means BIGGER, because the universe was smaller when the light left and works as a lens. The distance laboratory finds the turnover by walking, not by quoting it, for its own H₀ and Ω_m.',
+      'Галактика фиксированного размера кажется НАИМЕНЬШЕЙ на этой сфере. Внутри — дальше значит меньше; за ней — дальше значит БОЛЬШЕ: Вселенная была меньше, когда свет уходил, и работает как линза. Лаборатория расстояний находит разворот обходом, а не цитатой, для своих H₀ и Ω_m.',
+      'Eine Galaxie fester Größe erscheint auf dieser Sphäre am KLEINSTEN; dahinter wird Ferneres wieder größer.'),
+    rows:V=>{ const o=V.cosmo; if(!o) return []; return [[TT('redshift of the turnover','красное смещение разворота','Rotverschiebung der Umkehr'),o.angular_peak_redshift.toFixed(4)],
+      [TT('largest angular-diameter distance','наибольшее угловое расстояние','größte Winkeldurchmesserentfernung'),`${o.angular_peak_distance.toFixed(1)} Mpc`],
+      [TT('comoving radius D_A (1 + z)','сопутствующий радиус D_A (1 + z)','mitbewegter Radius D_A (1 + z)'),skyGly(V.peakChi)],
+      [TT('one kiloparsec there subtends','один килопарсек там стягивает','ein Kiloparsec dort spannt'),`${(1e-3/o.angular_peak_distance*206264.806).toFixed(3)}″ — ${TT('the smallest it can look','меньше он выглядеть не может','kleiner kann er nicht wirken')}`]]; },
+    acts:V=>[skyAct(TT('⚗ Put the distance laboratory on the turnover','⚗ Поставить лабораторию расстояний на разворот','⚗ Entfernungslabor auf die Umkehr setzen'),()=>skyCosmoAt(V.cosmo.angular_peak_redshift))]},
+  tension:{name:()=>TT('The Hubble tension, as a place','Напряжение Хаббла как место','Die Hubble-Spannung als Ort'),
+    desc:()=>TT('Three Hubble spheres c/(aH) that ought to be one: the ladder’s H₀ (SH0ES, after the zero-point shift set in the distance-ladder laboratory), this atlas’s own galaxies’ H₀, and the microwave background’s (Planck). At fixed scale factor and the same density parameters the comoving Hubble radius scales exactly as 1/H₀, so they follow the clock beside the map’s own. Move the ladder’s zero point by Δμ = +0.166 and the late sphere slides onto Planck’s — and the Large Magellanic Cloud and the type Ia reach move out with it.',
+      'Три сферы Хаббла c/(aH), которые должны быть одной: H₀ лестницы (SH0ES, после сдвига нуль-пункта, заданного в лаборатории лестницы расстояний), H₀ собственных галактик атласа и H₀ реликтового фона (Planck). При том же масштабном факторе и тех же параметрах плотности сопутствующий радиус Хаббла масштабируется точно как 1/H₀, поэтому они идут по часам рядом с собственной сферой карты. Сдвиньте нуль-пункт лестницы на Δμ = +0.166 — и поздняя сфера ляжет на сферу Planck, а Большое Магелланово Облако и досягаемость Ia уйдут вместе с ней.',
+      'Drei Hubble-Sphären, die eine sein sollten: SH0ES nach der Nullpunktverschiebung, die Galaxien dieses Atlas und Planck.'),
+    rows:V=>{ const R=V.tension||{}, f=skyGly, r=V.rungs; return [[TT('late · SH0ES, the ladder','поздняя · SH0ES, лестница','spät · SH0ES, die Leiter'),`${V.late?V.late.toFixed(3):'—'} → ${f(R.late)}  (Δμ ${(V.I.rungs.zero_point_shift_mag>=0?'+':'')+V.I.rungs.zero_point_shift_mag.toFixed(3)})`],
+      [TT('this atlas’s own galaxies (localflow)','собственные галактики атласа (localflow)','die Galaxien dieses Atlas (localflow)'),`${V.local?V.local.toFixed(2):'—'} → ${f(R.local)}${V.flow?` · ${TT('without Virgo','без Девы','ohne Virgo')} ${V.flow.hubble_constant_without_virgo.toFixed(2)}`:''}`],
+      [TT('early · Planck, the microwave background','ранняя · Planck, реликтовый фон','früh · Planck, der Mikrowellenhintergrund'),`${V.early?V.early.toFixed(2):'—'} → ${f(R.early)}`],
+      [TT('the map’s own','собственная карты','die der Karte'),`${HCC_S3R.H0_km} → ${f(V.h?V.h.hubbleComoving:null)}`],
+      [TT('width of the tension','ширина напряжения','Breite der Spannung'),R.late&&R.early?`${f(Math.abs(R.early-R.late))} · ${r?r.hubble_tension_sigma.toFixed(2)+'σ':'—'} · ${TT('reconciling shift','примиряющий сдвиг','versöhnende Verschiebung')} ${r?r.reconciling_systematic_mag.toFixed(4):'—'} mag`:'—'],
+      [TT('the ladder’s invariant: a calibration moves H₀ and d, never H₀·d','инвариант лестницы: калибровка двигает H₀ и d, но не H₀·d','die Invariante der Leiter: H₀·d bleibt'),r?`${(skyLadderInvariant(r.shifted_h0,r.cepheid_distance_pc/1e6)).toFixed(4)} km/s ${TT('at the LMC Cepheid, for every Δμ','у цефеиды БМО, при любом Δμ','bei der GMW-Cepheide, für jedes Δμ')}`:'—']]; },
+    acts:()=>[skyAct(TT('⚗ Open the distance-ladder laboratory','⚗ Открыть лабораторию лестницы расстояний','⚗ Labor der Entfernungsleiter öffnen'),()=>skyOpenLab('rungs',()=>{ state.dlStation='chain'; })),
+      skyAct(TT('Δμ = +0.166 · close the tension on the map','Δμ = +0.166 · закрыть напряжение на карте','Δμ = +0,166 · die Spannung auf der Karte schließen'),()=>{ state.dlShift=0.1661; SKYMAP.key=''; try{ buildCtl(); }catch(e){} }),
+      skyAct(TT('Δμ = 0 · as published','Δμ = 0 · как опубликовано','Δμ = 0 · wie publiziert'),()=>{ state.dlShift=0; SKYMAP.key=''; try{ buildCtl(); }catch(e){} })]},
+  desitter:{name:()=>TT('The de Sitter radius √(3/Λ)','Радиус де Ситтера √(3/Λ)','Der de-Sitter-Radius √(3/Λ)'),
+    desc:()=>TT('Λ is an inverse area; its root is a length the universe has, a PROPER length that never changes — so on this comoving map it stands at L/a and shrinks as the clock runs forward. The Hubble sphere and the event horizon both converge onto the map’s own de Sitter radius: run the clock thirty billion years ahead and the three are one. The Λ laboratory’s H₀ and Ω_Λ set this sphere; set them to this map’s and it is exactly the sphere the horizons approach.',
+      'Λ — обратная площадь; её корень — длина, которая есть у Вселенной, СОБСТВЕННАЯ длина, которая не меняется, поэтому на этой сопутствующей карте она стоит на L/a и сжимается, когда часы идут вперёд. Сфера Хаббла и горизонт событий сходятся к собственному радиусу де Ситтера карты: прокрутите часы на тридцать миллиардов лет вперёд — и все три станут одной. H₀ и Ω_Λ лаборатории Лямбды задают эту сферу; поставьте их равными параметрам карты — и это ровно та сфера, к которой идут горизонты.',
+      'Λ ist eine inverse Fläche; ihre Wurzel ist eine Eigenlänge, auf dieser mitbewegten Karte bei L/a. Hubble-Sphäre und Ereignishorizont laufen darauf zu.'),
+    rows:V=>{ const o=V.lam, h=V.h, f=skyGly; if(!o) return []; return [[TT('the Λ laboratory’s H₀ · Ω_Λ','H₀ · Ω_Λ лаборатории Лямбды','H₀ · Ω_Λ des Λ-Labors'),`${V.I.lam.hubble_constant.toFixed(2)} · ${V.I.lam.omega_lambda.toFixed(5)}`],
+      [TT('proper radius L','собственный радиус L','Eigenradius L'),`${f(o.de_sitter_gly)} · ${(o.de_sitter_radius).toExponential(4)} m`],
+      [TT('comoving at the clock, L/a','сопутствующий на часах, L/a','mitbewegt zur Uhrzeit, L/a'),h?`${f(V.dsChi)} (a = ${h.a.toFixed(4)})`:'—'],
+      [TT('the map’s own L = (c/H₀)/√Ω_Λ','собственный L карты = (c/H₀)/√Ω_Λ','das eigene L der Karte'),f(V.RL)],
+      [TT('Hubble sphere c/H and event horizon a·χ_e at the clock, proper','сфера Хаббла c/H и горизонт событий a·χ_e на часах, собственные','Hubble-Sphäre und Ereignishorizont zur Uhrzeit, eigen'),h?`${f(h.hubbleProper)} (${(100*h.hubbleProper/V.RL).toFixed(2)} %) · ${f(h.event*h.a)} (${(100*h.event*h.a/V.RL).toFixed(2)} %)`:'—'],
+      ['c/H₀ · '+TT('Gibbons–Hawking temperature','температура Гиббонса–Хокинга','Gibbons-Hawking-Temperatur'),`${f(o.hubble_length_gly)} · ${o.gibbons_hawking_K.toExponential(3)} K`]]; },
+    acts:()=>[skyAct(TT('⚗ Open the Λ laboratory','⚗ Открыть лабораторию Лямбды','⚗ Λ-Labor öffnen'),()=>skyOpenLab('lam')),
+      skyAct(TT('Set the Λ laboratory to this map’s cosmology','Поставить лабораторию Лямбды на космологию этой карты','Λ-Labor auf die Kosmologie dieser Karte stellen'),()=>{ state.lmH0=HCC_S3R.H0_km; state.lmOL=CT_COSMO.OL; SKYMAP.key=''; try{ buildCtl(); }catch(e){} }),
+      skyAct(TT('⏱ Run the clock 30 Gyr ahead','⏱ Перевести часы на 30 млрд лет вперёд','⏱ Uhr 30 Mrd. Jahre vorstellen'),()=>skySetClockGyr(hzAgeAtA(1)+30))]},
+  snia:{name:()=>TT('How far a type Ia supernova reaches','Как далеко достаёт сверхновая Ia','Wie weit eine Typ-Ia-Supernova reicht'),
+    desc:()=>TT('A standardised type Ia supernova, absolute magnitude −19.3, stays brighter than magnitude 25 out to this sphere. The laboratory returns a LUMINOSITY distance; a place on a comoving map needs its redshift, found here on the map’s own χ(z) — and it is z ≈ 1.06, not the 1.8 the laboratory used to say, which was a straight-line Hubble law applied where (1 + z) matters.',
+      'Стандартизованная сверхновая типа Ia, абсолютная величина −19.3, остаётся ярче 25-й величины до этой сферы. Лаборатория возвращает ФОТОМЕТРИЧЕСКОЕ расстояние; месту на сопутствующей карте нужно красное смещение, найденное здесь по собственной χ(z) карты, — и это z ≈ 1.06, а не 1.8, как лаборатория говорила раньше: то был линейный закон Хаббла там, где (1 + z) уже важно.',
+      'Eine standardisierte Typ-Ia-Supernova bleibt bis zu dieser Sphäre heller als 25 mag; die Leuchtkraftentfernung entspricht auf der Karte z ≈ 1,06.'),
+    rows:V=>{ const r=V.rungs; if(!r) return []; return [[TT('luminosity distance at m = 25','фотометрическое расстояние при m = 25','Leuchtkraftentfernung bei m = 25'),`${r.type_ia_reach_mpc.toFixed(1)} Mpc (M = ${(-19.3-V.I.rungs.zero_point_shift_mag).toFixed(3)})`],
+      [TT('its redshift on the map’s χ(z)','его красное смещение по χ(z) карты','ihre Rotverschiebung auf χ(z) der Karte'),`z = ${V.sniaZ.toFixed(4)}`],
+      [TT('comoving radius D_L/(1 + z)','сопутствующий радиус D_L/(1 + z)','mitbewegter Radius D_L/(1 + z)'),skyGly(V.sniaChi)],
+      [TT('a straight-line Hubble law would say','линейный закон Хаббла сказал бы','ein lineares Hubble-Gesetz sagte'),`z = ${(r.type_ia_reach_mpc*73.04/SKY_C_KMS).toFixed(3)} — ${TT('wrong at this depth','неверно на этой глубине','falsch in dieser Tiefe')}`]]; },
+    acts:V=>[skyAct(TT('⚗ Open the distance-ladder laboratory','⚗ Открыть лабораторию лестницы расстояний','⚗ Labor der Entfernungsleiter öffnen'),()=>skyOpenLab('rungs')),
+      skyAct(TT('⚗ The distance laboratory at this redshift','⚗ Лаборатория расстояний на этом z','⚗ Das Entfernungslabor bei diesem z'),()=>skyCosmoAt(V.sniaZ))]},
+  fermi:{name:()=>TT('The Fermi bubbles, on the Galaxy','Пузыри Ферми — на Галактике','Die Fermi-Blasen, an der Galaxie'),
+    desc:()=>TT('The two gamma-ray lobes of the Fermi laboratory, set on the real Galactic centre along this map’s real Galactic pole, at the height the laboratory derives from the latitude their edge reaches — and on the atlas clock: wind it back and they shrink into Sgr A*, at the outflow speed set in that laboratory. The driver is not decided here, as it is not decided there.',
+      'Две гамма-доли лаборатории Ферми, поставленные на настоящий центр Галактики вдоль настоящего галактического полюса этой карты, на высоту, которую лаборатория выводит из широты их края, — и по часам атласа: отмотайте назад, и они уйдут в Sgr A* со скоростью истечения, заданной в той лаборатории. Причина здесь не решается, как не решается и там.',
+      'Die zwei Gammastrahlen-Keulen des Fermi-Labors auf dem echten galaktischen Zentrum, entlang des echten galaktischen Pols, auf der Atlas-Uhr.'),
+    rows:V=>{ const I=V.I.fermi; return [[TT('edge latitude · outflow speed (the laboratory’s)','широта края · скорость истечения (лаборатории)','Randbreite · Ausströmgeschwindigkeit (des Labors)'),`${I.latitude_deg.toFixed(1)}° · ${I.speed_km_s.toFixed(0)} km/s`],
+      [TT('height today, R₀ tan b','высота сегодня, R₀ tan b','Höhe heute, R₀ tan b'),skyKpc(V.fermiNow)],
+      [TT('height at the clock','высота на часах','Höhe zur Uhrzeit'),skyKpc(V.fermiH)],
+      [TT('kinematic age','кинематический возраст','kinematisches Alter'),V.fermiAge!=null?V.fermiAge.toFixed(2)+' Myr':'—'],
+      [TT('the eROSITA bubbles (measured, not derived)','пузыри eROSITA (измерены, не выведены)','die eROSITA-Blasen (gemessen)'),`${FERMI_EROSITA_HEIGHT_KPC} kpc`]]; },
+    acts:()=>[skyAct(TT('⚗ Open the Fermi-bubble laboratory','⚗ Открыть лабораторию пузырей Ферми','⚗ Fermi-Blasen-Labor öffnen'),()=>{ try{ navPush(); }catch(e){} try{ hccGo({worldId:'cyc',labId:'fermi'}); }catch(e){} })]},
+  parallax:{name:()=>TT('Gaia’s parallax reach','Досягаемость параллакса Gaia','Gaias Parallaxen-Reichweite'),
+    desc:()=>TT('The only rung of the distance ladder that is pure geometry, drawn about the Sun: at Gaia’s twenty microarcseconds a parallax gives a one-per-cent distance out to the inner sphere and a ten-per-cent one out to the outer. The Galactic centre is beyond both; above this, every distance is a calibration.',
+      'Единственная ступень лестницы расстояний, которая есть чистая геометрия, нарисованная вокруг Солнца: при двадцати микросекундах Gaia параллакс даёт расстояние с точностью в один процент до внутренней сферы и десять процентов до внешней. Центр Галактики дальше обеих; выше — любое расстояние уже калибровка.',
+      'Die einzige rein geometrische Sprosse der Entfernungsleiter, um die Sonne gezeichnet.'),
+    rows:V=>{ const r=V.rungs; if(!r) return []; return [[TT('1 % distance reach','досягаемость 1 %','Reichweite 1 %'),`${r.parallax_reach_1pc_error.toFixed(0)} pc`],[TT('10 % distance reach','досягаемость 10 %','Reichweite 10 %'),`${r.parallax_reach_10pc_error.toFixed(0)} pc`],
+      [TT('the parsec, derived from the AU','парсек, выведенный из а.е.','das Parsec, aus der AE'),`${r.parsec_from_au.toExponential(9)} m`],[TT('the laboratory’s star','звезда лаборатории','der Stern des Labors'),`${r.distance_pc.toFixed(3)} pc = ${r.distance_ly.toFixed(3)} ly`]]; },
+    acts:()=>[skyAct(TT('⚗ Open the distance-ladder laboratory','⚗ Открыть лабораторию лестницы расстояний','⚗ Labor der Entfernungsleiter öffnen'),()=>skyOpenLab('rungs',()=>{ state.dlStation='triangle'; }))]},
+  cepheid:{name:()=>TT('Leavitt’s rung, on the Large Magellanic Cloud','Ступень Ливитт — на Большом Магеллановом Облаке','Leavitts Sprosse, auf der Großen Magellanschen Wolke'),
+    desc:()=>TT('Where the distance-ladder laboratory puts a 30-day Cepheid of apparent magnitude 13.09 — set in the direction of the Large Magellanic Cloud, where Leavitt’s Cepheids are. Move the ladder’s zero point and this marker moves, with the type Ia reach and the late Hubble sphere: one systematic, three places, at fifty kiloparsecs, a gigaparsec and the Hubble radius.',
+      'Куда лаборатория лестницы расстояний ставит 30-суточную цефеиду видимой величины 13.09, — в направлении Большого Магелланова Облака, где цефеиды Ливитт. Сдвиньте нуль-пункт лестницы — и эта метка движется вместе с досягаемостью Ia и поздней сферой Хаббла: одна систематика, три места — на пятидесяти килопарсеках, гигапарсеке и радиусе Хаббла.',
+      'Wohin das Labor eine 30-Tage-Cepheide mit 13,09 mag setzt — in Richtung der GMW.'),
+    rows:V=>{ const r=V.rungs, P=SKYMAP.items.get('cepheid'); if(!r) return []; return [[TT('distance from the Leavitt law','расстояние по закону Ливитт','Entfernung aus dem Leavitt-Gesetz'),`${(r.cepheid_distance_pc/1000).toFixed(3)} kpc (M = ${r.cepheid_absolute_magnitude.toFixed(3)})`],
+      [TT('the catalogue’s LMC','БМО в каталоге','die GMW des Katalogs'),P.catKpc?`${P.catKpc.toFixed(2)} kpc`:'—'],[TT('the literature','литература','Literatur'),'49.59 kpc (Pietrzyński et al. 2019)'],
+      [TT('zero point Δμ','нуль-пункт Δμ','Nullpunkt Δμ'),`${(V.I.rungs.zero_point_shift_mag>=0?'+':'')}${V.I.rungs.zero_point_shift_mag.toFixed(3)} mag`]]; },
+    acts:()=>[skyAct(TT('⚗ Open the distance-ladder laboratory','⚗ Открыть лабораторию лестницы расстояний','⚗ Labor der Entfernungsleiter öffnen'),()=>skyOpenLab('rungs',()=>{ state.dlStation='leavitt'; }))]},
+  galrot:{name:()=>TT('Rotation curves, on their galaxies','Кривые вращения — на своих галактиках','Rotationskurven, an ihren Galaxien'),
+    desc:()=>TT('The rotation-curve laboratory’s Milky Way and Andromeda, on the real discs: the inner dashed ring is the disc scale length the laboratory uses — the same one the drawn disc is made with — and the outer ring is how far the curve is measured flat. Most of the evidence for dark matter comes from between them, where the stars drawn here thin out.',
+      'Млечный Путь и Андромеда лаборатории кривых вращения — на настоящих дисках: внутреннее пунктирное кольцо — масштаб диска, который использует лаборатория (тот же, по которому нарисован диск), внешнее — докуда кривая измерена плоской. Почти все свидетельства тёмной материи — между ними, где нарисованные здесь звёзды редеют.',
+      'Milchstraße und Andromeda des Rotationskurven-Labors auf den echten Scheiben.'),
+    rows:V=>[[TT('Milky Way: scale length · drawn disc','Млечный Путь: масштаб · нарисованный диск','Milchstraße: Skalenlänge · gezeichnete Scheibe'),`${V.mwRd?V.mwRd.toFixed(2):'—'} kpc · ${MILKY_WAY.hR} kpc`],
+      [TT('Milky Way: curve measured to · stars drawn to','Млечный Путь: кривая измерена до · звёзды нарисованы до','Milchstraße: Kurve gemessen bis · Sterne bis'),`${V.mwMax?V.mwMax.toFixed(0):'—'} kpc · ${MILKY_WAY.Rmax} kpc`],
+      [TT('Milky Way: flat speed · at the Sun (Eilers 2019)','Млечный Путь: плоская скорость · у Солнца (Eilers 2019)','Milchstraße: flache Geschwindigkeit · an der Sonne'),`${V.mwVf?V.mwVf.toFixed(0):'—'} · ${MILKY_WAY.vc} km/s`],
+      [TT('M31: scale length · drawn disc','M31: масштаб · нарисованный диск','M31: Skalenlänge · gezeichnete Scheibe'),`${V.m31Rd?V.m31Rd.toFixed(2):'—'} kpc · ${M31_DISC.Rd} kpc`],
+      [TT('M31: curve measured to · flat speed','M31: кривая измерена до · плоская скорость','M31: Kurve gemessen bis · flache Geschwindigkeit'),`${V.m31Max?V.m31Max.toFixed(0):'—'} kpc · ${V.m31Vf?V.m31Vf.toFixed(0):'—'} km/s (${TT('drawn','нарисовано','gezeichnet')} ${M31_DISC.Vflat})`]],
+    acts:()=>[skyAct(TT('⚗ Open the rotation-curve laboratory · the Milky Way','⚗ Открыть лабораторию кривых вращения · Млечный Путь','⚗ Rotationskurven-Labor öffnen · Milchstraße'),()=>skyOpenLab('galrot',()=>{ state.grGalaxy='milkyway'; }))]}
+};
+/* what each place must NOT be read as — carried in its contract like every other object's */
+const SKY_FORBID=Object.freeze({
+  pinf:['Do not read χ_p(∞) as an edge of space: it is the comoving reach of light over infinite time on this flat ΛCDM chain, and space continues past it.'],
+  cosmoZ:['Do not read this sphere as an object: it is every place at the distance laboratory’s redshift, on that laboratory’s own H₀ and Ω_m.'],
+  cosmoPeak:['Do not read the turnover as a boundary: it is where angular size is smallest, a property of the distance measure and not of space.'],
+  tension:['Do not read three spheres as three universes: they are three measurements of one Hubble constant, drawn where each would put the Hubble sphere.','Do not read the spheres as measured surfaces: each is c/(aH) scaled from the map’s own chain at fixed density parameters.'],
+  desitter:['Do not read the de Sitter radius as a horizon reached today: it is the proper length √(3/Λ) that the Hubble sphere and the event horizon approach only as t → ∞.'],
+  snia:['Do not read the reach as a survey limit: it is where a standardised type Ia of absolute magnitude −19.3 falls to magnitude 25, without extinction or K-corrections.'],
+  fermi:['Do not read the lobe outline as measured: the profile is the laboratory’s schematic; only the height R₀ tan b is derived.','Do not read the age as a date: it is the height divided by an outflow speed that nobody has measured directly.'],
+  parallax:['Do not read the spheres as Gaia’s footprint: they are where a parallax at the declared 20 μas precision gives a 1 % and a 10 % distance, before crowding and extinction.'],
+  cepheid:['Do not read the marker as a catalogued star: it is where the Leavitt law puts a 30-day Cepheid of apparent magnitude 13.09, set in the LMC’s direction.','Do not read the LMC sphere as its shape: it is the catalogue’s diameter drawn as a sphere.'],
+  galrot:['Do not read the outer ring as the edge of the galaxy: it is the radius of the last measured point of the laboratory’s rotation curve.']});
+/* the closed-sky laboratory's engine, run on THIS map's Ω_m and h with |Ω_K| → 10⁻⁶: its reaches times R_c, against the chain */
+function skyChainClosed(){ if(SKYMAP.closed!==undefined) return SKYMAP.closed; let r=null; try{ const C=CT_COSMO, h=HCC_S3R.H0_km/100, k=1e-6, M=iskyModel(C.Om,1-C.Om-4.18e-5/(h*h)+k,h), Rc=C.cH/Math.sqrt(k);
+    if(M.ok) r={today:M.eta0*Rc, ever:M.etaEnd*Rc, future:(M.etaEnd-M.eta0)*Rc}; }catch(e){} SKYMAP.closed=r; return r; }
+for(const P of SKYMAP.items.values()){ const D=SKY_DEF[P.id];
+  const pick=P.shell?P.shell.userData.skin:P.shells?P.shells[0].userData.skin:P.id==='fermi'?P.north:P.id==='cepheid'?P.dot:null;
+  const wp=()=>{ if(P.home==='obs') return new THREE.Vector3(); if(P.id==='fermi'||P.id==='galrot') return milkyWayPhysical.getWorldPosition(new THREE.Vector3()); return P.grp.getWorldPosition(new THREE.Vector3()); };
+  const fd=()=>{ const V=SKYMAP.v||{}, sc=P.home==='obs'&&skyInSolarCosmos()?GLY_AU:1; const r={pinf:V.Pinf, cosmoZ:V.cosmoChi, cosmoPeak:V.peakChi, desitter:V.dsChi, snia:V.sniaChi, tension:V.tension&&V.tension.early}[P.id];
+    if(r) return r*2.25*sc; if(P.id==='fermi') return 60*SKY_KPC_AU; if(P.id==='parallax') return 14000*SKY_PC_AU; if(P.id==='cepheid') return 30*SKY_KPC_AU; return 3.2*((P.m31Focus?V.m31Max:V.mwMax)||25)*SKY_KPC_AU; };
+  /* name and description are read lazily: this block runs long before the atlas's state (and so its language) exists */
+  const mk=(labelEl,pk,getPos)=>{ const def={name:()=>'⚗ '+D.name(), mode:P.home==='obs'?'obs':'solar', pick:pk, labelEl, getPos, focusDist:fd,
+      accuracyTier:'M', catalogueStatus:'derived-here', forbiddenClaims:SKY_FORBID[P.id]||[],
+      rows:()=>{ try{ return [[TT('Laboratory','Лаборатория','Labor'),skyLabName(P.lab)]].concat(D.rows(SKYMAP.v||skyCompute())); }catch(e){ return []; } }, skymap:P.id};
+    Object.defineProperty(def,'desc',{enumerable:true, configurable:true, get(){ try{ return D.desc(); }catch(e){ return ''; } }}); return def; };
+  registerSel(P.sel,mk(P.label.element,pick,wp));
+  if(P.id==='galrot'){ const d31=mk(P.label31.element,null,()=>m31Physical.getWorldPosition(new THREE.Vector3())); d31.focusDist=()=>3.2*((SKYMAP.v&&SKYMAP.v.m31Max)||35)*SKY_KPC_AU; registerSel('sky_galrotM31',d31); } }
+/* the horizons an earlier release drew, now read by the laboratory that computes them as angles */
+{ const wrap=(key,extra)=>{ const d=SELECT.get(key); if(!d||d._skyWrapped) return; const r0=d.rows; d._skyWrapped=true;
+    d.rows=()=>{ let base=[]; try{ base=typeof r0==='function'?r0():(r0||[]); }catch(e){} let more=[]; try{ more=extra(); }catch(e){} return base.concat(more); }; };
+  wrap('scrPH',()=>{ const s=skyEval('s3sky',{}), cl=skyChainClosed(); return s?[[TT('⚗ the closed-sky laboratory sees it as','⚗ лаборатория замкнутого неба видит его как','⚗ das Labor des geschlossenen Himmels sieht ihn als'),`${s.sky_horizon_angle.toFixed(5)} rad × R_c = ${skyGly(SKY_PLACE.reachGly(s.sky_horizon_angle,67.4,0.001))}${cl?` · ${TT('on this map’s parameters','на параметрах карты','mit den Parametern der Karte')} ${skyGly(cl.today)}`:''}`]]:[]; });
+  wrap('scrEvent',()=>{ const s=skyEval('s3sky',{}), cl=skyChainClosed(); return s?[[TT('⚗ the closed-sky laboratory’s future reach','⚗ будущая досягаемость в лаборатории замкнутого неба','⚗ künftige Reichweite im Labor des geschlossenen Himmels'),`${s.sky_future_reach.toFixed(5)} rad × R_c = ${skyGly(SKY_PLACE.reachGly(s.sky_future_reach,67.4,0.001))}${cl?` · ${TT('on this map’s parameters','на параметрах карты','mit den Parametern der Karte')} ${skyGly(cl.future)}`:''}`]]:[]; }); }
+/* actions a card offers: its laboratory, and what its number can set */
+function skymapActs(key){ const d=SELECT.get(key); if(d&&d.skymap){ try{ return SKY_DEF[d.skymap].acts(SKYMAP.v||skyCompute())||[]; }catch(e){ return []; } }
+  if(key==='scrAccel') return [skyAct(TT('⚗ The distance laboratory at z = 0.631','⚗ Лаборатория расстояний при z = 0.631','⚗ Das Entfernungslabor bei z = 0,631'),()=>skyCosmoAt(1/HZ_EVENTS.accel-1))];
+  if(key==='scrPH'||key==='scrEvent') return [skyAct(TT('⚗ Open the closed-sky laboratory','⚗ Открыть лабораторию замкнутого неба','⚗ Labor des geschlossenen Himmels öffnen'),()=>skyOpenLab('s3sky'))];
+  return []; }
+/* fly from anywhere to a laboratory's place on the map: Horizons for the shells (or the Sun's cosmic layer if the reader
+   is already there), the Galaxy for the rest */
+function skymapFly(id){ const P=SKYMAP.items.get(id==='galrotM31'?'galrot':id); if(!P) return false; state.skymapOn=true; if(state.skymapHide) delete state.skymapHide[P.id]; SKYMAP.key='';
+  try{ navPush(); }catch(e){}
+  const k=id==='galrotM31'?'sky_galrotM31':P.sel;
+  if(P.home==='obs'){ if(!(state.mode==='solar'&&skyInSolarCosmos())) try{ hccGo({worldId:'obs'}); }catch(e){}
+    setTimeout(()=>{ try{ skymapTick(); }catch(e){} const s=SELECT.get(k); if(s){ try{ selectKey(k); focusOn(s); }catch(e){} } },140); return true; }
+  /* in the Sun's world the layer follows the camera's distance, so the camera is PLACED, not flown — from where the planets
+     were it would be called back to them mid-flight — the way the merger frame does it (a placement, not a gesture) */
+  try{ hccGo({worldId:'solar'}); }catch(e){} try{ setSolarScaleLayer(id==='galrotM31'?'andromeda':'galactic'); updateSolarScaleVisibility(); }catch(e){}
+  try{ skymapTick(); }catch(e){}
+  const place=()=>{ const s=SELECT.get(k); if(!s) return; try{ clearFocus(); const t=s.getPos(), d=s.focusDist(), up=GAL_DATA.pole.dir.clone(), out=t.clone().normalize();
+      const dir=(P.id==='parallax'||P.id==='cepheid')?out.clone().multiplyScalar(-1).addScaledVector(up,0.55).normalize()
+        :P.id==='fermi'?out.clone().multiplyScalar(-0.85).addScaledVector(up,0.3).normalize()   /* the lobes as we stand to them: from the Sun's side, a little above the plane */
+        :up.clone().multiplyScalar(0.82).addScaledVector(out,-0.45).normalize();
+      controls.target.copy(t); camera.position.copy(t).addScaledVector(dir,d); controls.update(); _lastCamDist=d; _autoScaleCd=2.5; hccCameraGoal(d); }catch(e){}
+    try{ selectKey(k); followSel=s; }catch(e){} };
+  place(); setTimeout(place,160); return true; }
+/* ── the census, in the browser, over every registered contract ── */
+const SKY_WHY={lab:['a length, angle or temperature inside an apparatus, a material, an atom or a nucleus — not a place in the universe','длина, угол или температура внутри прибора, вещества, атома или ядра — не место во Вселенной','eine Länge, ein Winkel oder eine Temperatur in einem Apparat, Material, Atom oder Kern'],
+  body:['a property of a body of the size or mass you choose — a star, a white dwarf, a black hole, a cloud — not of a placed object','свойство тела выбранного размера или массы — звезды, белого карлика, чёрной дыры, облака, — а не размещённого объекта','eine Eigenschaft eines frei gewählten Körpers, nicht eines platzierten Objekts'],
+  abstract:['an angle or phase in the laboratory’s own abstract space — a Berry phase, a Bloch vector, a Hall angle, a pattern’s solid angle — not a direction on the sky','угол или фаза в собственном абстрактном пространстве лаборатории — фаза Берри, вектор Блоха, угол Холла, телесный угол диаграммы, — а не направление на небе','ein Winkel oder eine Phase im abstrakten Raum des Labors, keine Himmelsrichtung'],
+  toy:['a length in a model with a declared radius, an ansatz or a selected parameter — the laboratory itself says it is not this universe’s measured value','длина в модели с заданным радиусом, анзацем или выбранным параметром — лаборатория сама говорит, что это не измеренная величина нашей Вселенной','eine Länge in einem Modell mit gesetztem Radius oder Ansatz — laut Labor kein Messwert'],
+  duration:['the duration of a process, not an epoch of cosmic time','длительность процесса, а не эпоха космического времени','die Dauer eines Vorgangs, keine Epoche der kosmischen Zeit'],
+  unplaced:['a real astronomical distance with no direction on the sky in the laboratory’s contract','настоящее астрономическое расстояние без направления на небе в контракте лаборатории','eine echte Entfernung ohne Himmelsrichtung im Vertrag des Labors'],
+  false:['named like a redshift and is not one — a z-component, a z-score, an effective charge','называется как красное смещение, но им не является — z-компонента, z-оценка, эффективный заряд','heißt wie eine Rotverschiebung und ist keine'],
+  realization:['a direction in ONE simulated sky drawn from the spectra, not in the observed sky','направление в ОДНОМ смоделированном небе по спектрам, а не в наблюдаемом','eine Richtung in EINEM simulierten Himmel, nicht im beobachteten']};
+const SKY_WORLD={cyc:['a cycle of the Cycles world, counted on its own clock','цикл мира «Циклы», отсчитанный по его собственным часам','ein Zyklus der Zyklen-Welt'],
+  solar:['drawn in the Sun → Cosmos world itself — the Earth’s axis, the 3D zodiac','нарисовано в самом мире «Солнце → Космос» — ось Земли, трёхмерный зодиак','in der Welt Sonne → Kosmos selbst gezeichnet'],
+  fbs:['a rung of the FBS3R φ-ladder, drawn on the ladder','ступень φ-лестницы FBS3R, нарисованная на лестнице','eine Sprosse der φ-Leiter, dort gezeichnet'],
+  s3:['an angle on the closed sky, drawn by that laboratory’s own view','угол на замкнутом небе, нарисованный собственным видом той лаборатории','ein Winkel am geschlossenen Himmel, in dessen eigener Ansicht'],
+  obs:['the Horizons map’s own unit: one scene unit is one gigalightyear','собственная единица карты «Горизонты»: одна единица сцены — один гигасветовой год','die Einheit der Horizonte-Karte: ein Gigalichtjahr']};
+function skymapCensus(){ if(SKYMAP.census) return SKYMAP.census; const specs=[...HCC_API_SPECS.values()].map(s=>({id:s.id, world:s.world, lab:s.lab, outputs:(s.outputs||[]).map(o=>({name:o.name, unit:o.unit}))}));
+  SKYMAP.census=skymapCensusOf(specs); return SKYMAP.census; }
+function skymapWhy(r){ const L=a=>TT(a[0],a[1],a[2]); if(!r.cls) return TT('UNCLASSIFIED','НЕ КЛАССИФИЦИРОВАНО','NICHT KLASSIFIZIERT');
+  if(r.cls==='not') return L(SKY_WHY[r.arg]||['—','—','—']); if(r.cls==='world') return L(SKY_WORLD[r.arg]||['—','—','—']);
+  if(r.cls==='map') return TT('on the map now: ','теперь на карте: ','jetzt auf der Karte: ')+SKY_DEF[r.arg].name();
+  if(r.cls==='card') return TT('read on the card of ','на карточке: ','auf der Karte von ')+SKY_DEF[r.arg].name();
+  const d=SELECT.get(r.arg); const nm=d?(typeof d.name==='function'?d.name():d.name):r.arg;
+  return (r.cls==='cross'?TT('an earlier horizon, now checked against this number: ','прежний горизонт, теперь сверенный с этим числом: ','ein früherer Horizont, jetzt mit dieser Zahl geprüft: '):TT('already on a map: ','уже на карте: ','schon auf einer Karte: '))+nm; }
+const SKY_CLS_ORDER=['map','card','cross','drawn','world','not'];
+const SKY_CLS_COL={map:'#ffd27a', card:'#ffe7b0', cross:'#9fe8c8', drawn:'#9fb6ff', world:'#c9b8ff', not:'#7d8799'};
+function skyClsName(c){ return ({map:TT('drawn here, new','нарисовано здесь, новое','hier neu gezeichnet'), card:TT('on a card','на карточке','auf einer Karte'), cross:TT('checked against a horizon','сверено с горизонтом','mit einem Horizont geprüft'),
+  drawn:TT('already on a map','уже на карте','schon auf einer Karte'), world:TT('in its own world','в своём мире','in der eigenen Welt'), not:TT('not a place','не место','kein Ort')})[c]||c; }
+/* ── the panel section: Horizons lists the shells, Sun → Cosmos the Galaxy ── */
+function skymapPanelHTML(where){ let C=null; try{ C=skymapCensus(); }catch(e){} const V=SKYMAP.v||{}, on=state.skymapOn!==false;
+  const ids=SKYMAP_IDS.filter(id=>where==='obs'?SKY_HOME[id]==='obs':SKY_HOME[id]!=='obs');
+  const val={pinf:V.Pinf, cosmoZ:V.cosmoChi, cosmoPeak:V.peakChi, desitter:V.dsChi, snia:V.sniaChi, tension:V.tension&&V.tension.late};
+  const chip=id=>{ const hid=state.skymapHide&&state.skymapHide[id], c='#'+SKY_COL[id].toString(16).padStart(6,'0');
+    return `<span style="display:inline-flex;gap:3px;align-items:center;white-space:nowrap;max-width:100%"><button class="chip ${hid?'':'on'}" data-skyfly="${id}" style="overflow:hidden;text-overflow:ellipsis" title="${esc(SKY_DEF[id].name())} — ${esc(skyLabName(SKY_LAB[id]))}"><span style="color:${c}">●</span> ${esc(SKY_DEF[id].name())}${val[id]!=null?` <span style="opacity:.7">${skyGly(val[id])}</span>`:''}</button><button class="chip" data-skyhide="${id}" title="${TT('show or hide','показать или скрыть','zeigen oder verbergen')}" aria-label="${TT('show or hide','показать или скрыть','zeigen oder verbergen')} ${esc(SKY_DEF[id].name())}">${hid?'○':'◉'}</button></span>`; };
+  const tally=C?SKY_CLS_ORDER.filter(c=>C.by[c]).map(c=>`<span style="color:${SKY_CLS_COL[c]}">${C.by[c]} ${skyClsName(c)}</span>`).join(' · '):'';
+  const table=C&&where==='obs'?`<details style="margin-top:4px"><summary style="cursor:pointer;font-size:11px;color:var(--gold-2)">${TT('The census, output by output','Перепись, выход за выходом','Der Zensus, Ausgabe für Ausgabe')} (${C.total})</summary>
+    <div style="max-height:260px;overflow:auto"><table class="mini" style="width:100%;font-size:10px">${SKY_CLS_ORDER.map(c=>C.rows.filter(r=>r.cls===c).map(r=>`<tr><td style="color:${SKY_CLS_COL[c]};white-space:nowrap">${esc(r.id)}.${esc(r.name)}</td><td style="white-space:nowrap">${esc(r.unit)}</td><td>${esc(skymapWhy(r))}</td></tr>`).join('')).join('')}</table></div></details>`:'';
+  return `<div class="sect" id="skymapSect"><b>⚗ ${where==='obs'?TT('The laboratories on the map — live, on the clock','Лаборатории на карте — вживую, по часам','Die Labore auf der Karte — live, auf der Uhr'):TT('The laboratories in the Galaxy','Лаборатории в Галактике','Die Labore in der Galaxie')}</b>
+    <div class="ctlrow"><label>${TT('Show the laboratories’ places','Показывать места лабораторий','Orte der Labore zeigen')}</label><input type="checkbox" id="skymapOn" ${on?'checked':''}></div>
+    <div class="chips">${ids.map(chip).join('')}</div>
+    ${C?`<div class="note" style="font-size:10.5px;color:var(--dim);line-height:1.5">${TT('Of','Из','Von')} <b>${C.total}</b> ${TT('lengths, times, angles, temperatures, rates and redshifts that','длин, времён, углов, температур, скоростей и красных смещений, которые вычисляют','Längen, Zeiten, Winkeln, Temperaturen, Raten und Rotverschiebungen aus')} ${C.instruments} ${TT('laboratories compute','лабораторий','Laboren')}: ${tally}${C.missing.length?` · <b style="color:#ff8a8a">${C.missing.length} ${TT('unclassified','не классифицировано','nicht klassifiziert')}</b>`:''}. ${TT('Each place is drawn by calling its laboratory’s own instrument; a chip flies there, its card opens the laboratory.','Каждое место нарисовано вызовом собственного инструмента лаборатории; чип ведёт туда, карточка открывает лабораторию.','Jeder Ort wird durch das eigene Instrument seines Labors gezeichnet.')}</div>`:''}
+    ${table}</div>`; }
+function skymapBind(root){ if(!root) return; const on=root.querySelector('#skymapOn'); if(on) on.onchange=e=>{ state.skymapOn=e.target.checked; SKYMAP.key=''; };
+  root.querySelectorAll('[data-skyfly]').forEach(b=>b.onclick=()=>skymapFly(b.dataset.skyfly));
+  root.querySelectorAll('[data-skyhide]').forEach(b=>b.onclick=()=>{ const id=b.dataset.skyhide; state.skymapHide=Object.assign({},state.skymapHide||{}); if(state.skymapHide[id]) delete state.skymapHide[id]; else state.skymapHide[id]=true; SKYMAP.key=''; try{ buildCtl(); }catch(e){} }); }
+/* the laboratory passport: the places this laboratory's numbers have on the map */
+function skymapPassportHTML(v){ const ids=SKYMAP_IDS.filter(id=>SKY_LAB[id]===v||(v==='rungs'&&id==='tension')); if(!ids.length) return '';
+  return `<div class="note" style="font-size:11px;margin-top:5px"><b style="color:var(--gold-2)">◎ ${TT('on the map of the universe','на карте Вселенной','auf der Karte des Universums')} (${ids.length}):</b>
+    ${ids.map(id=>`<button class="chip" data-passmap="${id}"><span style="color:#${SKY_COL[id].toString(16).padStart(6,'0')}">●</span> ${esc(SKY_DEF[id].name())}</button>`).join(' ')}</div>`; }
+globalThis.HCC_SKYMAP=Object.freeze({
+  ids:()=>SKYMAP_IDS.slice(),
+  /* every place, its laboratory, the radius the map draws and the instrument output it came from */
+  state:()=>{ SKYMAP.key=''; try{ skymapTick(); }catch(e){} const V=SKYMAP.v||{}, it=id=>SKYMAP.items.get(id);
+    const sc=id=>{ const P=it(id); return P.shell?P.shell.scale.x:null; };
+    return {now:V.now, inputs:V.I, Pinf:V.Pinf, RL:V.RL,
+      pinf:{drawn:sc('pinf'), s3sky:V.s3sky}, cosmoZ:{drawn:sc('cosmoZ'), out:V.cosmo&&{comoving_distance:V.cosmo.comoving_distance, angular_peak_distance:V.cosmo.angular_peak_distance, angular_peak_redshift:V.cosmo.angular_peak_redshift}},
+      cosmoPeak:{drawn:sc('cosmoPeak')}, desitter:{drawn:sc('desitter'), de_sitter_gly:V.lam&&V.lam.de_sitter_gly, a:V.h&&V.h.a},
+      snia:{drawn:sc('snia'), z:V.sniaZ, type_ia_reach_mpc:V.rungs&&V.rungs.type_ia_reach_mpc},
+      tension:{drawn:it('tension').shells.map(s=>s.visible?s.scale.x:null), h0:[V.late,V.local,V.early], hub:V.h&&V.h.hubbleComoving, H0c:HCC_S3R.H0_km},
+      fermi:{height:V.fermiH, now:V.fermiNow, out:V.fermiO&&V.fermiO.lobe_height, profileTop:(()=>{ const g=it('fermi').north.geometry; g.computeBoundingBox(); return g.boundingBox?g.boundingBox.max.y:null; })(), scale:it('fermi').grp.scale.x, kpcAU:SKY_KPC_AU},
+      parallax:{drawnAU:it('parallax').shells.map(s=>s.scale.x), pc:V.par, pcAU:SKY_PC_AU},
+      cepheid:{distAU:it('cepheid').grp.position.length(), pc:V.cephPc, dir:it('cepheid').dir.toArray(), shifted_h0:V.rungs&&V.rungs.shifted_h0},
+      galrot:{mw:[it('galrot').mw[0].scale.x/SKY_KPC_AU, it('galrot').mw[1].scale.x/SKY_KPC_AU], m31:[it('galrot').m31[0].scale.x/SKY_KPC_AU, it('galrot').m31[1].scale.x/SKY_KPC_AU], mwRd:V.mwRd, m31Rd:V.m31Rd}}; },
+  census:()=>{ const C=skymapCensus(); return {total:C.total, instruments:C.instruments, by:C.by, missing:C.missing.slice(), rows:C.rows.map(r=>({...r}))}; },
+  fly:id=>skymapFly(id), acts:key=>skymapActs(key).map(a=>a[0]),
+  show:(id,on)=>{ state.skymapHide=Object.assign({},state.skymapHide||{}); if(on===false) state.skymapHide[id]=true; else delete state.skymapHide[id]; SKYMAP.key=''; return !state.skymapHide[id]; }});
 
 const solarCosmicObjects=[];
 /* Anchors that keep every scale layer CONNECTED through the Sun-at-origin frame:
@@ -59021,7 +59473,7 @@ function updateRungs(dt){
     const PX=x=>-3.2+6.4*(x-X0)/(X1-X0);
     const Y0=-8.5, Y1=0;
     const PY=M=>-2.2+3.7*(M-Y0)/(Y1-Y0);
-    const zero=DL_CEPH_ZERO+shift;
+    const zero=DL_CEPH_ZERO-shift;   /* Δμ: calibrators brighter by Δμ, every distance above out by 10^(Δμ/5) (v4.425 — it was +, which moved the LMC in while H₀ fell) */
     for(let k=0;k<DL_CEPH_N;k++){
       const P=Math.pow(10,X0+(X1-X0)*k/(DL_CEPH_N-1));
       const M=dLadCepheidM(P,DL_CEPH_SLOPE,zero);
@@ -84880,7 +85332,7 @@ const ATLAS_LATE_SPECS=[
            doc:['and how bright it looks. A period gives the absolute magnitude, an apparent magnitude gives the distance, and the difference between them is the whole rung',
                 'видимая звёздная величина цефеиды','scheinbare Helligkeit']},
           {name:'zero_point_shift_mag', type:'number', unit:'mag', default:0, min:-0.4, max:0.4,
-           doc:['a systematic shift applied to the ladder`s zero point, in magnitudes. This is the knob the whole subject turns on: 0.166 magnitudes anywhere below the top would make the two Hubble constants the same number, and the entire quoted error budget of all three rungs is 0.093',
+           doc:['a systematic shift Δμ applied to the ladder`s zero point, in magnitudes: the calibrators are BRIGHTER than assumed by Δμ, so every distance above the first rung moves out by 10^(Δμ/5) and the Hubble constant down by the same factor — H₀·d, the velocity that was measured, cannot move. This is the knob the whole subject turns on: 0.166 magnitudes anywhere below the top would make the two Hubble constants the same number, and the entire quoted error budget of all three rungs is 0.093',
                 'систематический сдвиг нуль-пункта в звёздных величинах','systematische Verschiebung des Nullpunkts']},
           {name:'extinction_mag', type:'number', unit:'mag', default:0, min:0, max:3,
            doc:['dust, which makes a thing fainter and therefore apparently further, and which does NOT cancel between rungs the way a random error does',
@@ -84902,7 +85354,7 @@ const ATLAS_LATE_SPECS=[
              'расстояние до цефеиды','Entfernung der Cepheide']},
            {name:'distance_modulus', unit:'mag', doc:['m minus M: the ladder`s only currency above the first rung, and the reason a systematic is ADDITIVE and travels upward unchanged',
              'модуль расстояния','Entfernungsmodul']},
-           {name:'type_ia_reach_mpc', unit:'Mpc', quantity_kind:'length', doc:['how far a standardised type Ia stays above the limiting magnitude, in megaparsecs. At m = 25 it is seven thousand, which is redshift 1.8 and is why this rung reaches cosmology at all',
+           {name:'type_ia_reach_mpc', unit:'Mpc', quantity_kind:'length', doc:['how far a standardised type Ia stays above the limiting magnitude, in megaparsecs. At m = 25 it is seven thousand — a LUMINOSITY distance, which on the atlas`s own cosmology is redshift 1.06 (a straight-line Hubble law would say 1.8, and is wrong at this depth) — and is why this rung reaches cosmology at all',
              'докуда достаёт сверхновая типа Ia','Reichweite der Typ-Ia-Supernovae']},
            {name:'ladder_random_mag', unit:'mag', doc:['the three rungs` random errors in quadrature','случайные ошибки в квадратуре','zufaellige Fehler in Quadratur']},
            {name:'ladder_systematic_mag', unit:'mag', doc:['and their systematics added LINEARLY, because each rung is calibrated on the one below and a shift there is common to everything above. Which of these two you use is the difference between a three-sigma tension and a five-sigma one',
@@ -84948,9 +85400,9 @@ const ATLAS_LATE_SPECS=[
   ev:i=>{
     const d=dLadDistanceFromParallax(i.parallax_mas);
     const mu=dLadModulusExtinguished(d,i.extinction_mag);
-    const M=dLadCepheidM(i.cepheid_period_days,DL_CEPH_SLOPE,DL_CEPH_ZERO+i.zero_point_shift_mag);
+    const M=dLadCepheidM(i.cepheid_period_days,DL_CEPH_SLOPE,DL_CEPH_ZERO-i.zero_point_shift_mag);
     const cd=dLadCepheidDistance(i.cepheid_period_days,i.cepheid_apparent_magnitude-i.extinction_mag,
-      DL_CEPH_SLOPE,DL_CEPH_ZERO+i.zero_point_shift_mag);
+      DL_CEPH_SLOPE,DL_CEPH_ZERO-i.zero_point_shift_mag);
     const chain=dLadChain();
     const planck=DL_H0.filter(h=>h.id==='planck')[0];
     const shoes=DL_H0.filter(h=>h.id==='shoes')[0];
@@ -84962,7 +85414,7 @@ const ATLAS_LATE_SPECS=[
       parallax_reach_1pc_error:dLadParallaxReach(i.astrometric_sigma_mas,0.01),
       cepheid_absolute_magnitude:M, cepheid_distance_pc:cd,
       distance_modulus:mu,
-      type_ia_reach_mpc:dLadIaReach(i.limiting_magnitude,DL_IA_M+i.zero_point_shift_mag)/1e6,
+      type_ia_reach_mpc:dLadIaReach(i.limiting_magnitude,DL_IA_M-i.zero_point_shift_mag)/1e6,
       ladder_random_mag:chain.random_mag,
       ladder_systematic_mag:chain.systematic_mag,
       ladder_total_distance_error:chain.total_fraction,
@@ -99709,7 +100161,7 @@ const NEXUS_RELATIONS=[
   ['rungs','cosmo','causal','the ladder`s far end, and the near one it never had','The cosmology bench turns a redshift into a distance and never touches anything nearer than a galaxy. This is the other end of the same instrument: a triangle whose base is the Earth`s orbit, a period-luminosity relation calibrated on it, and a supernova calibrated on that. The two together are the distance ladder, and until now the atlas had only the half that starts where measurement has already been done.','model-input'],
   ['rungs','lam','contrast','the two buttons that never explained themselves','The cosmological-constant laboratory offers a chip for Planck`s 67.66 and a chip for SH0ES`s 73.04, and lets the reader pick. It never says why there are two, because it had no way to. The reason is that one is read off the microwave background through a model and the other is climbed to rung by rung, and they disagree by 4.80 sigma. Closing the gap would take a 0.166 magnitude systematic hiding somewhere in the ladder, against a whole quoted budget of 0.093 -- one and eight tenths times everything anyone has admitted to.','physics-contrast'],
   ['rungs','mainseq','coupling','a Cepheid is a star, and this atlas can now say which','The main-sequence laboratory turns a mass into a luminosity. A classical Cepheid is a four-to-nine solar mass star crossing the instability strip after it leaves the main sequence, so its absolute magnitude is not arbitrary -- it is where the mass-luminosity relation has got to by then. Nothing here derives Leavitt`s law from stellar structure and nobody has; what the two benches together make visible is that the zero point is a statement about stars and not about photometry.','model-analogy'],
-  ['rungs','sn','coupling','the rung that reaches, and the light curve that standardises it','The supernova bench has the light curve; this one has the ladder it sits on. A type Ia is not a standard candle, it is a standardisABLE one -- the width-luminosity correction is fitted, on a sample whose distances come from the rung below. That is the third rung, it reaches redshift 1.8 at a limiting magnitude of 25, and its absolute magnitude is quoted here rather than derived because nobody can derive it.','model-input'],
+  ['rungs','sn','coupling','the rung that reaches, and the light curve that standardises it','The supernova bench has the light curve; this one has the ladder it sits on. A type Ia is not a standard candle, it is a standardisABLE one -- the width-luminosity correction is fitted, on a sample whose distances come from the rung below. That is the third rung, it reaches redshift 1.06 at a limiting magnitude of 25 (a luminosity distance of 7.2 Gpc, not the 1.8 a straight-line Hubble law gives), and its absolute magnitude is quoted here rather than derived because nobody can derive it.','model-input'],
   ['rungs','resolve','limit','an angle is an angle, whether it resolves a disc or measures a distance','The resolution laboratory prices an aperture in arcseconds and finds the Extremely Large Telescope at a hundredth of one. A parallax is an angle too -- Gaia measures twenty MICROarcseconds, five hundred times finer -- and it does it not by resolving anything but by measuring the CENTROID of an unresolved image over and over. Diffraction sets what you can separate; photon statistics set what you can centre. The two limits are different limits and the atlas had only priced the first.','epistemic-boundary'],
   ['mainseq','galrot','coupling','the knob next door, computed at last','The galaxy laboratory declares in as many words that its single largest uncertainty is the stellar mass-to-light ratio, and exposes it as a multiplier because it had nothing to import. This computes one -- and the answer is that THERE IS NO SUCH NUMBER. It is a function of age moving by a factor of sixty across the ages of real populations, so every rotation-curve decomposition ever published has chosen an age without necessarily saying which. Two further factors of the same kind: the initial mass function is worth 44 per cent and the remnants are a seventh of the mass at thirteen billion years.','model-input'],
   ['mainseq','adisk','exact','a luminosity in watts, published three times and consumed never','Three benches here publish a luminosity -- an accretion disc`s output, its Eddington ceiling, the power to erase a bit -- and across a hundred and six laboratories nothing had ever taken one as an input. The unit census is what selected this laboratory. And the Eddington limit is the same formula in both places: 4 pi G M c over kappa, holding a disc below its ceiling and holding the top of the main sequence linear in mass, which is why the mass-luminosity exponent falls to exactly one there.','exact'],
@@ -117632,6 +118084,7 @@ function buildCtlBody(){
     ctl.innerHTML = `
     ${hccCycleNavigationHTML()}
     ${dscPanelHTML()}
+    ${skymapPanelHTML('solar')}
     <div class="sect"><b>Time</b>
       <div class="ctlrow"><label>Speed</label>
         <input type="range" id="spd" min="-3" max="8.5" step="0.05" value="${Math.log10(Math.max(state.daysPerSec,1e-3))}">
@@ -117839,6 +118292,7 @@ function buildCtlBody(){
       <div class="ctlrow"><button class="btn green" id="oortFocus">◎ View full cloud at true AU scale</button></div>
       <div class="note" style="font-size:10.5px">True-scale Solar navigation: 1 scene unit always equals 1 AU. Catalogue objects in the Solar cosmic layer use registered J2000 directions and distance-scaled anchors; uncertain extended structures retain explicit uncertainty labels. “Direction from frame origin” is available only where the catalogue frame is compatible. It is never a claim of an observation from arbitrary S³/FBS coordinates.</div>
     </div>`;
+    skymapBind(ctl);
     ctl.querySelector('#spd').oninput = e=>{ setAtlasDaysPerSecond(10**(+e.target.value),'solar.rate'); updCtlVals(); };
     ctl.querySelector('#pause').onclick = ()=>{ setAtlasPaused(!state.paused,'solar.pause'); buildCtl(); };
     ctl.querySelector('#timeDir')&&(ctl.querySelector('#timeDir').onclick=()=>{ toggleAtlasTimeDirection('solar.direction'); buildCtl(); });
@@ -118280,6 +118734,7 @@ function buildCtlBody(){
         return `Λ = ${e(3*C.OL*H0*H0/(c*c))} m⁻² · ρ_crit = ${e(rc)} kg m⁻³ · ρ_Λ = ${e(C.OL*rc*c*c)} J m⁻³ · ${TT('accel onset','начало ускорения','Beschleunigungsbeginn')} t = ${tA.toFixed(3)} Gyr (${TT('lookback','назад','Rückblick')} ${(t0-tA).toFixed(3)}) · ${TT('m–r equality','равенство в–и','M–S-Gleichheit')} t = ${(tE*1e6).toFixed(2)} kyr. ${TT('All from one chain (hzAtT, the same E(z) that sizes every shell) at H₀ =','Всё из одной цепочки (hzAtT — та же E(z), что задаёт размер каждой оболочки) при H₀ =','Alles aus einer Kette (hzAtT) bei H₀ =')} ${HCC_S3R.H0_km}, Ω_m = ${C.Om}.`; })()}</div>
     </div>
     ${hzCausalPanelHTML()}
+    ${skymapPanelHTML('obs')}
     <div class="sect"><b>Cosmic Atlas · real structures (1 unit = 1 Gly)</b>
       <div class="ctlrow"><label>Show atlas</label><input type="checkbox" id="cosmosShow" ${cosmosGroup.visible?'checked':''}></div>
       <div class="chips">${COSMOS.filter(s=>s.type!=='galaxy').map(s=>`<button class="chip" data-cosmos="${s.key}" title="${s.name}">${({virgo:'Virgo',coma:'Coma',greatatt:'Great Attractor',laniakea:'Laniakea',shapley:'Shapley',vela:'Vela',sloan:'Sloan Wall',sloanboa:'Sloan BoA',gr:'Giant Ring',ga:'Giant Arc',br:'Big Ring',hcb:'HCB GRB overdensity',perseus:'Perseus-Pisces',hercules:'Hercules SC',bootes:'Boötes SC',pcf:'Pisces-Cetus',dipolerep:'Dipole Repeller',localvoid:'Local Void',bootesvoid:'Boötes Void',spw:'South Pole Wall',saraswati:'Saraswati',quipu:'Quipu ★',ngc4874:'NGC 4874',ngc4889:'NGC 4889',ngc4911:'NGC 4911',fornaxvoid:'Fornax Void',sculptorvoid:'Sculptor Void',capricornusvoid:'Capricornus Void',microscopiumvoid:'Microscopium Void',coronaborealisvoid:'Corona Borealis Void',canismajorvoid:'Canis Major Void',columbavoid:'Columba Void',eridanusvoid:'Eridanus Supervoid'})[s.key] || s.name}</button>`).join('')}</div>
@@ -118355,6 +118810,7 @@ function buildCtlBody(){
     { const hb=ctl.querySelector('#sHub'); if(hb) hb.onchange=e=>sphHubble.visible=e.target.checked; }
     ctl.querySelector('#sAccel').onchange = e=>sphAccel.visible=e.target.checked;
     ctl.querySelector('#sMReq').onchange = e=>sphMReq.visible=e.target.checked;
+    skymapBind(ctl);
     ctl.querySelector('#cosmosShow').onchange = e=>cosmosGroup.visible=e.target.checked;
     ctl.querySelector('#cosDust').onchange=e=>{state.showCosmicDust=e.target.checked;updateCosmicDust();};
     { const w=ctl.querySelector('#webRelief'); if(w) w.onchange=e=>{ state.showWebRelief=e.target.checked; updateCosmicDust(); }; }
@@ -126577,7 +127033,7 @@ function wikiUrl(key,s){
    Eyes on the Solar System, which is a 3D model of the real system at the real date. */
 const HCC_EYES=new Set(['sun','mercury','venus','earth','moon','mars','jupiter','saturn','uranus','neptune','pluto','io','europa','ganymede','callisto','titan','enceladus','triton','phobos','deimos','ceres','vesta','charon','miranda','titania','oberon','rhea','iapetus','dione','tethys','mimas']);
 function hccIsSkyObject(key,s){ if(!s||(s.mode!=='solar'&&s.mode!=='obs')) return false;
-  return !/Atlas$|^fieldModel_|^annot_|^lab_/.test(key); }
+  return !/Atlas$|^fieldModel_|^annot_|^lab_|^sky_/.test(key); }   /* a laboratory's place on the map is a sphere or a reach, not a thing an archive has photographed (v4.425) */
 /* ══ WHAT AN ARCHIVE CALLS IT ══════════════════════════════════════════════════
    A photograph is filed under the name astronomers give an object, in English or Latin,
    never under the words a reader's interface shows. The query used to be the card's
@@ -126698,6 +127154,7 @@ function renderNextActions(key){
   if(!s){ box.innerHTML=''; if(tip) tip.textContent=''; return; }
   const ev=atlasEvidenceClass(key,s), tourId=tourIdForKey(key), isA2744=(key==='cosmos_a2744_qso1');
   const acts=[];
+  try{ for(const a of skymapActs(key).reverse()) acts.unshift(a); }catch(e){}
   const portal=portalForKey(key);
   if(portal){
     acts.push(['✦ '+portal.label,()=>enterModelPortal(key,false)]);
@@ -137337,6 +137794,7 @@ function labPassportHTML(){
     ${(()=>{ const ds=(typeof DISCOVERIES!=='undefined')?DISCOVERIES.filter(d=>d.labs.includes(v)):[]; return ds.length?`<div class="note" style="font-size:11px;margin-top:5px">
       <b style="color:var(--gold-2)">◆ ${T('discoveries that live here','открытия, живущие здесь','Entdeckungen, die hier leben')} (${ds.length}):</b>
       ${ds.map(d=>`<button class="chip" data-passdisc="${d.id}" title="${esc(d.claim)}">${(DISC_KIND[d.kind]||DISC_KIND.found).mark} ${esc(d[T('en','ru','de')]||d.en)}</button>`).join(' ')}</div>`:''; })()}
+    ${skymapPassportHTML(v)}
     ${threads.length?`<div class="note" style="font-size:11px;margin-top:5px">
       <b style="color:var(--gold-2)">${T('invariant threads','нити инвариантов','Invarianten-Fäden')}:</b>
       ${threads.map(t=>esc(impL(t.t))).join(' · ')}</div>`:''}
@@ -137354,8 +137812,9 @@ function labPassportBind(){
   const root=document.getElementById('info'); if(!root||root.dataset.passBound==='1') return;
   root.dataset.passBound='1';
   root.addEventListener('click',e=>{
-    const t=e.target.closest&&e.target.closest('[data-passlink],[data-passquad],[data-passgo],[data-passreset],[data-passdisc]');
+    const t=e.target.closest&&e.target.closest('[data-passlink],[data-passquad],[data-passgo],[data-passreset],[data-passdisc],[data-passmap]');
     if(!t) return;
+    if(t.dataset.passmap){ skymapFly(t.dataset.passmap); return; }
     if(t.dataset.passdisc){ navPush(); HCC_DISCOVERIES.open(t.dataset.passdisc); return; }
     if(t.dataset.passgo){ navPush(); hccGo({worldId:'s3',labId:t.dataset.passgo}); buildCtl(); buildInfo(); return; }
     if(t.dataset.passlink){ const L=mvLink(t.dataset.passlink); if(L) mvLinkCompose(L); buildInfo(); return; }
