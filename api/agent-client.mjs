@@ -26,6 +26,44 @@ export async function auditWithProvenance(input) {
     input_sha256:Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join(''),input_json}};
 }
 
+/* ── THE INSTRUMENTS ──────────────────────────────────────────────────────────
+   Every laboratory of the atlas whose evaluate() is pure mathematics, lifted verbatim out of
+   index.html by scripts/extract-kernels.mjs — the same lines the page runs, with no browser,
+   no WebGL and no server. The module is ~1.3 MB, so it is imported only when first asked for.
+   An input outside its declared range is REFUSED, never clamped; an instrument that needs the
+   page is reported with its reason rather than answered with a guess. */
+let instrumentModule=null;
+const loadInstruments=()=>instrumentModule||(instrumentModule=import('../core/atlas/instruments.mjs'));
+export async function listInstruments({query=''}={}) {
+  const M=await loadInstruments(),q=String(query).trim().toLocaleLowerCase();
+  const rows=Object.entries(M.INSTRUMENT_META).map(([id,m])=>({id,lab:m.lab,runnable:true,inputs:m.inputs,outputs:m.outputs}))
+    .concat(Object.entries(M.PAGE_ONLY).map(([id,reason])=>({id,runnable:false,reason,page:'index.html?render=0 → HCC_API.evaluate'})));
+  return copy(q?rows.filter(r=>JSON.stringify(r).toLocaleLowerCase().includes(q)):rows);
+}
+export async function evaluateInstrument(id,input={}) {
+  const M=await loadInstruments(),meta=M.INSTRUMENT_META[id],fn=M.INSTRUMENTS[id];
+  if(!meta||typeof fn!=='function') {
+    if(M.PAGE_ONLY[id]) throw Object.assign(new Error(`Instrument "${id}" needs the page: ${M.PAGE_ONLY[id]}`),{code:'PAGE_ONLY'});
+    throw Object.assign(new Error('Unknown instrument: '+String(id)),{code:'NOT_FOUND'});
+  }
+  if(input===null||typeof input!=='object'||Array.isArray(input)) throw Object.assign(new TypeError('input must be an object'),{code:'INVALID_INPUT'});
+  const known=new Map(meta.inputs.map(i=>[i.name,i])),full={};
+  for(const k of Object.keys(input)) if(!known.has(k))
+    throw Object.assign(new RangeError(`"${id}" has no input "${k}"; it takes: ${[...known.keys()].join(', ')||'nothing'}`),{code:'INVALID_INPUT'});
+  for(const i of meta.inputs) {
+    const v=Object.hasOwn(input,i.name)?input[i.name]:i.default;
+    if(typeof i.default==='number') {
+      if(typeof v!=='number'||!Number.isFinite(v)) throw Object.assign(new RangeError(`${id}.${i.name} must be a finite number`),{code:'INVALID_INPUT'});
+      if((i.min!=null&&v<i.min)||(i.max!=null&&v>i.max))
+        throw Object.assign(new RangeError(`${id}.${i.name} = ${v} is outside [${i.min??'−∞'}, ${i.max??'+∞'}] — refused, not clamped`),{code:'OUT_OF_DOMAIN'});
+    }
+    full[i.name]=v;
+  }
+  const output=fn(full);
+  return copy({schema:'hcc.instrument-result/1',id,lab:meta.lab,input:full,output,units:Object.fromEntries(meta.outputs.map(o=>[o.name,o.unit??null])),
+    source:{file:'index.html',sha256_16:M.SOURCE_SHA16,atlas_version:M.ATLAS_VERSION,extraction:'verbatim'}});
+}
+
 export async function connectAtlas(baseURL=new URL('../',import.meta.url).href,{timeout_ms=15000}={}) {
   const base=new URL(baseURL);
   if(!['http:','https:'].includes(base.protocol)) throw new Error('Atlas baseURL must be an HTTP(S) directory URL');

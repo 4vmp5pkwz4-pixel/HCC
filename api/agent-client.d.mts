@@ -45,3 +45,12 @@ export declare const scalarMode:ResearchClient['scalarMode'];
 export declare const lensingKernel:ResearchClient['lensingKernel'];
 export declare const delensingResidual:ResearchClient['delensingResidual'];
 export declare const researchCatalog:ResearchClient['catalog'];
+
+export interface InstrumentPort {name:string;unit:string|null;default?:unknown;min?:number|null;max?:number|null;}
+export interface InstrumentRow {id:string;lab?:string;runnable:boolean;reason?:string;page?:string;inputs?:InstrumentPort[];outputs?:InstrumentPort[];}
+export interface InstrumentResult {schema:'hcc.instrument-result/1';id:string;lab:string;input:Record<string,unknown>;output:Record<string,unknown>;
+ units:Record<string,string|null>;source:{file:'index.html';sha256_16:string;atlas_version:string|null;extraction:'verbatim'};}
+/** Every typed instrument of the atlas; runnable ones evaluate with no browser. */
+export declare function listInstruments(options?:{query?:string}):Promise<InstrumentRow[]>;
+/** Evaluate one instrument on the page's own formulas. Missing inputs take their defaults; out-of-range inputs are refused, never clamped. */
+export declare function evaluateInstrument(id:string,input?:Record<string,unknown>):Promise<InstrumentResult>;

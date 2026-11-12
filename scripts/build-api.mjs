@@ -95,6 +95,17 @@ const openapi = {
     '/api/v1/connections/{lab}': { get: { summary: 'every connection touching one laboratory',
       parameters: [{ name: 'lab', in: 'path', required: true, schema: { type: 'string' } }],
       responses: { 200: { description: 'ok' } } } },
+    '/api/v1/instruments': { get: {
+      summary: 'every typed instrument of the interactive atlas — one per computational laboratory — with inputs (units, defaults, ranges), outputs (units) and whether it evaluates without a browser',
+      parameters: [{ name: 'query', in: 'query', required: false, schema: { type: 'string' }, description: 'free-text filter over ids, names and units' }],
+      responses: { 200: { description: 'ok' } } } },
+    '/api/v1/instruments/{id}/evaluate': { post: {
+      summary: 'evaluate one instrument on the exact formulas the page runs, extracted verbatim from index.html. Missing inputs take their declared defaults; an out-of-range input is refused, never clamped',
+      parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+      requestBody: { required: false, content: { 'application/json': { schema: { type: 'object', properties: { input: { type: 'object' } } } } } },
+      responses: { 200: { description: 'the outputs, their units, the inputs actually used and the hash of the source they were lifted from' },
+        404: { description: 'no such instrument' }, 422: { description: 'an unknown or out-of-range input, refused' },
+        501: { description: 'the instrument reaches the page and cannot run here; the reason is given' } } } },
     '/api/v1/runs': { get: { summary: 'every retained job, with the active and retained bounds',
       responses: { 200: { description: 'ok' } } } },
     '/mcp': { post: { summary: 'MCP over Streamable HTTP, JSON-RPC 2.0: initialize, ping, tools/list, tools/call',
