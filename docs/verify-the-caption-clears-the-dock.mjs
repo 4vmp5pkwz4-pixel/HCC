@@ -18,8 +18,8 @@ const fn = name => { const i = src.indexOf('function ' + name + '('); if (i < 0)
   check(rule && base, 'on a desktop the caption stands above the laboratory bar, and above the dock’s strip as well while the dock is up — by the dock’s own height, carried in --labdock-h', `rule ${rule} · base rule kept ${base}`); }
 { const mark = fn('stageDockMark'), show = fn('stageDockShow'), place = fn('stageDockPlace');
   const ok = /b\.classList\.toggle\('labdock-on',on\)/.test(mark) && /b\.style\.setProperty\('--labdock-h',h\)/.test(mark) && /!d\.classList\.contains\('col'\)/.test(mark)
-    && /if\(id==='labDock'\) stageDockMark\(d\);/.test(show) && (place.match(/if\(d\.id==='labDock'\) stageDockMark\(d\);/g) || []).length === 2;
-  check(ok, 'whenever the laboratory dock is shown, placed beside or below, or hidden, the page marks it — a strip along the bottom raises the caption, a column beside the scene (a phone held sideways) does not',
-    `marked in show ${/stageDockMark/.test(show)} · in place ${(place.match(/stageDockMark/g) || []).length}×`); }
+    && /if\(id==='labDock'\) stageDockMark\(d\);/.test(show) && /Rd=d\?stageDockPlace\(d,F\):F\.bare; if\(!d\) stageDockShow\('labDock',false\); else stageDockMark\(d\);/.test(src);
+  check(ok, 'whenever the laboratory dock is shown, hidden, or placed by the stage (and so whenever it steps aside for the sheet), the page marks it — a strip along the bottom raises the caption, a column beside the scene (a phone held sideways) does not',
+    `marked when shown or hidden ${/stageDockMark/.test(show)} · after every placing ${/else stageDockMark\(d\);/.test(src)}`); }
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
