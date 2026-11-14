@@ -91,3 +91,19 @@ The user ran the `s3` fixture in a fresh direct-child scratch workspace (`s3_202
 The user's Mac terminal reported the installed model tag `qwen3.8:27b-mlx`, Ollama-reported `qwen3_5` architecture, 27.8B parameters, `nvfp4` quantization, 262144 advertised context length, and `tools`, `vision`, `thinking` capabilities. These are **reported metadata**, not a measurement of usable context or tool quality. In a separate `s3` scratch workspace `s3_20261114_162313_480737`, OpenCode with this model yielded an independently graded result: `passed: true`, `exit_code: 0`, 4/4 unittest checks passing (antipodes, bad radius, orthogonal, same). The session name in the UI was “S^3 geodesic distance fix”. Exact wall-clock runtime, tool trace, model memory footprint, test integrity and prompt budget have not been separately audited; these limitations prevent claims of performance superiority.
 
 **Current S³ fixture baseline:** Codex / GPT-6.1-Sol 4/4; Antigravity / Gemini 4 Argon High 4/4; OpenCode / local Qwen3.8 27B MLX 4/4. This is correctness on four public fixture tests, not a general intelligence ranking.
+
+## Autonomous supervisor pilot and remediation — 2026-11-14
+
+A user-run local AI Agent Lab AUTOPILOT queue reported:
+- Local Ollama Qwen3.8 27B MLX completed thermal physics (48.98s), round S³ geodesic distance (39.41s), exact rational 2×2 PSD (65.64s); each passed the fixture checks on first attempt.
+- Lean failed with OSError [Errno 86] Bad CPU type at ~/.elan/bin/lean; a launcher/toolchain architecture failure, not evidence of inability to prove mathematics.
+- HCC static review failed after about 129s. Exact cause is not established by the summary alone.
+- comsol_probe PASS only indicated a successful diagnostic command, not proven COMSOL installation, license, or solver completion.
+
+An AUTOPILOT 1.1 patch was prepared and tested offline (30/30 tests):
+1. Lean executable architecture/version preflight; explicit isolated native Apple Silicon Lean 4.19.0 using Homebrew elan-init; existing ~/.elan and scientific project toolchains untouched.
+2. Evidence-grounded HCC review of partial PUBLIC excerpts with network diagnostics, public cache fallback, optional local checkout, bounded retries and literal quote checks.
+3. Atomic per-job reports and selective retry of failed tasks while preserving completed jobs/results.
+4. Accurate COMSOL binary detection and no misleading PASS when no executable is found.
+
+Evidence boundary: tests used a clean installation copy with mocked model and filesystem responses. Native Lean installation on the user's Mac, resumed HCC audit, and any COMSOL computation remain unverified. No HCC main branch code change or scientific discovery is asserted.
