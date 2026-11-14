@@ -77,3 +77,10 @@ The user-reported CLI run used a **separate fresh** `physics` scratch workspace.
 The user reports a fresh `s3` scratch run at `s3_20261114_160907_387751` (the local path itself is not published). Antigravity CLI 1.5.9, Gemini 4 Argon High, changed `s3.py` to use `radius * acos(clamp(dot(u,v), -1, 1))` for unit vectors in `R^4`; the assistant's transcript shows independent `agent_trials.py grade` with `passed: true`, `exit_code: 0`, and 4/4 checks (identical, antipodes, orthogonal, invalid radius). At least one tool command failed before recovery. No complete wall-clock duration is available. Scope: validates this finite fixture only, **not cosmological observation or broader mathematical correctness**.
 
 Codex s3 comparison is **not yet valid**: user supplied a literal placeholder instead of an actual scratch workspace path, and `$WORKSPACE` was unset when grading; neither incident counts as an agent failure. The earlier Codex physics run remains valid.
+
+
+## S³ geodesic pilot — Codex 0.169.0 / GPT-6.1-Sol High (2026-11-14)
+
+The user ran the `s3` fixture in a fresh direct-child scratch workspace (`s3_20261114_161705_616041`) with Codex. The independent `agent_trials.py grade` returned `passed: true`, `exit_code: 0`; all four tests passed (`test_antipodes`, `test_bad_radius`, `test_orthogonal`, `test_same`). The Codex UI reported a detached session and provided a resume ID; this does not by itself establish whether all agent work had finished, but the grader found the expected correct resulting code. There is no recorded complete wall-clock runtime for this trial.
+
+**Current baseline:** Codex physics 4/4 and S³ 4/4, Gemini physics 4/4 and S³ 4/4. No statistically meaningful quality ranking can be drawn from these simple four-test fixtures. Next steps: reproducible local-model runs on clean independent workspaces, stronger held-out tests, immutable source hashes, no test edits, and time/memory/token accounting.
