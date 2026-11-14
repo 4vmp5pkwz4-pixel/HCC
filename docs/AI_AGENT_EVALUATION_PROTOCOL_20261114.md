@@ -67,3 +67,7 @@ The initial **Codex 0.169.0 / GPT-6.1-Sol high** scratch trial used the `physics
 | Limitation | Fixture's docstring already describes the correct analytical solution; this is a *baseline tool-use/syntax correction*, not evidence of frontier reasoning ability |
 
 Evidence: local terminal transcript reviewed in ChatGPT, 2026-11-14. Raw transcripts and machine-identifying paths are intentionally not committed. Future runs must capture full reproducible logs and report results of peer models before ranking.
+
+## Second pilot — Antigravity CLI 1.5.9 / Gemini 4 Argon High (2026-11-14)
+
+The user-reported CLI run used a **separate fresh** `physics` scratch workspace. The agent inspected `thermal.py` and `test_thermal.py`, changed one line to `math.exp(-time_seconds / tau_seconds)`, attempted `pytest` (failed), switched to `python3 -m unittest discover -v`, and reported 4/4 tests passing. Thought time shown: 20.5 seconds; **full wall-clock duration not captured**. Its physical explanation correctly identifies dimensionless `t/tau` versus `t*tau` measured in seconds². **Status: agent self-report; independent `agent_trials.py grade` result pending.** Do not rank its speed against Codex's 37-second wall-clock run. The initial `pytest` failure followed by successful tool substitution is a concrete recovery behavior.
