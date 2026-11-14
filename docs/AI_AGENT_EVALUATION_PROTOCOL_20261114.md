@@ -139,3 +139,12 @@ User supplied task-result JSON, independently compared with the released AI Agen
 4. Physics/S³/2x2 PSD tasks passed finite predefined and held-out test cases. They remain benchmark fixtures, not general discoveries.
 
 Acceptance gate for next phase: actual HCC source checkout with pinned commit and executed validation tests; named theorem + kernel check + `#print axioms` for research Lean; verified COMSOL native executable and approved `.mph` batch run with independent residual/convergence checks; logs/hashes and permissions tracked per task.
+
+
+## COMSOL 6.2 batch validation incident — 2026-11-14
+
+A real licensed COMSOL 6.2.0.339 batch run on Apple M1 Max loaded a local training model, generated a tetrahedral mesh (16,395 elements; minimum element quality 0.05743), but **failed during stationary equation compilation**, before a valid solution was generated. The COMSOL log states `Error in multiphysics compilation. The source selection for the operator aveop1 must be nonempty.` The adjacent `.mph.status` ended in `Error`. COMSOL still saved an output `.mph` and the wrapper recorded exit code 0; the old bridge incorrectly interpreted this as `ok=true` after 19.5 seconds. The source model was not overwritten.
+
+Root cause at wrapper level: its `ok` computation was simply `r.returncode == 0` and failed to inspect the model's status file and batch log. A separately packaged local COMSOL validator patch was developed and tested offline: it checks process code, log, status, and output artifact; evaluates earlier `.run.json` files in a non-destructive `audit` mode; emits a separate `*.verification.json`; and does not declare successful scientific validation from solver completion alone. Six patch regression tests plus nine original AI Lab tests passed on a clean copied installation. **The patch has not yet been installed on the user's Mac.**
+
+No physical claim, valid stationary solution or mesh-convergence result is implied by this COMSOL run. Any automated COMSOL agent must treat `.mph.status = Error` and an error-bearing log as hard failures regardless of `.mph` existence or exit code.
