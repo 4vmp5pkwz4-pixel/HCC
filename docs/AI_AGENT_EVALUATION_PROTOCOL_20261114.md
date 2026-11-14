@@ -50,3 +50,20 @@ comsol batch -inputfile approved_source.mph -outputfile new_result.mph -study st
 Check installed version, license and actual study tag before running. A local dry-run wrapper and independent Python benchmark suite are maintained separately from the production HCC repository.
 
 References: `SCIENTIFIC_CONTRACT.md`, `package.json`, `.github/workflows/core.yml`.
+
+
+## Pilot run — 2026-11-14 (user-reported macOS execution)
+
+The initial **Codex 0.169.0 / GPT-6.1-Sol high** scratch trial used the `physics` fixture from AI Agent Lab. No production HCC files were involved.
+
+| Measure | Recorded result |
+| --- | --- |
+| Task | Repair thermal relaxation `thermal.py` |
+| Agent-reported edit | One line: `exp(-t*tau)` → `exp(-t/tau)` |
+| Physical validation | `t/tau` dimensionless for times measured in seconds |
+| Agent-reported duration | 37 seconds (includes tool interaction; not a cross-model benchmark) |
+| Independent grading | `python3 agent_trials.py grade <workspace>` → `passed: true`, exit 0 |
+| Test suite | Four `unittest` checks: zero, at `tau`, at `tau/2`, invalid `tau` |
+| Limitation | Fixture's docstring already describes the correct analytical solution; this is a *baseline tool-use/syntax correction*, not evidence of frontier reasoning ability |
+
+Evidence: local terminal transcript reviewed in ChatGPT, 2026-11-14. Raw transcripts and machine-identifying paths are intentionally not committed. Future runs must capture full reproducible logs and report results of peer models before ranking.
