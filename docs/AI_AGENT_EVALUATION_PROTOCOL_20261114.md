@@ -71,3 +71,9 @@ Evidence: local terminal transcript reviewed in ChatGPT, 2026-11-14. Raw transcr
 ## Second pilot — Antigravity CLI 1.5.9 / Gemini 4 Argon High (2026-11-14)
 
 The user-reported CLI run used a **separate fresh** `physics` scratch workspace. The agent inspected `thermal.py` and `test_thermal.py`, changed one line to `math.exp(-time_seconds / tau_seconds)`, attempted `pytest` (failed), switched to `python3 -m unittest discover -v`, and reported 4/4 tests passing. Thought time shown: 20.5 seconds; **full wall-clock duration not captured**. Its physical explanation correctly identifies dimensionless `t/tau` versus `t*tau` measured in seconds². **Status: independently graded — `passed: true`, `exit_code: 0`, four unittest checks passed.** Do not rank its speed against Codex's 37-second wall-clock run. The initial `pytest` failure followed by successful tool substitution is a concrete recovery behavior.
+
+## S³ geodesic pilot — Gemini 4 Argon High (2026-11-14)
+
+The user reports a fresh `s3` scratch run at `s3_20261114_160907_387751` (the local path itself is not published). Antigravity CLI 1.5.9, Gemini 4 Argon High, changed `s3.py` to use `radius * acos(clamp(dot(u,v), -1, 1))` for unit vectors in `R^4`; the assistant's transcript shows independent `agent_trials.py grade` with `passed: true`, `exit_code: 0`, and 4/4 checks (identical, antipodes, orthogonal, invalid radius). At least one tool command failed before recovery. No complete wall-clock duration is available. Scope: validates this finite fixture only, **not cosmological observation or broader mathematical correctness**.
+
+Codex s3 comparison is **not yet valid**: user supplied a literal placeholder instead of an actual scratch workspace path, and `$WORKSPACE` was unset when grading; neither incident counts as an agent failure. The earlier Codex physics run remains valid.
