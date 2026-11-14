@@ -84,3 +84,10 @@ Codex s3 comparison is **not yet valid**: user supplied a literal placeholder in
 The user ran the `s3` fixture in a fresh direct-child scratch workspace (`s3_20261114_161705_616041`) with Codex. The independent `agent_trials.py grade` returned `passed: true`, `exit_code: 0`; all four tests passed (`test_antipodes`, `test_bad_radius`, `test_orthogonal`, `test_same`). The Codex UI reported a detached session and provided a resume ID; this does not by itself establish whether all agent work had finished, but the grader found the expected correct resulting code. There is no recorded complete wall-clock runtime for this trial.
 
 **Current baseline:** Codex physics 4/4 and S³ 4/4, Gemini physics 4/4 and S³ 4/4. No statistically meaningful quality ranking can be drawn from these simple four-test fixtures. Next steps: reproducible local-model runs on clean independent workspaces, stronger held-out tests, immutable source hashes, no test edits, and time/memory/token accounting.
+
+
+## Local model pilot — Qwen3.8 27B MLX via Ollama/OpenCode (2026-11-14)
+
+The user's Mac terminal reported the installed model tag `qwen3.8:27b-mlx`, Ollama-reported `qwen3_5` architecture, 27.8B parameters, `nvfp4` quantization, 262144 advertised context length, and `tools`, `vision`, `thinking` capabilities. These are **reported metadata**, not a measurement of usable context or tool quality. In a separate `s3` scratch workspace `s3_20261114_162313_480737`, OpenCode with this model yielded an independently graded result: `passed: true`, `exit_code: 0`, 4/4 unittest checks passing (antipodes, bad radius, orthogonal, same). The session name in the UI was “S^3 geodesic distance fix”. Exact wall-clock runtime, tool trace, model memory footprint, test integrity and prompt budget have not been separately audited; these limitations prevent claims of performance superiority.
+
+**Current S³ fixture baseline:** Codex / GPT-6.1-Sol 4/4; Antigravity / Gemini 4 Argon High 4/4; OpenCode / local Qwen3.8 27B MLX 4/4. This is correctness on four public fixture tests, not a general intelligence ranking.
