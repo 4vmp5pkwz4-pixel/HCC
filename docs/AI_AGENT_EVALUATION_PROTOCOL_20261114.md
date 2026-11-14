@@ -107,3 +107,23 @@ An AUTOPILOT 1.1 patch was prepared and tested offline (30/30 tests):
 4. Accurate COMSOL binary detection and no misleading PASS when no executable is found.
 
 Evidence boundary: tests used a clean installation copy with mocked model and filesystem responses. Native Lean installation on the user's Mac, resumed HCC audit, and any COMSOL computation remain unverified. No HCC main branch code change or scientific discovery is asserted.
+
+
+## AUTOPILOT 1.1 first completed queue — 2026-11-14
+
+User-supplied Terminal logs and locally generated REPORT.md record all **8/8 queue items with status done / PASS** after repairing the Apple Silicon Lean runtime and resuming only two failed jobs. Previously completed jobs were preserved.
+
+| Job | Model as reported | Result | Recorded elapsed |
+| --- | --- | --- | ---: |
+| doctor | — | PASS | 0.06s |
+| fix / physics | qwen3.8:27b-mlx | PASS | 48.98s |
+| fix / s3 | qwen3.8:27b-mlx | PASS | 39.41s |
+| fix / psd | qwen3.8:27b-mlx | PASS | 65.64s |
+| fix / lean | qwen3.8:27b-mlx | PASS | 43.5s for successful retry |
+| comsol_probe | — | PASS | 0.13s |
+| setup_review | qwen3.8:27b-mlx | PASS | 47.81s |
+| hcc_review | qwen3.8:27b-mlx | PASS | 73.71s for successful retry |
+
+Final report timestamp: `2026-11-14T20:43:37+00:00`. Background worker 81110 logged `AUTOPILOT STOP` and no longer runs; this is expected after all queued tasks are complete. Lean was diagnosed with native `/opt/homebrew/bin/lean` version 4.19.0 arm64; runtime setup succeeded. Reported Lean attempt count 5 is cumulative across original errors and retried work.
+
+**Evidence boundaries:** this is a record of user-executed local supervisor results; the exact contents of `fix-lean-*.json` and `hcc_review-*.json` were not yet independently inspected here. The Lean PASS concerns the small test fixture, not a completed proof of a general BINDU-VECTRA theorem. An HCC review PASS is not a validation of cosmological claims. The COMSOL probe PASS is not evidence that licensed COMSOL can run a model or has performed a converged simulation. Reproducibility and scientific audit must inspect task result files and actual verification commands before upgrading the status of any claim.
