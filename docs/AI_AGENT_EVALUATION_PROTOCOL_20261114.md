@@ -127,3 +127,15 @@ User-supplied Terminal logs and locally generated REPORT.md record all **8/8 que
 Final report timestamp: `2026-11-14T20:43:37+00:00`. Background worker 81110 logged `AUTOPILOT STOP` and no longer runs; this is expected after all queued tasks are complete. Lean was diagnosed with native `/opt/homebrew/bin/lean` version 4.19.0 arm64; runtime setup succeeded. Reported Lean attempt count 5 is cumulative across original errors and retried work.
 
 **Evidence boundaries:** this is a record of user-executed local supervisor results; the exact contents of `fix-lean-*.json` and `hcc_review-*.json` were not yet independently inspected here. The Lean PASS concerns the small test fixture, not a completed proof of a general BINDU-VECTRA theorem. An HCC review PASS is not a validation of cosmological claims. The COMSOL probe PASS is not evidence that licensed COMSOL can run a model or has performed a converged simulation. Reproducibility and scientific audit must inspect task result files and actual verification commands before upgrading the status of any claim.
+
+
+## Evidence audit of the completed local AUTOPILOT queue — 2026-11-14
+
+User supplied task-result JSON, independently compared with the released AI Agent Lab 1.1 implementation. The green 8/8 queue concerns successful **supervisor jobs**, not completed end-to-end scientific validation.
+
+1. `fix / lean` result: `passed=true`, `exit_code=0`, `model=qwen3.8:27b-mlx`, output file SHA-256 `21c08bdf5774bd984378c19c6cdb27788329863a36a420329dfc646d50a14ab4`; task fixture in `agent_trials.py` is `theorem nat_add_zero_lab (n : Nat) : n + 0 = n := by sorry`. The compiler is a meaningful kernel gate for this **elementary theorem only**. In `autopilot.py` the `hidden_grade` Lean branch returns a literal success note and does not add independent hidden proof obligations.
+2. `hcc_review` result: sampled `package.json`, `SCIENTIFIC_CONTRACT.md`, `VALIDATION.md`, `.github/workflows/core.yml` as 1608 + 2400 + 2400 + 2400 bytes of **public document excerpts**. Local model returned zero findings, zero verified quotes, and explicit limitations. `status='PARTIAL STATIC REVIEW — ... no code executed'`. Its PASS denotes successful scoped summarization, **not an executed security audit or scientific certification**.
+3. `comsol_probe` result: stdout `NOT FOUND (provide --comsol path)`, no batch solver run. Its old PASS (pre-patch) was an erroneous probe-status interpretation. COMSOL existence, licensing and scientific simulation remain **unverified**; do not count this as an operational COMSOL validation.
+4. Physics/S³/2x2 PSD tasks passed finite predefined and held-out test cases. They remain benchmark fixtures, not general discoveries.
+
+Acceptance gate for next phase: actual HCC source checkout with pinned commit and executed validation tests; named theorem + kernel check + `#print axioms` for research Lean; verified COMSOL native executable and approved `.mph` batch run with independent residual/convergence checks; logs/hashes and permissions tracked per task.
