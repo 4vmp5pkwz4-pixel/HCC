@@ -33,6 +33,8 @@ import uvsel from './labs/civp.uv_selector.mjs';
 import civpclosure from './labs/civp.closure.mjs';
 import forecastAudit from './labs/prediction.holdout_audit.mjs';
 import geometryEvidence from './labs/cosmology.geometry_audit.mjs';
+import hopfJacobiLab from './labs/s3.hopf_jacobi_certificate.mjs';
+import lightGeometryMeta from './labs/s3.light_geometry_meta.mjs';
 /* the sourced connections of the Galactic Butterfly explorer. It imports nothing —
    not three, not the DOM — so the same twelve rows the browser draws are the twelve
    rows this service hands an agent, rather than a transcription of them. */
@@ -61,11 +63,11 @@ function coreHash() {
     'labs/smith.identify_resonances.mjs','labs/smith.wireless_transfer.mjs',
     'labs/fbs.zero_point_ladder.mjs','labs/fibonacci.anyons.mjs',
     'labs/capacity.conditional_selector.mjs','labs/edge.admissibility_no_go.mjs',
-    'labs/s3.spectral_operator.mjs','labs/bianchi_ix.evolution.mjs',
+    'labs/s3.spectral_operator.mjs','labs/s3.hopf_jacobi_certificate.mjs','labs/s3.light_geometry_meta.mjs','labs/bianchi_ix.evolution.mjs',
     'labs/s3.particle_creation.mjs','labs/s3.ebk_quantisation.mjs',
     'labs/civp.cp1_locking.mjs','labs/civp.embadon_measure.mjs','labs/civp.finite_index.mjs',
     'labs/civp.finite_carrier.mjs','labs/civp.uv_selector.mjs','labs/civp.closure.mjs',
-    'labs/cosmology.geometry_audit.mjs','research/geometry.mjs','research/catalog.mjs',
+    'labs/cosmology.geometry_audit.mjs','math/s3-hopf-jacobi-certificate.mjs','math/s3-light-geometry-meta.mjs','research/geometry.mjs','research/catalog.mjs',
     'labs/prediction.holdout_audit.mjs','prediction/forecast-audit.mjs','prediction/reach-forecast.mjs'];
   return sha256(files.map(f => readFileSync(join(HERE, f), 'utf8')).join('\n'));
 }
@@ -116,7 +118,7 @@ export const evidenceTierOf = st => { const s0 = String(st || '');
 /* the eighteen implemented instruments */
 const IMPLEMENTED = [mobius, rlc, ident, wpt,
   zpl, anyons, capsel, edgeng, specop, bixevo, pcreate, ebkq,
-  cp1lock, embadon, findex, fcarrier, uvsel, civpclosure, forecastAudit, geometryEvidence];
+  cp1lock, embadon, findex, fcarrier, uvsel, civpclosure, forecastAudit, geometryEvidence, hopfJacobiLab, lightGeometryMeta];
 
 /* ── WHICH KERNEL COVERS WHICH VISUAL LABORATORY ─────────────────────────────
    A kernel does not RETIRE the laboratory it came from: one visual laboratory can host
