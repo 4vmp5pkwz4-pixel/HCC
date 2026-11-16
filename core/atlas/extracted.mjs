@@ -5,11 +5,11 @@
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
    declarations: 2548   ·   exported names: 2690
-   extracted physics, sha256 c98ffa40068ee033b33cbf3af9f1b25f722cd5a83acd87d2650dfce9cf3061c1 */
+   extracted physics, sha256 352a839c064365b9e79bf97019d40ee83b46a5b6834fcf8c00eb0a95f2827d74 */
 
-const HCC_VERSION='4.425.0';
+const HCC_VERSION='4.426.0';
 
-const HCC_BUILD='suite-2026.11.12.145';
+const HCC_BUILD='suite-2026.11.16.146';
 
 const HCC_S3C=Object.freeze({
   c:299792458.0, G:6.67430e-11, kB:1.380649e-23, hbar:1.054571817e-34,
@@ -8031,6 +8031,10 @@ const DISCOVERIES=Object.freeze([
    en:'On a desktop the dock covered the caption', ru:'На компьютере док закрывал подпись', de:'Am Desktop verdeckte das Dock die Bildunterschrift',
    claim:'The laboratory dock of v4.422 stands in a strip reserved above the laboratory bar, centred; on a desktop the central caption is centred above the same bar, and the dock covered most of the caption’s last line in every laboratory that has a dock. The caption now rises by the dock’s own height while the dock is up; the scene does not move, and the overlap measured at 1440 × 900 in four laboratories is 0.',
    numbers:{overlapAfterPx2:0, laboratoriesMeasured:4}},
+  {id:'iskyTopology426', kind:'found', domain:'sphere', v:'4.426.0', labs:['s3sky','s3gamma','cmb'], verifier:'docs/verify-the-shape-of-a-closed-universe.mjs',
+   en:'The shape of a closed universe, from inside: in Poincaré’s space your own back is 36° away, and our sky would show it only above |Ω_K| ≈ 0.0097', ru:'Форма замкнутой Вселенной изнутри: в пространстве Пуанкаре ваша спина — в 36°, а наше небо показало бы её лишь при |Ω_K| ≳ 0.0097', de:'Die Gestalt eines geschlossenen Universums von innen: im Poincaré-Raum liegt der eigene Rücken 36° entfernt, und unser Himmel zeigte ihn erst ab |Ω_K| ≈ 0.0097',
+   claim:'The sky laboratory drew the simply connected three-sphere. The same curvature admits other wholes: S³/Γ for a finite group Γ of unit quaternions acting by left multiplication. Closed here from their generators — orders 2, 8, 24, 48 and 120, nothing tabulated — each element moves every point of the sphere by the same angle arccos(Re g), so the space looks the same from everywhere, and an observer sees |Γ| copies of each body by the same closed-form ray entry as before. The nearest copy of the observer is at π, π/2, π/3, π/4 and π/5: in Poincaré’s dodecahedral space home is seen from behind 36° away, in a space of volume 2π²/120. Computed for our sky: a copy is in view only if the horizon reaches half-way to it; with Ω_m = 0.315, h = 0.674 that needs |Ω_K| ≥ 0.0097 for the dodecahedral space (Ω_tot ≥ 1.0097) and 0.218 for projective space. The copies are drawn on the static sphere only; the threshold takes the particle horizon for the last-scattering radius; no map of the sky is fitted, and the published searches for matched circles, which found none, are not reproduced here.',
+   numbers:{poincareOrder:120, nearestCopyDeg:36, poincareVolume:0.1645, curvatureThresholdPoincare:0.0097, curvatureThresholdProjective:0.218, curvatureThresholdQuaternion:0.0593}},
   {id:'iskyInside423', kind:'found', domain:'sphere', v:'4.423.0', labs:['s3sky','gmode','inflate'], verifier:'docs/verify-the-sky-of-a-closed-universe.mjs',
    en:'From inside the three-sphere: the antipode fills the sky, and our own horizon reaches 3 % of the way there', ru:'Изнутри трёхсферы: антипод заполняет небо, а наш собственный горизонт проходит 3 % пути до него', de:'Von innen: der Antipode füllt den Himmel, und unser eigener Horizont reicht 3 % des Wegs dorthin',
    claim:'Every laboratory of this atlas drew the three-sphere from outside. Seen from inside, with each pixel’s great circle followed in closed form to the first body it enters, the geometry alone gives three things flat intuition does not: a body’s apparent radius obeys sin α = sin r / sin χ, so it shrinks only as far as the equator and then grows; within r of the antipode it covers the whole sky; and a ball around the observer is met again from behind after 2π − r. Computed beside it: with Ω_m = 0.315, h = 0.674 and |Ω_K| = 0.001, light since the beginning has covered 0.1006 rad of a closed Friedmann universe’s own sphere — 3.2 % of the way to its antipode; the antipode would be in view only for |Ω_K| near 0.63 and one’s own back near 1.02. The picture is of a static sphere and is not a picture of the observed universe: no expansion, no redshift, no evolution.',
