@@ -5,11 +5,11 @@
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
    declarations: 2548   ·   exported names: 2690
-   extracted physics, sha256 982190eca1dac3a8e8a8cd1e7299b49cc3ad8e333cd338b535de2cb56fd5860e */
+   extracted physics, sha256 5ad986e7e7c42c3291b8a3d7ecd30548a2703f890b771bbfb47212a06d79f3d4 */
 
-const HCC_VERSION='4.428.0';
+const HCC_VERSION='4.429.0';
 
-const HCC_BUILD='suite-2026.11.16.148';
+const HCC_BUILD='suite-2026.11.16.149';
 
 const HCC_S3C=Object.freeze({
   c:299792458.0, G:6.67430e-11, kB:1.380649e-23, hbar:1.054571817e-34,
@@ -8031,6 +8031,10 @@ const DISCOVERIES=Object.freeze([
    en:'On a desktop the dock covered the caption', ru:'На компьютере док закрывал подпись', de:'Am Desktop verdeckte das Dock die Bildunterschrift',
    claim:'The laboratory dock of v4.422 stands in a strip reserved above the laboratory bar, centred; on a desktop the central caption is centred above the same bar, and the dock covered most of the caption’s last line in every laboratory that has a dock. The caption now rises by the dock’s own height while the dock is up; the scene does not move, and the overlap measured at 1440 × 900 in four laboratories is 0.',
    numbers:{overlapAfterPx2:0, laboratoriesMeasured:4}},
+  {id:'iskyEcho429', kind:'found', domain:'sphere', v:'4.429.0', labs:['s3sky','gmode','s3gamma'], verifier:'docs/verify-hearing-the-shape.mjs',
+   en:'One flash and a clock name the space: the echo spectra of the six closed universes are all different', ru:'Одна вспышка и часы называют пространство: спектры эха шести замкнутых вселенных все различны', de:'Ein Blitz und eine Uhr benennen den Raum: die Echospektren der sechs geschlossenen Universen sind alle verschieden',
+   claim:'In the sky laboratory the reader can now send a flash of light and wait for it. In S³/Γ the flash returns from each copy g·o of the place it left, after the time arccos(Re g): an image of the observer’s own past. The times and how many copies share each — the echo spectrum — are computed from the groups: Poincaré’s space 36° × 12, 60° × 20, 72° × 12, 90° × 30, 108° × 12, 120° × 20, 144° × 12, 180° × 1; the octahedral 45° × 6, 60° × 8, 90° × 18, 120° × 8, 135° × 6, 180° × 1; the tetrahedral 60° × 8, 90° × 6, 120° × 8, 180° × 1; the quaternion space 90° × 6, 180° × 1; projective space 180° × 1; the simply connected sphere nothing until the whole sky flashes at 2π. The first echo alone — π/5, π/4, π/3, π/2, π, 2π — tells the six apart, which is the experiment the laboratory now sets: a space chosen at random and not named. The flux of an echo from distance d goes as 1/sin² d, the area of a sphere in S³ being 4π sin² d. A thought experiment in a static space: in an expanding universe the same images are what searches for ghost images of sources look for, and none has been found.',
+   numbers:{firstEchoPoincareDeg:36, firstEchoCountPoincare:12, firstEchoOctahedralDeg:45, firstEchoTetrahedralDeg:60, firstEchoQuaternionDeg:90, firstEchoProjectiveDeg:180, lightSpeedRadPerSecond:0.5}},
   {id:'renderDiet428', kind:'revises', domain:'self', v:'4.428.0', labs:['cosmo','lam','s3sky','rungs'], verifier:'docs/verify-the-render-diet.mjs',
    en:'The atlas stops drawing what cannot be seen, and the resolution governor now reaches the devices that needed it most', ru:'Атлас перестал рисовать невидимое, а регулятор разрешения теперь доходит до устройств, которым он нужнее всего', de:'Der Atlas zeichnet nicht mehr, was nicht zu sehen ist, und der Auflösungsregler erreicht nun die Geräte, die ihn am meisten brauchten',
    claim:'A reader reported low frame rates, most of all with the whole sphere of the universe in view. Measured: the Horizons world submitted 529 draw calls and 1.5 million vertices a frame, and a quarter of the pixels gave three times the frame rate — the cost is fill, then geometry; script is a tenth. Two things were wrong in this atlas itself. Part of what was submitted left no pixel: meshes faded to nothing but still drawn, and five-thousand-triangle spheres under half a pixel; these are now switched off for the main pass and back on after it — 41 % of the draw calls of the Solar System world and 14 % of the Horizons world on a desk, 16 % and 14 % of its vertices on a phone. And the resolution governor of v4.422 discarded every frame slower than half a second, so a device at two frames a second was never helped; it now counts them, acts every 1.5 s, cuts by a third under 12 frames a second and goes to 0.42 of a CSS pixel for a device that cannot hold 15. Draw calls and vertices before and after are measured in three worlds and recorded; the frame rate of a real device is not measured here and no figure for it is claimed.',
