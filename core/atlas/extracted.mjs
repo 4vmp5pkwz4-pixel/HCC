@@ -5,11 +5,11 @@
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
    declarations: 2548   ·   exported names: 2690
-   extracted physics, sha256 352a839c064365b9e79bf97019d40ee83b46a5b6834fcf8c00eb0a95f2827d74 */
+   extracted physics, sha256 614a95acb74516d5edb24054f6e48a1ee92d2ee16b81176fffe16cb76832d646 */
 
-const HCC_VERSION='4.426.0';
+const HCC_VERSION='4.427.0';
 
-const HCC_BUILD='suite-2026.11.16.146';
+const HCC_BUILD='suite-2026.11.16.147';
 
 const HCC_S3C=Object.freeze({
   c:299792458.0, G:6.67430e-11, kB:1.380649e-23, hbar:1.054571817e-34,
@@ -8031,6 +8031,10 @@ const DISCOVERIES=Object.freeze([
    en:'On a desktop the dock covered the caption', ru:'На компьютере док закрывал подпись', de:'Am Desktop verdeckte das Dock die Bildunterschrift',
    claim:'The laboratory dock of v4.422 stands in a strip reserved above the laboratory bar, centred; on a desktop the central caption is centred above the same bar, and the dock covered most of the caption’s last line in every laboratory that has a dock. The caption now rises by the dock’s own height while the dock is up; the scene does not move, and the overlap measured at 1440 × 900 in four laboratories is 0.',
    numbers:{overlapAfterPx2:0, laboratoriesMeasured:4}},
+  {id:'iskyCircles427', kind:'found', domain:'sphere', v:'4.427.0', labs:['s3sky','cmb','s3gamma'], verifier:'docs/verify-circles-in-the-sky.mjs',
+   en:'Circles in the sky, drawn where they would be: six matched pairs in Poincaré’s space once |Ω_K| passes 0.0101', ru:'Круги на небе, нарисованные там, где они были бы: шесть совпадающих пар в пространстве Пуанкаре, когда |Ω_K| превышает 0.0101', de:'Kreise am Himmel, gezeichnet, wo sie wären: sechs gepaarte Kreise im Poincaré-Raum, sobald |Ω_K| 0.0101 übersteigt',
+   claim:'The observational test of cosmic topology (Cornish, Spergel & Starkman 1998) is now drawn from inside. In S³/Γ the sphere of last scattering of radius χ meets its copy about g·o in a circle seen under cos α = tan(θ/2)/tan χ, and the same points are seen again about g⁻¹·o. Checked here: every point of such a circle is at χ from both centres; a field averaged over Γ reads the same along the two circles of a pair to rounding, for all five groups, while the unaveraged field does not — the control. With the radius of last scattering integrated to z = 1089.9 (Ω_m = 0.315, h = 0.674), Poincaré’s space shows its first six pairs at |Ω_K| = 0.0101, of radius 29° at 0.013 and 47° at 0.02, and twenty-two pairs by 0.05. With Ω_m = 0.28, h = 0.70 and |Ω_K| = 0.013 the radius is 34°. Found on the way: averaged over the 120 elements, any field smoother than degree 12 is a constant — the monomials (n·p)^d average to the same number at every point for d = 1 … 11 and not for d = 12 — which is the absence of low modes in Poincaré’s space, the reason it was proposed for the weak quadrupole; the same test gives 6 for the tetrahedral and 8 for the octahedral space. The field drawn is a synthetic one, not a simulated microwave background: no acoustic spectrum and none of the Doppler and integrated Sachs–Wolfe terms that blur real circles; no map of the sky is searched here, and the published searches report no matched circles.',
+   numbers:{firstPairsCurvature:0.0101, pairsAtFirst:6, radiusDegAt013:29.3, radiusDegAt020:46.8, pairsAt050:22, radiusDegLiteratureInputs:34.1, lowestModePoincare:12, lowestModeOctahedral:8, lowestModeTetrahedral:6}},
   {id:'iskyTopology426', kind:'found', domain:'sphere', v:'4.426.0', labs:['s3sky','s3gamma','cmb'], verifier:'docs/verify-the-shape-of-a-closed-universe.mjs',
    en:'The shape of a closed universe, from inside: in Poincaré’s space your own back is 36° away, and our sky would show it only above |Ω_K| ≈ 0.0097', ru:'Форма замкнутой Вселенной изнутри: в пространстве Пуанкаре ваша спина — в 36°, а наше небо показало бы её лишь при |Ω_K| ≳ 0.0097', de:'Die Gestalt eines geschlossenen Universums von innen: im Poincaré-Raum liegt der eigene Rücken 36° entfernt, und unser Himmel zeigte ihn erst ab |Ω_K| ≈ 0.0097',
    claim:'The sky laboratory drew the simply connected three-sphere. The same curvature admits other wholes: S³/Γ for a finite group Γ of unit quaternions acting by left multiplication. Closed here from their generators — orders 2, 8, 24, 48 and 120, nothing tabulated — each element moves every point of the sphere by the same angle arccos(Re g), so the space looks the same from everywhere, and an observer sees |Γ| copies of each body by the same closed-form ray entry as before. The nearest copy of the observer is at π, π/2, π/3, π/4 and π/5: in Poincaré’s dodecahedral space home is seen from behind 36° away, in a space of volume 2π²/120. Computed for our sky: a copy is in view only if the horizon reaches half-way to it; with Ω_m = 0.315, h = 0.674 that needs |Ω_K| ≥ 0.0097 for the dodecahedral space (Ω_tot ≥ 1.0097) and 0.218 for projective space. The copies are drawn on the static sphere only; the threshold takes the particle horizon for the last-scattering radius; no map of the sky is fitted, and the published searches for matched circles, which found none, are not reproduced here.',
