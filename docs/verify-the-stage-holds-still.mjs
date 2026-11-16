@@ -37,11 +37,11 @@ const has = list => list.filter(s => !src.includes(s));
     const tick = new Function(...Object.keys(env), src.slice(i, j) + '\nreturn [perfGovTick,PERF_GOV];')(...Object.values(env));
     const trace = []; for (const [f, s] of [].concat(fps).map((f, k) => [f, [].concat(seconds)[k]])) { for (let t = 0; t < s * f; t++) tick[0](1 / f); trace.push(+ratio.toFixed(3)); }
     return { ratio, trace, resizes, G: tick[1] }; };
-  const slow = run(10, 30, 2), mid = run(30, 30, 2), fast = run(60, 30, 2), back = run([10, 60], [30, 120], 2), auto = run(10, 30, 2, true), xr = run(10, 30, 2, false, true), low = run(10, 30, 0.5);
-  const ok = Math.abs(slow.ratio - 0.55) < 1e-9 && mid.ratio === 2 && fast.ratio === 2 && back.trace[0] === 0.55 && Math.abs(back.trace[1] - 2) < 1e-9
-    && auto.ratio === 2 && xr.ratio === 2 && low.ratio === 0.5 && slow.resizes === slow.G.steps && slow.G.steps >= 5;
-  check(ok, 'the resolution governor, run as it stands in the page against a fake renderer: at 10 frames a second it lowers the drawing buffer by a fifth every two seconds until it is 0.55 of a CSS pixel and stops there; at 30 and at 60 it changes nothing; when the frame rate comes back to 60 it returns a tenth at a time to exactly what the quality preset gave; it does nothing in a headset, nothing in an automated browser, and nothing to a buffer already below its floor',
-    `10 fps: 2 → ${slow.ratio.toFixed(2)} in ${slow.G.steps} steps · 30 fps: ${mid.ratio} · 60 fps: ${fast.ratio} · 10 then 60: ${back.trace.join(' → ')} · headset ${xr.ratio} · automated ${auto.ratio} · from 0.5: ${low.ratio}`); }
+  const slow = run(10, 30, 2), slowish = run(20, 30, 2), mid = run(30, 30, 2), fast = run(60, 30, 2), back = run([10, 60], [30, 200], 2), auto = run(10, 30, 2, true), xr = run(10, 30, 2, false, true), low = run(20, 30, 0.5), crawl = run(1.5, 30, 2);
+  const ok = Math.abs(slow.ratio - 0.42) < 1e-9 && Math.abs(slowish.ratio - 0.55) < 1e-9 && mid.ratio === 2 && fast.ratio === 2 && back.trace[0] === 0.42 && Math.abs(back.trace[1] - 2) < 1e-9
+    && auto.ratio === 2 && xr.ratio === 2 && low.ratio === 0.5 && slow.resizes === slow.G.steps && slow.G.steps >= 4 && Math.abs(crawl.ratio - 0.42) < 1e-9;
+  check(ok, 'the resolution governor, run as it stands in the page against a fake renderer (rule of v4.428): at 20 frames a second it lowers the drawing buffer by a fifth every 1.5 s to 0.55 of a CSS pixel and stops; at 10 it cuts by a third and goes on to 0.42; at 1.5 frames a second — frames it used to discard — it does the same; at 30 and at 60 it changes nothing; when the frame rate comes back it returns a tenth at a time to exactly what the quality preset gave; nothing in a headset, nothing in an automated browser, nothing to a buffer already at its floor',
+    `10 fps: 2 → ${slow.ratio.toFixed(2)} in ${slow.G.steps} steps · 20 fps: ${slowish.ratio.toFixed(2)} · 1.5 fps: ${crawl.ratio.toFixed(2)} · 30 fps: ${mid.ratio} · 60 fps: ${fast.ratio} · 10 then 60: ${back.trace.join(' → ')} · headset ${xr.ratio} · automated ${auto.ratio} · 20 fps from 0.5: ${low.ratio}`); }
 
 const M = await import(path.join(ROOT, 'core/atlas/instruments.mjs'));
 const SDK = await import(path.join(ROOT, 'api/agent-client.mjs'));
