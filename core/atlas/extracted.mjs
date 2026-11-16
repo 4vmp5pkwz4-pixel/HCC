@@ -5,11 +5,11 @@
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
    declarations: 2548   ·   exported names: 2690
-   extracted physics, sha256 614a95acb74516d5edb24054f6e48a1ee92d2ee16b81176fffe16cb76832d646 */
+   extracted physics, sha256 982190eca1dac3a8e8a8cd1e7299b49cc3ad8e333cd338b535de2cb56fd5860e */
 
-const HCC_VERSION='4.427.0';
+const HCC_VERSION='4.428.0';
 
-const HCC_BUILD='suite-2026.11.16.147';
+const HCC_BUILD='suite-2026.11.16.148';
 
 const HCC_S3C=Object.freeze({
   c:299792458.0, G:6.67430e-11, kB:1.380649e-23, hbar:1.054571817e-34,
@@ -8031,6 +8031,10 @@ const DISCOVERIES=Object.freeze([
    en:'On a desktop the dock covered the caption', ru:'На компьютере док закрывал подпись', de:'Am Desktop verdeckte das Dock die Bildunterschrift',
    claim:'The laboratory dock of v4.422 stands in a strip reserved above the laboratory bar, centred; on a desktop the central caption is centred above the same bar, and the dock covered most of the caption’s last line in every laboratory that has a dock. The caption now rises by the dock’s own height while the dock is up; the scene does not move, and the overlap measured at 1440 × 900 in four laboratories is 0.',
    numbers:{overlapAfterPx2:0, laboratoriesMeasured:4}},
+  {id:'renderDiet428', kind:'revises', domain:'self', v:'4.428.0', labs:['cosmo','lam','s3sky','rungs'], verifier:'docs/verify-the-render-diet.mjs',
+   en:'The atlas stops drawing what cannot be seen, and the resolution governor now reaches the devices that needed it most', ru:'Атлас перестал рисовать невидимое, а регулятор разрешения теперь доходит до устройств, которым он нужнее всего', de:'Der Atlas zeichnet nicht mehr, was nicht zu sehen ist, und der Auflösungsregler erreicht nun die Geräte, die ihn am meisten brauchten',
+   claim:'A reader reported low frame rates, most of all with the whole sphere of the universe in view. Measured: the Horizons world submitted 529 draw calls and 1.5 million vertices a frame, and a quarter of the pixels gave three times the frame rate — the cost is fill, then geometry; script is a tenth. Two things were wrong in this atlas itself. Part of what was submitted left no pixel: meshes faded to nothing but still drawn, and five-thousand-triangle spheres under half a pixel; these are now switched off for the main pass and back on after it — 41 % of the draw calls of the Solar System world and 14 % of the Horizons world on a desk, 16 % and 14 % of its vertices on a phone. And the resolution governor of v4.422 discarded every frame slower than half a second, so a device at two frames a second was never helped; it now counts them, acts every 1.5 s, cuts by a third under 12 frames a second and goes to 0.42 of a CSS pixel for a device that cannot hold 15. Draw calls and vertices before and after are measured in three worlds and recorded; the frame rate of a real device is not measured here and no figure for it is claimed.',
+   numbers:{horizonsCallsBefore:529, horizonsCallsAfter:453, solarCallsBefore:268, solarCallsAfter:159, horizonsVerticesBefore:1.5e6, governorWindowS:1.5, governorFloor:0.42, governorFloorAbove15:0.55, subPixelThreshold:0.5, faintThreshold:0.004}},
   {id:'iskyCircles427', kind:'found', domain:'sphere', v:'4.427.0', labs:['s3sky','cmb','s3gamma'], verifier:'docs/verify-circles-in-the-sky.mjs',
    en:'Circles in the sky, drawn where they would be: six matched pairs in Poincaré’s space once |Ω_K| passes 0.0101', ru:'Круги на небе, нарисованные там, где они были бы: шесть совпадающих пар в пространстве Пуанкаре, когда |Ω_K| превышает 0.0101', de:'Kreise am Himmel, gezeichnet, wo sie wären: sechs gepaarte Kreise im Poincaré-Raum, sobald |Ω_K| 0.0101 übersteigt',
    claim:'The observational test of cosmic topology (Cornish, Spergel & Starkman 1998) is now drawn from inside. In S³/Γ the sphere of last scattering of radius χ meets its copy about g·o in a circle seen under cos α = tan(θ/2)/tan χ, and the same points are seen again about g⁻¹·o. Checked here: every point of such a circle is at χ from both centres; a field averaged over Γ reads the same along the two circles of a pair to rounding, for all five groups, while the unaveraged field does not — the control. With the radius of last scattering integrated to z = 1089.9 (Ω_m = 0.315, h = 0.674), Poincaré’s space shows its first six pairs at |Ω_K| = 0.0101, of radius 29° at 0.013 and 47° at 0.02, and twenty-two pairs by 0.05. With Ω_m = 0.28, h = 0.70 and |Ω_K| = 0.013 the radius is 34°. Found on the way: averaged over the 120 elements, any field smoother than degree 12 is a constant — the monomials (n·p)^d average to the same number at every point for d = 1 … 11 and not for d = 12 — which is the absence of low modes in Poincaré’s space, the reason it was proposed for the weak quadrupole; the same test gives 6 for the tetrahedral and 8 for the octahedral space. The field drawn is a synthetic one, not a simulated microwave background: no acoustic spectrum and none of the Doppler and integrated Sachs–Wolfe terms that blur real circles; no map of the sky is searched here, and the published searches report no matched circles.',
