@@ -12,7 +12,7 @@ let pass = 0, fail = 0;
 const check = (ok, claim, nums) => { if (ok) pass++; else fail++; console.log(`${ok ? 'PASS' : 'FAIL'} — ${claim} :: ${nums}`); };
 const cut = (a, b) => { const i = src.indexOf(a), j = src.indexOf(b, i); if (i < 0 || j < 0) throw new Error('block not found: ' + a); return src.slice(i, j); };
 const L = new Function(`${cut('/* ═══ SKY-MATH-BEGIN ═══', '/* ═══ SKY-MATH-END ═══')}\n${cut('/* ═══ TOPO-MATH-BEGIN ═══', '/* ═══ TOPO-MATH-END ═══')}\n${cut('/* ═══ ECHO-MATH-BEGIN ═══', '/* ═══ ECHO-MATH-END ═══')}
-  return {ISKY_TAU,iskyDot,iskyUnit,iskyRay,iskyPoints,iskyRng,iskyQmul,iskyMove,ISKY_SPACES,iskyGroupOf,iskyNearestCopy,iskyEchoSpectrum,iskyEchoFlux,iskyBallFraction,iskyEchoArrivals,iskyEchoIdentify};`)();
+  return {ISKY_TAU,iskyDot,iskyUnit,iskyRay,iskyPoints,iskyRng,iskyQmul,iskyMove,ISKY_SPACES,iskyGroupOf,iskyNearestCopy,iskyEchoSpectrum,iskyEchoFlux,iskyBallFraction,iskyEchoArrivals,iskyEchoIdentify,iskyEchoPitch};`)();
 const KEYS = Object.keys(L.ISKY_SPACES), G = Object.fromEntries(KEYS.map(k => [k, L.iskyGroupOf(k)])), deg = x => Math.round(x * 180 / Math.PI);
 const spec = k => L.iskyEchoSpectrum(G[k]).map(e => `${deg(e.theta)}×${e.count}`).join(' ');
 
@@ -49,6 +49,12 @@ const spec = k => L.iskyEchoSpectrum(G[k]).map(e => `${deg(e.theta)}×${e.count}
   const M = await import(path.join(ROOT, 'core/atlas/instruments.mjs')), f = M.INSTRUMENTS.skytopo, a = f ? f({ space_order: 120, topo_curvature: 0.001 }) : {}, b = f ? f({ space_order: 48, topo_curvature: 0.001 }) : {}, c = f ? f({ space_order: 1, topo_curvature: 0.001 }) : {};
   check(!miss.length && a.first_echo_count === 12 && b.first_echo_count === 6 && c.first_echo_count === 0, 'the layer is in the page: the shader lights a body when the wave from the nearest copy of the flash reaches it, delayed by the light’s way back, and draws each arriving copy as a star unless a nearer body hides it; the trace, the experiment with an unnamed space — which hides the panels that would name it — the ledger and the agent handle are there; and the instrument, with no browser, gives twelve first echoes for Poincaré’s space and six for the octahedral',
     `first_echo_count: 120 → ${a.first_echo_count} · 48 → ${b.first_echo_count} · 1 → ${c.first_echo_count}${miss.length ? ' · missing ' + miss.map(x => x.slice(0, 44)).join(' | ') : ''}`); }
+
+{ const need = ['<div id="iskyFlashDock" class="stageDock" role="toolbar"></div>', "if(e.target.closest&&e.target.closest('[data-iskyfd]')) iskyFlash();", 'function iskyPing(freq,gain,dur){ if(state.iskySound===false) return;', 'iskyPing(iskyEchoPitch(a.t),a.dir===null?0.22:0.05*Math.sqrt(n),', "hudBig.textContent+=` · ⚡ τ ", "{id:'iskyEchoHeard430', kind:'revises'"];
+  const miss = need.filter(s => !src.includes(s)), p = [0, Math.PI / 5, Math.PI / 4, Math.PI / 3, Math.PI / 2, Math.PI, L.ISKY_TAU].map(L.iskyEchoPitch);
+  check(!miss.length && Math.abs(p[0] - 880) < 1e-9 && Math.abs(p[6] - 220) < 1e-9 && Math.abs(p[5] - 440) < 1e-9 && p.every((x, i) => !i || x < p[i - 1]) && Math.abs(p[1] - 766.1) < 0.1,
+    'v4.430 — the experiment without the panel: a flash button stands on the stage, the caption counts the time since the flash and names the last echo, and each echo is sounded only after the reader has acted and unless sound is off; the pitch falls with the echo’s time from 880 Hz to 220 Hz over the circuit, an octave at the antipode, so the six spaces’ first echoes are six different notes, highest for the smallest space',
+    `first-echo notes: Poincaré ${p[1].toFixed(0)} Hz · 2O ${p[2].toFixed(0)} · 2T ${p[3].toFixed(0)} · Q8 ${p[4].toFixed(0)} · RP³ ${p[5].toFixed(0)} · S³ ${p[6].toFixed(0)}${miss.length ? ' · missing ' + miss.map(x => x.slice(0, 40)).join(' | ') : ''}`); }
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
