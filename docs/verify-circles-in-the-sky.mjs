@@ -57,7 +57,7 @@ const onCone = (o, dir, e, alpha, ph) => dir.map((x, i) => Math.cos(alpha) * x +
 
 { const need = ['vec4 qmul(vec4 a,vec4 b){ return vec4(a.x*b.x-a.y*b.y-a.z*b.z-a.w*b.w, a.x*b.y+a.y*b.x+a.z*b.w-a.w*b.z, a.x*b.z-a.y*b.w+a.z*b.x+a.w*b.y, a.x*b.w+a.y*b.z-a.z*b.y+a.w*b.x); }',
     'float fieldAt(vec4 p){ float s=0.0; for(int k=0;k<120;k++){ if(k>=uNG) break; vec4 q=qmul(texelFetch(uGrp,ivec2(k,0),0),p); for(int j=0;j<6;j++) s+=uMp[j].y*cos(uMp[j].x*dot(uMn[j],q)+uMp[j].z); } return s/sqrt(float(uNG)); }',
-    'fieldAt(cos(uChiLS)*uO+sin(uChiLS)*d)', 'float w=abs(dot(d,texelFetch(uGrp,ivec2(k,1),0))-c)/max(0.05,sqrt(1.0-c*c));', 'function iskyCmbSync(O,P){', 'iskyTopoSync(O,P); iskyCmbSync(O,P);', "${P.model==='static'?iskyCmbPanel(P):''}", "R.querySelectorAll('[data-iskycmb]')",
+    'fieldAt(cos(uChiLS)*uO+sin(uChiLS)*d)', 'float w=abs(dot(d,texelFetch(uGrp,ivec2(k,1),0))-c)/max(0.05,sqrt(1.0-c*c));', 'function iskyCmbSync(O,P){', 'iskyTopoSync(O,P); iskyCmbSync(O,P);', "${P.model==='static'&&!iskyMysteryOn()?iskyCmbPanel(P):''}", "R.querySelectorAll('[data-iskycmb]')",
     'globalThis.HCC_CIRCLES=Object.freeze({', "{id:'iskyCircles427', kind:'found'", "name:'matched_circle_pairs'"];
   const miss = need.filter(s => !src.includes(s));
   /* the shader's product is iskyQmul: the same four lines, component for component */
