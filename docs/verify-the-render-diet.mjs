@@ -47,7 +47,7 @@ const group = (...ch) => ({ visible: true, children: ch, matrixWorld: { elements
   check(ok, 'measured in a headless browser, counting what the atlas hands to WebGL: in the Solar System, the Horizons and the S³ world, on a desk and on a phone, the diet never raises the draw calls or the vertices of a frame and lowers them where there was something unseen to drop; switched off again, the counts return — nothing is left hidden',
     R.map(r => `${r.world}@${r.viewport}: calls ${r.off.calls} → ${r.on.calls}, kverts ${r.off.kverts} → ${r.on.kverts}`).join(' · ')); }
 
-{ const need = ['function hccDietInstall(){ try{ const raw=renderer.render.bind(renderer), w=new THREE.Vector3();', 'if(sc!==scene||!HCC_DIET.on||!cam||!renderer.domElement) return raw(sc,cam);',
+{ const need = ['function hccDietInstall(){ try{ const raw=renderer.render.bind(renderer), w=new THREE.Vector3();', 'if(sc!==scene||!(HCC_DIET.on||HCC_DIET.pure)||!cam||!renderer.domElement) return raw(sc,cam);',
     'try{ return raw(sc,cam); } finally{ if(hid) for(let k=0;k<hid.length;k++) hid[k].visible=true; } };', 'hccDietInstall();\nrenderer.setAnimationLoop(tick);', 'diet:v=>{ if(v!==undefined) HCC_DIET.on=!!v;',
     'G.acc+=Math.min(dt,1); G.n++; if(G.acc<1.5) return;', 'const floor=fps<15?0.42:0.55;', "{id:'renderDiet428', kind:'revises'"];
   const miss = need.filter(s => !src.includes(s));
