@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="suite-2026.11.17.152">
+<html lang="en" data-hcc-build="suite-2026.11.17.153">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="suite-2026.11.17.152">
+<meta name="hcc-build" content="suite-2026.11.17.153">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -3810,7 +3810,7 @@ html.land body #tsLadder:not(.compact) .tsFoot{flex:0 1 auto!important;max-heigh
 </div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.432.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.433.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Sun → Cosmos</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -4153,8 +4153,8 @@ import { TIME_DOMAIN_KIND, STATE_SCOPE, CLOCK_STATUS, TIME_DOMAINS, CLOCK_ADAPTE
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.432.0';
-const HCC_BUILD='suite-2026.11.17.152';
+const HCC_VERSION='4.433.0';
+const HCC_BUILD='suite-2026.11.17.153';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -30147,9 +30147,13 @@ function obsCatalogueBuild(){ if(OBS_CATALOGUE.built) return; OBS_CATALOGUE.buil
       col.set(c===4?[1,0.62,0.95]:bbColor(DSO_CLASS_T[c]||6000),i*3); }
     const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.BufferAttribute(pos,3)); g.setAttribute('aColor',new THREE.BufferAttribute(col,3)); g.setAttribute('aDia',new THREE.BufferAttribute(dia,1)); g.setAttribute('aLum',new THREE.BufferAttribute(lum,1));
     const pts=new THREE.Points(g,dsoGalaxyMaterial()); pts.frustumCulled=false; pts.name='obs-galaxies-catalogued'; pts.userData.noGrade=true; obsGroup.add(pts); OBS_CATALOGUE.g=pts; } }
-function obsCatalogueTick(){ if(state.mode!=='obs') return; if(!OBS_CATALOGUE.built){ try{ obsCatalogueBuild(); }catch(e){ console.warn('obs catalogues:',e); return; } }
+function obsCatalogueTick(){ if(state.mode!=='obs'){ if(obsGroup.scale.x!==1) obsGroup.scale.setScalar(1); return; } if(!OBS_CATALOGUE.built){ try{ obsCatalogueBuild(); }catch(e){ console.warn('obs catalogues:',e); return; } }
   const on=state.showObsCatalogues!==false, ref=Math.max(0.05,camera.position.distanceTo(controls.target)), H=renderer.domElement.clientHeight||innerHeight;
-  for(const p of [OBS_CATALOGUE.q,OBS_CATALOGUE.g]){ if(!p) continue; p.visible=on; const u=p.material.uniforms; u.uViewH.value=H; u.uRef.value=ref; } }
+  for(const p of [OBS_CATALOGUE.q,OBS_CATALOGUE.g]){ if(!p) continue; p.visible=on; const u=p.material.uniforms; u.uViewH.value=H; u.uRef.value=ref; }
+  if(OBS_CATALOGUE.q&&on) try{ qsoClockApply(OBS_CATALOGUE.q,k=>QSO3D.rows[k][3],QSO_CLOCK.obs); }catch(e){}
+  /* PROPER DISTANCES (v4.433): the scene is drawn in comoving units, in which the expansion is in the coordinates and nothing at
+     this scale moves; with this on, everything about the observer is multiplied by a(t), so the clock shows the universe grow */
+  const hP=state.obsProper===true?hzAtT(hzNowGyr()):null, k=hP?Math.max(1e-6,Math.min(1e6,hP.a)):1; if(Math.abs(obsGroup.scale.x-k)>1e-12*k) obsGroup.scale.setScalar(k); }
 
 /* ================================================================
    COSMIC ATLAS — real ultra-large-scale structures placed at their
@@ -53693,13 +53697,23 @@ function qsoSeen(z,dtYears,lifeGyr){ const t0=hzAgeAtA(1), tObs=t0+(dtYears||0)/
   const tE=hzTimeAtParticle(pE), aE=hzAtT(tE).a, zObs=hO.a/aE-1, L=lifeGyr||0.1, w=Math.exp(-0.5*((tE-tE0)/L)**2);
   const flux=Math.pow((1+zObs)/(1+z),0.5)*Math.pow((1+z)/(hO.a*(1+zObs)),2);
   return {visible:true, chi, tE, tE0, z0:z, zObs, aObs:hO.a, active:w, flux, horizon:hO.particle}; }
-function qsoClockSync(){ const O=qso3dObjs; if(!O) return; const dt=(state.epochDays||0)/365.25, L=qsoClockLife(), key=(Math.round(dt/2e6))+'|'+L;
-  if(key===QSO_CLOCK.key) return; QSO_CLOCK.key=key; const g=O.pts.geometry, lum=g.attributes.aLum.array, col=g.attributes.aColor.array; if(!O.lum0) O.lum0=Float32Array.from(lum);
-  let seen=0, active=0; for(const q of O.Q){ const k=q.i; if(Math.abs(dt)<1e5){ lum[k]=O.lum0[k]; col.set([0.66,0.58,1.0],3*k); seen++; active++; continue; }
-    const S=qsoSeen(q.z,dt,L); if(!S.visible){ lum[k]=0; continue; } seen++; if(S.active>0.5) active++; const m=S.active+(1-S.active)*QSO_CLOCK.host;
-    lum[k]=O.lum0[k]*S.flux*m; col.set([0.66+(1-S.active)*0.32,0.58+(1-S.active)*0.28,1.0-(1-S.active)*0.35],3*k); }
-  g.attributes.aLum.needsUpdate=true; g.attributes.aColor.needsUpdate=true; QSO_CLOCK.last={dtYears:dt, lifeGyr:L, seen, active, total:O.Q.length}; }
-globalThis.HCC_QSO_CLOCK=Object.freeze({ seen:(z,dtYears,lifeGyr)=>qsoSeen(+z,+dtYears||0,lifeGyr||qsoClockLife()), state:()=>({...QSO_CLOCK.last, lifeGyr:qsoClockLife(), host:QSO_CLOCK.host}),
+/* one pass for any of the atlas's quasar spheres — the Sun → Cosmos one and, since v4.433, the Horizons one, which still drew
+   them as seen today whatever the clock said: a reader running the clock flat out there saw nothing change */
+function qsoClockApply(pts,zOf,S){ const dt=(state.epochDays||0)/365.25, L=qsoClockLife(), key=(Math.round(dt/2e6))+'|'+L; if(key===S.key) return S.last; S.key=key;
+  const g=pts.geometry, lum=g.attributes.aLum.array, col=g.attributes.aColor.array, n=g.attributes.aLum.count; if(!S.lum0) S.lum0=Float32Array.from(lum);
+  let seen=0, active=0; for(let k=0;k<n;k++){ if(Math.abs(dt)<1e5){ lum[k]=S.lum0[k]; col.set([0.66,0.58,1.0],3*k); seen++; active++; continue; }
+    const Q=qsoSeen(zOf(k),dt,L); if(!Q.visible){ lum[k]=0; continue; } seen++; if(Q.active>0.5) active++; const m=Q.active+(1-Q.active)*QSO_CLOCK.host;
+    lum[k]=S.lum0[k]*Q.flux*m; col.set([0.66+(1-Q.active)*0.32,0.58+(1-Q.active)*0.28,1.0-(1-Q.active)*0.35],3*k); }
+  g.attributes.aLum.needsUpdate=true; g.attributes.aColor.needsUpdate=true; return S.last={dtYears:dt, lifeGyr:L, seen, active, total:n}; }
+QSO_CLOCK.solar={key:'', lum0:null, last:null}; QSO_CLOCK.obs={key:'', lum0:null, last:null};
+function qsoClockSync(){ const O=qso3dObjs; if(!O) return; QSO_CLOCK.last=qsoClockApply(O.pts,k=>O.Q[k].z,QSO_CLOCK.solar); }
+/* where the quasars of the catalogue lie in Galactic latitude: the «two cones» a reader sees are the surveys' footprint — the
+   Milky Way's own disc hides the sky near b = 0, and the compilations were taken mostly toward the Galactic caps */
+function qsoFootprint(){ const R=QSO3D.rows, d=Math.PI/180, aN=192.85948*d, dN=27.12825*d; let n=0, low10=0, low20=0, north=0;
+  for(const r of R){ const ra=r[1]*d, de=r[2]*d, sb=Math.sin(de)*Math.sin(dN)+Math.cos(de)*Math.cos(dN)*Math.cos(ra-aN), b=Math.asin(Math.max(-1,Math.min(1,sb)))/d; n++; if(Math.abs(b)<10) low10++; if(Math.abs(b)<20) low20++; if(b>0) north++; }
+  return {n, below10:low10/n, below20:low20/n, isotropic10:Math.sin(10*d), isotropic20:Math.sin(20*d), north:north/n}; }
+globalThis.HCC_PROPER=Object.freeze({ set:on=>{ state.obsProper=!!on; if(!on) obsGroup.scale.setScalar(1); return state.obsProper; }, state:()=>({on:state.obsProper===true, scale:obsGroup.scale.x}) });
+globalThis.HCC_QSO_CLOCK=Object.freeze({ seen:(z,dtYears,lifeGyr)=>qsoSeen(+z,+dtYears||0,lifeGyr||qsoClockLife()), state:()=>({...QSO_CLOCK.last, horizons:QSO_CLOCK.obs.last?{...QSO_CLOCK.obs.last}:null, lifeGyr:qsoClockLife(), host:QSO_CLOCK.host}), footprint:()=>qsoFootprint(),
   life:log10yr=>{ if(log10yr!==undefined){ state.qsoLifeLog=+log10yr; QSO_CLOCK.key=''; } return qsoClockLife(); } });
 function qso3dUpdate(){
   const Ly=state.solarScaleLayer||'local', on=state.mode==='solar'&&state.showDso3d!==false&&state.showQso3d!==false&&Ly==='cosmic';
@@ -66675,6 +66689,10 @@ const DISCOVERIES=Object.freeze([
    en:'On a desktop the dock covered the caption', ru:'На компьютере док закрывал подпись', de:'Am Desktop verdeckte das Dock die Bildunterschrift',
    claim:'The laboratory dock of v4.422 stands in a strip reserved above the laboratory bar, centred; on a desktop the central caption is centred above the same bar, and the dock covered most of the caption’s last line in every laboratory that has a dock. The caption now rises by the dock’s own height while the dock is up; the scene does not move, and the overlap measured at 1440 × 900 in four laboratories is 0.',
    numbers:{overlapAfterPx2:0, laboratoriesMeasured:4}},
+  {id:'qsoHorizons433', kind:'revises', domain:'cosmo', v:'4.433.0', labs:['cosmo','qso'], verifier:'docs/verify-what-moves-with-the-clock.mjs',
+   en:'What moves when the clock runs: in comoving units nothing at the scale of quasars — what changes is what can be seen, how it looks, and the scale a(t)', ru:'Что движется, когда идут часы: в сопутствующих единицах на масштабе квазаров — ничего; меняется то, что видно, как оно выглядит, и масштаб a(t)', de:'Was sich bewegt, wenn die Uhr läuft: in mitbewegten Einheiten nichts auf der Skala der Quasare — es ändert sich, was sichtbar ist, wie es aussieht, und der Maßstab a(t)',
+   claim:'A reader running the clock flat out in the Horizons world saw the quasars and the superstructures stand still and asked whether that is right. Measured: the Horizons world still drew its 5 959 quasars as seen today at every epoch — v4.432 had put only the Sun → Cosmos sphere on the clock’s light cone; both now are. And standing still is right for positions: the scene is drawn in comoving distances, in which the expansion is carried by the coordinates; a quasar’s own motion, a few hundred km/s, moves it about 3 Mpc in ten billion years against thousands of Mpc of distance. What does change with the clock is what can be seen (the particle horizon), the epoch and redshift at which each object is seen, its brightness — and the physical scale: a new switch draws everything at proper distance, multiplied by a(t), and the universe is then seen to grow as the clock runs. The «two cones» of quasars are not a structure of the universe: they are the catalogue’s footprint — the Milky Way’s disc hides the sky near the Galactic plane, and the compilations were taken toward the Galactic caps.',
+   numbers:{quasars:5959, peculiarKmS:300, displacementMpcIn10Gyr:3.07}},
   {id:'qsoClock432', kind:'revises', domain:'cosmo', v:'4.432.0', labs:['cosmo','cmb','qso'], verifier:'docs/verify-the-clock-at-its-limits.mjs',
    en:'The time machine at its limits: the quasars follow the clock’s light cone, and the clock itself is read to 10⁻¹³', ru:'Машина времени на пределе: квазары следуют световому конусу часов, а сами часы читаются с точностью 10⁻¹³', de:'Die Zeitmaschine am Anschlag: die Quasare folgen dem Lichtkegel der Uhr, und die Uhr selbst wird auf 10⁻¹³ gelesen',
    claim:'A reader asked how the sphere of the universe behaves when the time machine runs flat out. Measured: nothing breaks — no non-finite value anywhere in the scene from t = 0 to t₀ + 100 Gyr — but the 5 959 quasars ignored the clock: at t = 707 Myr all were still drawn though 1 037 lay beyond that observer’s whole particle horizon (7 Myr after the Big Bang, all but 234), and at t₀ + 10 Gyr they shone as today. Each is now seen as the clock’s light cone finds it: at the emission time with χ_p(t_obs) − χ_p(t_e) = χ, at redshift a(t_obs)/a(t_e) − 1, its flux scaled by d_L and the band, and not at all beyond the particle horizon; its activity is a modelled window about today’s emission time (τ = 10⁸ yr by default — an assumption, measured lifetimes span 10⁶–10⁹ yr). The clock’s tables are now read as cubics with their exact slopes: the age at a scale factor, the horizons and their inverses agree with an independent integration to ~10⁻¹³ where linear reading left ~8·10⁻⁷, and the Sandage–Loeb redshift drift dz/dt₀ = (1 + z)H₀ − H(z) is reproduced by the light cone over ten thousand years. Far future dates now read in cosmic time.',
@@ -119307,6 +119325,7 @@ function buildCtlBody(){
       <div class="note" style="font-size:10.5px;color:var(--dim);line-height:1.5">${(()=>{ const M=LOCAL_WEB_META, ag=localWebAgreement(); return `${M.nWithZ.toLocaleString()} ${TT('galaxies with measured redshifts, reach','галактик с измеренными z, досягаемость','Galaxien, Reichweite')} ${M.reachMpc.toFixed(0)} Mpc · ${TT('FOUND','НАЙДЕНО','GEFUNDEN')}: <b>${M.superclusters.length}</b> ${TT('superclusters','сверхскоплений','Superhaufen')} (${M.superclusters.filter(o=>o.name).map(o=>o.name.split(' ')[0]).join(', ')}), <b>${M.voids.length}</b> ${TT('voids','войдов','Voids')} · ${TT('clusters are overdense','скопления переплотнены','Haufen überdicht')}: ${M.probes.filter(p=>p.density!=null).map(p=>p.name.split(' ')[0]+' '+p.density).join(', ')} · ${TT('found vs declared','найдено против объявленного','gefunden gegen erklärt')}: ${ag.map(a=>`${a.name.split(' ')[0]} ${a.angleDeg.toFixed(0)}°`).join(', ')}. ${TT('Redshift space; contrast above ~40 Mpc suppressed by construction.','Пространство красных смещений; контраст крупнее ~40 Мпк подавлен по построению.','Rotverschiebungsraum.')}`; })()}</div>
       <div class="ctlrow"><label>Dust clouds (realistic)</label><input type="checkbox" id="cosDust" ${state.showCosmicDust!==false?'checked':''}></div>
       <div class="ctlrow" title="${TT('Distance is time: every place is seen when its light left. One colour for both, the same everywhere in the atlas.','Расстояние — это время: каждое место видно тогда, когда вышел его свет. Один цвет для обоих — одинаковый во всём атласе.','Entfernung ist Zeit.')}"><label>${TT('The colour of cosmic time','Цвет космического времени','Die Farbe der kosmischen Zeit')}</label><input type="checkbox" id="ctColour" ${state.cosmicTimeColour!==false?'checked':''}></div>
+      <div class="ctlrow" title="${TT('The scene is drawn in comoving distances, the units of cosmology: the expansion is carried by the coordinates, and at this scale nothing moves — a quasar’s own motion, a few hundred km/s, carries it a few Mpc in ten billion years, about a thousandth of its distance. Switched on, everything is multiplied by the scale factor a(t) of the clock’s moment: the proper distances, and the universe visibly growing as the clock runs.','Сцена нарисована в сопутствующих расстояниях — единицах космологии: расширение несут сами координаты, и в этом масштабе ничто не движется — собственное движение квазара, несколько сотен км/с, уносит его на несколько Мпк за десять миллиардов лет, около тысячной его расстояния. Включено — всё умножается на масштабный фактор a(t) момента на часах: собственные расстояния, и Вселенная зримо растёт, пока идут часы.','Die Szene ist in mitbewegten Entfernungen gezeichnet: die Expansion steckt in den Koordinaten. Eingeschaltet wird alles mit dem Skalenfaktor a(t) multipliziert: Eigenabstände, und das Universum wächst sichtbar, während die Uhr läuft.')}"><label>${TT('Proper distances (× a(t))','Собственные расстояния (× a(t))','Eigenabstände (× a(t))')}</label><input type="checkbox" id="obsProper" ${state.obsProper===true?'checked':''}></div>
       ${state.cosmicTimeColour!==false?ctLegendHTML()+`<div class="note" style="font-size:10.5px;color:var(--dim);line-height:1.45">${TT('Before the first stars the colour IS the relic radiation at its then temperature T₀(1+z) — the white plasma, the 2973 K glow of recombination, the dark ages reddening into the infrared. After them the hue marks the epoch (a declared scale) and the brightness is the measured cosmic star-formation rate (Madau & Dickinson 2014), peaking at z ≈ 1.9. The clock moves it: a place shows t_emit + Δt. Last scattering lands at χ = ','До первых звёзд цвет — это реликтовое излучение при его тогдашней температуре T₀(1+z): белая плазма, свечение 2973 K рекомбинации, тёмные века, краснеющие в инфракрасное. После них оттенок отмечает эпоху (объявленная шкала), а яркость — измеренный темп звездообразования (Мадау и Дикинсон 2014) с пиком при z ≈ 1,9. Часы сдвигают его: место показывает t_испускания + Δt. Последнее рассеяние на χ = ','Vor den ersten Sternen ist die Farbe die Reliktstrahlung bei T₀(1+z); danach Epochen-Farbton und Helligkeit nach der Sternentstehungsrate. Letzte Streuung bei χ = ')}${ctChiOfZ(1089.89).toFixed(2)} Gly (CAMB ${(CMB_CAMB.meta.derived.DAstar*3.2615637771674333).toFixed(2)}).</div>`:''}
       <div class="ctlrow" title="Technique of Ménard & Shtarkman's Map of the Observable Universe (JHU 2022): colour = distance"><label>Lookback colours (Map of the Universe)</label><input type="checkbox" id="lookbackCol" ${state.obsLookback?'checked':''}></div>
       <div class="ctlrow" title="The map famously ends at the wall of CMB light — Planck-palette ΔT mottling, exaggerated for visibility"><label>CMB wall on S²_LSS</label><input type="checkbox" id="cmbWall" ${state.obsCmbTex?'checked':''}></div>
@@ -119371,6 +119390,7 @@ function buildCtlBody(){
       const b=ctl.querySelector('#webFlowBeta'); if(b) b.onchange=e=>{ state.webFlowBeta=+e.target.value; try{ webFlowCompute(); }catch(err){} buildCtl(); }; }
     ctl.querySelector('#lookbackCol').onchange=e=>{state.obsLookback=e.target.checked;applyLookbackColours(state.obsLookback);};
     { const c=ctl.querySelector('#ctColour'); if(c) c.onchange=e=>{ state.cosmicTimeColour=e.target.checked; CT_VIEW.lastYrs=NaN; if(!state.cosmicTimeColour) ctStructureColours(false); buildCtl(); }; }
+    { const c=ctl.querySelector('#obsProper'); if(c) c.onchange=e=>{ state.obsProper=e.target.checked; if(!state.obsProper) obsGroup.scale.setScalar(1); }; }
     ctl.querySelector('#cmbWall').onchange=e=>{state.obsCmbTex=e.target.checked;applyCmbWall(state.obsCmbTex);buildCtl();};
     ctl.querySelectorAll('[data-cmbsrc]').forEach(b=>b.onclick=()=>{ state.cmbSkySource=b.dataset.cmbsrc; try{ applyCmbWall(state.obsCmbTex); }catch(e){} buildCtl(); });
     ctl.querySelectorAll('[data-cmbsky]').forEach(b=>b.onclick=()=>{ state.cmbSkyMode=+b.dataset.cmbsky; applyCmbWall(state.obsCmbTex); buildCtl(); });
@@ -135022,7 +135042,7 @@ function tickBody(now, frame){
   }
   else if(state.mode==='obs'){
     const HZ=hccHorizonsTick(dt), hzH=HZ&&HZ.h; try{ obsFibTick(dt); }catch(e){ if(!OBS_FIB.err){ OBS_FIB.err=e; console.warn('obs fibration:',e); } }
-    hudBig.textContent = hzH?`${TT('cosmic time','космическое время','kosmische Zeit')} t = ${HZ.now<1?(HZ.now*1e3).toFixed(2)+' Myr':HZ.now.toFixed(3)+' Gyr'} · ${TT('particle horizon','горизонт частиц','Teilchenhorizont')} ${hzH.particle.toFixed(2)} Gly · ${TT('event horizon','горизонт событий','Ereignishorizont')} ${hzH.event.toFixed(2)} Gly (${TT('comoving','сопутствующие','mitbewegt')})`:`${TT('before the Big Bang — the clock shows','до Большого взрыва — часы показывают','vor dem Urknall — die Uhr zeigt')} t = ${(HZ?HZ.now:0).toFixed(3)} Gyr`;
+    hudBig.textContent = hzH?`${TT('cosmic time','космическое время','kosmische Zeit')} t = ${HZ.now<1?(HZ.now*1e3).toFixed(2)+' Myr':HZ.now.toFixed(3)+' Gyr'} · ${TT('particle horizon','горизонт частиц','Teilchenhorizont')} ${hzH.particle.toFixed(2)} Gly · ${TT('event horizon','горизонт событий','Ereignishorizont')} ${hzH.event.toFixed(2)} Gly (${TT('comoving','сопутствующие','mitbewegt')})${state.obsProper===true?` · ${TT('drawn at proper scale','нарисовано в собственных расстояниях','in Eigenabständen gezeichnet')} ×a = ${hzH.a.toPrecision(4)}`:''}`:`${TT('before the Big Bang — the clock shows','до Большого взрыва — часы показывают','vor dem Urknall — die Uhr zeigt')} t = ${(HZ?HZ.now:0).toFixed(3)} Gyr`;
     hudSub.textContent = hzH?`1 unit = 1 Gly comoving · a = ${hzH.lnA>40?'e^'+hzH.lnA.toFixed(0):hzH.a.toPrecision(4)} · ${TT('the horizons follow the time machine — run it forward or back','горизонты следуют машине времени — запустите её вперёд или назад','die Horizonte folgen der Zeitmaschine')} · Γ_obs(today) = ${(100*S3.GammaObs).toFixed(5)} %`:'1 unit = 1 Gly · domain D_obs(p,T) ⊂ S³_R · screens are reconstruction boundaries';
     // approaching the HOME GALAXY continues INTO the Solar mode's nested layers —
     // Observable and Solar are one permeable instrument: same directions, same sky

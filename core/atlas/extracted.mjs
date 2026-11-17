@@ -5,11 +5,11 @@
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
    declarations: 2552   ·   exported names: 2694
-   extracted physics, sha256 32e99a653ac5d5c1d27347b45d6dfc98b0fd6c0c72705c7ab89e8393bde7ed06 */
+   extracted physics, sha256 914ced928f4b36562cffa297974056bf448c46a12460dd40fb05e2a3888e2dd9 */
 
-const HCC_VERSION='4.432.0';
+const HCC_VERSION='4.433.0';
 
-const HCC_BUILD='suite-2026.11.17.152';
+const HCC_BUILD='suite-2026.11.17.153';
 
 const HCC_S3C=Object.freeze({
   c:299792458.0, G:6.67430e-11, kB:1.380649e-23, hbar:1.054571817e-34,
@@ -8053,6 +8053,10 @@ const DISCOVERIES=Object.freeze([
    en:'On a desktop the dock covered the caption', ru:'На компьютере док закрывал подпись', de:'Am Desktop verdeckte das Dock die Bildunterschrift',
    claim:'The laboratory dock of v4.422 stands in a strip reserved above the laboratory bar, centred; on a desktop the central caption is centred above the same bar, and the dock covered most of the caption’s last line in every laboratory that has a dock. The caption now rises by the dock’s own height while the dock is up; the scene does not move, and the overlap measured at 1440 × 900 in four laboratories is 0.',
    numbers:{overlapAfterPx2:0, laboratoriesMeasured:4}},
+  {id:'qsoHorizons433', kind:'revises', domain:'cosmo', v:'4.433.0', labs:['cosmo','qso'], verifier:'docs/verify-what-moves-with-the-clock.mjs',
+   en:'What moves when the clock runs: in comoving units nothing at the scale of quasars — what changes is what can be seen, how it looks, and the scale a(t)', ru:'Что движется, когда идут часы: в сопутствующих единицах на масштабе квазаров — ничего; меняется то, что видно, как оно выглядит, и масштаб a(t)', de:'Was sich bewegt, wenn die Uhr läuft: in mitbewegten Einheiten nichts auf der Skala der Quasare — es ändert sich, was sichtbar ist, wie es aussieht, und der Maßstab a(t)',
+   claim:'A reader running the clock flat out in the Horizons world saw the quasars and the superstructures stand still and asked whether that is right. Measured: the Horizons world still drew its 5 959 quasars as seen today at every epoch — v4.432 had put only the Sun → Cosmos sphere on the clock’s light cone; both now are. And standing still is right for positions: the scene is drawn in comoving distances, in which the expansion is carried by the coordinates; a quasar’s own motion, a few hundred km/s, moves it about 3 Mpc in ten billion years against thousands of Mpc of distance. What does change with the clock is what can be seen (the particle horizon), the epoch and redshift at which each object is seen, its brightness — and the physical scale: a new switch draws everything at proper distance, multiplied by a(t), and the universe is then seen to grow as the clock runs. The «two cones» of quasars are not a structure of the universe: they are the catalogue’s footprint — the Milky Way’s disc hides the sky near the Galactic plane, and the compilations were taken toward the Galactic caps.',
+   numbers:{quasars:5959, peculiarKmS:300, displacementMpcIn10Gyr:3.07}},
   {id:'qsoClock432', kind:'revises', domain:'cosmo', v:'4.432.0', labs:['cosmo','cmb','qso'], verifier:'docs/verify-the-clock-at-its-limits.mjs',
    en:'The time machine at its limits: the quasars follow the clock’s light cone, and the clock itself is read to 10⁻¹³', ru:'Машина времени на пределе: квазары следуют световому конусу часов, а сами часы читаются с точностью 10⁻¹³', de:'Die Zeitmaschine am Anschlag: die Quasare folgen dem Lichtkegel der Uhr, und die Uhr selbst wird auf 10⁻¹³ gelesen',
    claim:'A reader asked how the sphere of the universe behaves when the time machine runs flat out. Measured: nothing breaks — no non-finite value anywhere in the scene from t = 0 to t₀ + 100 Gyr — but the 5 959 quasars ignored the clock: at t = 707 Myr all were still drawn though 1 037 lay beyond that observer’s whole particle horizon (7 Myr after the Big Bang, all but 234), and at t₀ + 10 Gyr they shone as today. Each is now seen as the clock’s light cone finds it: at the emission time with χ_p(t_obs) − χ_p(t_e) = χ, at redshift a(t_obs)/a(t_e) − 1, its flux scaled by d_L and the band, and not at all beyond the particle horizon; its activity is a modelled window about today’s emission time (τ = 10⁸ yr by default — an assumption, measured lifetimes span 10⁶–10⁹ yr). The clock’s tables are now read as cubics with their exact slopes: the age at a scale factor, the horizons and their inverses agree with an independent integration to ~10⁻¹³ where linear reading left ~8·10⁻⁷, and the Sandage–Loeb redshift drift dz/dt₀ = (1 + z)H₀ − H(z) is reproduced by the light cone over ten thousand years. Far future dates now read in cosmic time.',
