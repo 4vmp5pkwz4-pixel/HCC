@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="suite-2026.11.17.151">
+<html lang="en" data-hcc-build="suite-2026.11.17.152">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="suite-2026.11.17.151">
+<meta name="hcc-build" content="suite-2026.11.17.152">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -3810,7 +3810,7 @@ html.land body #tsLadder:not(.compact) .tsFoot{flex:0 1 auto!important;max-heigh
 </div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.431.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.432.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Sun → Cosmos</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -4153,8 +4153,8 @@ import { TIME_DOMAIN_KIND, STATE_SCOPE, CLOCK_STATUS, TIME_DOMAINS, CLOCK_ADAPTE
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.431.0';
-const HCC_BUILD='suite-2026.11.17.151';
+const HCC_VERSION='4.432.0';
+const HCC_BUILD='suite-2026.11.17.152';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -29632,24 +29632,36 @@ function ctSFR(z){ return 0.015*Math.pow(1+z,2.7)/(1+Math.pow((1+z)/2.9,5.6)); }
 let HZ_TAB=null;
 function hzTable(){ if(HZ_TAB) return HZ_TAB; const C=CT_COSMO, x0=-25, x1=9, n=24000, dx=(x1-x0)/n, X=new Float64Array(n+1), T=new Float64Array(n+1), P=new Float64Array(n+1);
   const E=x=>{ const a=Math.exp(x); return Math.sqrt(C.Or/(a*a*a*a)+C.Om/(a*a*a)+C.OL); }, ft=x=>C.tH/E(x), fp=x=>C.cH/(Math.exp(x)*E(x)), a0=Math.exp(x0);
-  X[0]=x0; T[0]=C.tH*a0*a0/(2*Math.sqrt(C.Or)); P[0]=C.cH*a0/Math.sqrt(C.Or);
+  /* the start with matter as well as radiation (Λ is 10⁻⁴⁴ of them there), as series in y = Ω_m a/Ω_r ~ 10⁻⁷ — the closed forms
+     cancel catastrophically in double precision (v4.432) */
+  const y=C.Om*a0/C.Or, sr=Math.sqrt(C.Or);
+  X[0]=x0; T[0]=C.tH*a0*a0/(2*sr)*(1-y/3+3*y*y/16); P[0]=C.cH*a0/sr*(1-y/4+y*y/8);
   for(let i=1;i<=n;i++){ const xa=x0+(i-1)*dx, xb=x0+i*dx, xm=xa+dx/2; X[i]=xb; T[i]=T[i-1]+dx/6*(ft(xa)+4*ft(xm)+ft(xb)); P[i]=P[i-1]+dx/6*(fp(xa)+4*fp(xm)+fp(xb)); }
-  HZ_TAB={C, X, T, P, n, Pinf:P[n]+C.cH/(Math.exp(x1)*Math.sqrt(C.OL)), E}; return HZ_TAB; }
+  /* the slopes are known exactly — dt/dx = t_H/E, dχ_p/dx = c/H₀·1/(aE) — so each step is read as a cubic, not a chord (v4.432):
+     the age at a scale factor was good to ~3·10⁻⁶ of itself between nodes; it is now good to ~10⁻¹³ */
+  const DT=new Float64Array(n+1), DP=new Float64Array(n+1); for(let i=0;i<=n;i++){ DT[i]=ft(X[i]); DP[i]=fp(X[i]); }
+  HZ_TAB={C, X, T, P, DT, DP, n, dx, Pinf:P[n]+C.cH/(Math.exp(x1)*Math.sqrt(C.OL)), E}; return HZ_TAB; }
+/* cubic Hermite on step i at x, and its slope */
+function hzHerm(Y,D,H,i,x){ const h=H.X[i+1]-H.X[i], u=(x-H.X[i])/h, u2=u*u, u3=u2*u; return (2*u3-3*u2+1)*Y[i]+(u3-2*u2+u)*h*D[i]+(-2*u3+3*u2)*Y[i+1]+(u3-u2)*h*D[i+1]; }
+function hzHermD(Y,D,H,i,x){ const h=H.X[i+1]-H.X[i], u=(x-H.X[i])/h, u2=u*u; return ((6*u2-6*u)*Y[i]+(3*u2-4*u+1)*h*D[i]+(-6*u2+6*u)*Y[i+1]+(3*u2-2*u)*h*D[i+1])/h; }
+/* the x on step i at which the cubic for Y takes the value y: Newton from the chord, kept inside the step */
+function hzHermInv(Y,D,H,i,y){ const a=H.X[i], b=H.X[i+1]; let x=a+(y-Y[i])/(Y[i+1]-Y[i])*(b-a);
+  for(let k=0;k<8;k++){ const f=hzHerm(Y,D,H,i,x)-y, d=hzHermD(Y,D,H,i,x); if(!(d>0)) break; const nx=Math.min(b,Math.max(a,x-f/d)); if(Math.abs(nx-x)<1e-16*(1+Math.abs(x))){ x=nx; break; } x=nx; } return x; }
 /* the age at scale factor a */
 function hzAgeAtA(a){ const H=hzTable(), x=Math.log(a), {X,T,n}=H; if(x<=X[0]) return T[0]*Math.exp(2*(x-X[0])); if(x>=X[n]) return T[n]+(x-X[n])*H.C.tH/Math.sqrt(H.C.OL);
-  let lo=0, hi=n; while(hi-lo>1){ const m=(lo+hi)>>1; if(X[m]<=x) lo=m; else hi=m; } const f=(x-X[lo])/(X[hi]-X[lo]); return T[lo]+f*(T[hi]-T[lo]); }
+  let lo=0, hi=n; while(hi-lo>1){ const m=(lo+hi)>>1; if(X[m]<=x) lo=m; else hi=m; } return hzHerm(T,H.DT,H,lo,x); }
 /* every horizon at cosmic time t (Gyr): null before the Big Bang */
 function hzAtT(tGyr){ const H=hzTable(), {X,T,P,n,C,Pinf,E}=H; if(!(tGyr>0)) return null; let x, p;
   if(tGyr<=T[0]){ const a=Math.sqrt(2*Math.sqrt(C.Or)*tGyr/C.tH); x=Math.log(a); p=C.cH*a/Math.sqrt(C.Or); }
   else if(tGyr>=T[n]){ x=X[n]+(tGyr-T[n])*Math.sqrt(C.OL)/C.tH; p=Pinf-C.cH/(Math.exp(x)*Math.sqrt(C.OL)); }
-  else { let lo=0, hi=n; while(hi-lo>1){ const m=(lo+hi)>>1; if(T[m]<=tGyr) lo=m; else hi=m; } const f=(tGyr-T[lo])/(T[hi]-T[lo]); x=X[lo]+f*(X[hi]-X[lo]); p=P[lo]+f*(P[hi]-P[lo]); }
+  else { let lo=0, hi=n; while(hi-lo>1){ const m=(lo+hi)>>1; if(T[m]<=tGyr) lo=m; else hi=m; } x=hzHermInv(T,H.DT,H,lo,tGyr); p=hzHerm(P,H.DP,H,lo,x); }
   const Ex=E(x), a=Math.exp(Math.min(700,x)); return {t:tGyr, lnA:x, a, z:x<0?Math.expm1(-x):null, particle:p, event:Math.max(0,Pinf-p), hubbleComoving:x>700?0:C.cH/(a*Ex), hubbleProper:C.cH/Ex, light:tGyr, limit:Pinf}; }
 /* the comoving distance, seen from time t, to the screen of an event that happened at scale factor aEv */
 /* the inverse: the cosmic time at which the particle horizon had comoving radius p */
 function hzTimeAtParticle(p){ const H=hzTable(), {X,T,P,n,C,Pinf}=H; if(!(p>0)) return 0;
   if(p<=P[0]){ const a=p*Math.sqrt(C.Or)/C.cH; return C.tH*a*a/(2*Math.sqrt(C.Or)); }
   if(p>=P[n]){ if(p>=Pinf) return Infinity; const a=C.cH/((Pinf-p)*Math.sqrt(C.OL)); return T[n]+(Math.log(a)-X[n])*C.tH/Math.sqrt(C.OL); }
-  let lo=0, hi=n; while(hi-lo>1){ const m=(lo+hi)>>1; if(P[m]<=p) lo=m; else hi=m; } const f=(p-P[lo])/(P[hi]-P[lo]); return T[lo]+f*(T[hi]-T[lo]); }
+  let lo=0, hi=n; while(hi-lo>1){ const m=(lo+hi)>>1; if(P[m]<=p) lo=m; else hi=m; } return hzHerm(T,H.DT,H,lo,hzHermInv(P,H.DP,H,lo,p)); }
 /* what an observer at t₀ + Δt sees at comoving distance χ: the event whose particle horizon was χ_p(t) − χ — null if
    the observer is before the Big Bang, 0 if χ lies beyond everything that observer can see */
 function hzEmissionTime(chiGly,dtYears){ const h=hzAtT(hzAgeAtA(1)+(dtYears||0)/1e9); if(!h) return null; const pE=h.particle-Math.max(0,chiGly); return pE<=0?0:hzTimeAtParticle(pE); }
@@ -53663,9 +53675,35 @@ function qso3dBuild(){
   const pts=new THREE.Points(g,dsoGalaxyMaterial()); pts.frustumCulled=false; pts.name='quasar-points'; qso3dGroup.add(pts);
   qso3dObjs={Q,pts};
 }
+/* ══ THE QUASARS ON THE CLOCK'S LIGHT CONE (v4.432) ═══════════════════════════════════════════════════════════════════════
+   The quasar sphere was drawn as it is seen today whatever the clock said: at t = 707 Myr it still showed 5 959 quasars, most of
+   them farther than that observer's whole visible universe, and at t₀ + 10 Gyr it showed them shining as if their light had not
+   moved on. Each quasar now stands at its comoving distance χ (constant: the expansion is in the coordinates) and is seen from
+   the clock's moment as the light cone of that moment finds it — at the time t_e with χ_p(t_obs) − χ_p(t_e) = χ, with redshift
+   1 + z = a(t_obs)/a(t_e), its flux scaled by d_L and the band (α_ν = −0.5) — and not at all if χ is beyond the particle horizon.
+   What a quasar was doing at another t_e is not known: it is observed shining at today's t_e0, and its activity is modelled as a
+   window of half-width τ about t_e0 (an ASSUMPTION; measured lifetimes run from 10⁶ to 10⁹ years, Martini 2004), outside which
+   its host galaxy remains, a fiftieth as bright. The light cone is the clock's own cosmology; the positions are the catalogue's. */
+const QSO_CLOCK={key:'', life:0.1, host:0.02, last:null};
+function qsoClockLife(){ const v=+state.qsoLifeLog; return Math.pow(10,(Number.isFinite(v)?Math.max(6,Math.min(9.5,v)):8)-9); }   /* Gyr */
+function qsoChiClock(z){ const H=hzTable(); return hzAtT(hzAgeAtA(1)).particle-hzAtT(hzAgeAtA(1/(1+z))).particle; }   /* Gly, in the clock's cosmology */
+function qsoSeen(z,dtYears,lifeGyr){ const t0=hzAgeAtA(1), tObs=t0+(dtYears||0)/1e9, hO=hzAtT(tObs), tE0=hzAgeAtA(1/(1+z)), chi=qsoChiClock(z);
+  if(!hO) return {visible:false, why:'before t = 0', chi, tE0};
+  const pE=hO.particle-chi; if(!(pE>0)) return {visible:false, why:'beyond the particle horizon of this moment', chi, tE0, horizon:hO.particle};
+  const tE=hzTimeAtParticle(pE), aE=hzAtT(tE).a, zObs=hO.a/aE-1, L=lifeGyr||0.1, w=Math.exp(-0.5*((tE-tE0)/L)**2);
+  const flux=Math.pow((1+zObs)/(1+z),0.5)*Math.pow((1+z)/(hO.a*(1+zObs)),2);
+  return {visible:true, chi, tE, tE0, z0:z, zObs, aObs:hO.a, active:w, flux, horizon:hO.particle}; }
+function qsoClockSync(){ const O=qso3dObjs; if(!O) return; const dt=(state.epochDays||0)/365.25, L=qsoClockLife(), key=(Math.round(dt/2e6))+'|'+L;
+  if(key===QSO_CLOCK.key) return; QSO_CLOCK.key=key; const g=O.pts.geometry, lum=g.attributes.aLum.array, col=g.attributes.aColor.array; if(!O.lum0) O.lum0=Float32Array.from(lum);
+  let seen=0, active=0; for(const q of O.Q){ const k=q.i; if(Math.abs(dt)<1e5){ lum[k]=O.lum0[k]; col.set([0.66,0.58,1.0],3*k); seen++; active++; continue; }
+    const S=qsoSeen(q.z,dt,L); if(!S.visible){ lum[k]=0; continue; } seen++; if(S.active>0.5) active++; const m=S.active+(1-S.active)*QSO_CLOCK.host;
+    lum[k]=O.lum0[k]*S.flux*m; col.set([0.66+(1-S.active)*0.32,0.58+(1-S.active)*0.28,1.0-(1-S.active)*0.35],3*k); }
+  g.attributes.aLum.needsUpdate=true; g.attributes.aColor.needsUpdate=true; QSO_CLOCK.last={dtYears:dt, lifeGyr:L, seen, active, total:O.Q.length}; }
+globalThis.HCC_QSO_CLOCK=Object.freeze({ seen:(z,dtYears,lifeGyr)=>qsoSeen(+z,+dtYears||0,lifeGyr||qsoClockLife()), state:()=>({...QSO_CLOCK.last, lifeGyr:qsoClockLife(), host:QSO_CLOCK.host}),
+  life:log10yr=>{ if(log10yr!==undefined){ state.qsoLifeLog=+log10yr; QSO_CLOCK.key=''; } return qsoClockLife(); } });
 function qso3dUpdate(){
   const Ly=state.solarScaleLayer||'local', on=state.mode==='solar'&&state.showDso3d!==false&&state.showQso3d!==false&&Ly==='cosmic';
-  qso3dGroup.visible=on; if(!on) return; qso3dBuild();
+  qso3dGroup.visible=on; if(!on) return; qso3dBuild(); qsoClockSync();
   const u=qso3dObjs.pts.material.uniforms; u.uViewH.value=renderer.domElement.clientHeight||innerHeight;
   u.uRef.value=Math.max(1e6,camera.position.distanceTo(controls.target));
 }
@@ -53689,6 +53727,7 @@ function qso3dRegister(q){
     rows:()=>[['Kind','quasar'+(q.cl?` · class ${q.cl}`:'')],['Redshift',`z = ${q.z}`],
       ['Comoving distance',`${q.dc.toFixed(0)} Mpc · ${(q.dc*3.26156e-3).toFixed(3)} billion ly`],
       ['Light-travel time',`${lb.toFixed(3)} billion years`],['Apparent magnitude V',q.V.toFixed(2)],
+      ...(Math.abs((state.epochDays||0)/365.25)<1e5?[]:(()=>{ const S=qsoSeen(q.z,(state.epochDays||0)/365.25,qsoClockLife()); return S.visible?[['At the clock’s moment',`its light left ${S.tE.toFixed(3)} Gyr after the Big Bang (today’s: ${S.tE0.toFixed(3)}) · seen at z = ${S.zObs.toFixed(4)} · flux × ${S.flux.toPrecision(3)} · shining ${(100*S.active).toFixed(0)} % (model: half-width ${(qsoClockLife()*1e3).toFixed(0)} Myr)`]]:[['At the clock’s moment',`not visible — ${S.why}`]]; })()),
       ['Absolute magnitude M',`${q.Mv.toFixed(2)} computed (Planck 2018 luminosity distance, K for α = −0.5) · ${q.Mc.toFixed(1)} in the catalogue`],
       ['Luminosity',`${(Math.pow(10,-0.4*(q.Mv-LSUN_MV))/1e12).toFixed(2)} × 10¹² L☉ (V band)`],
       ['Catalogue','Véron-Cetty & Véron (2010), 13th edition, as shipped in Stellarium 23.4 (V ≤ 18)']]});
@@ -66636,6 +66675,10 @@ const DISCOVERIES=Object.freeze([
    en:'On a desktop the dock covered the caption', ru:'На компьютере док закрывал подпись', de:'Am Desktop verdeckte das Dock die Bildunterschrift',
    claim:'The laboratory dock of v4.422 stands in a strip reserved above the laboratory bar, centred; on a desktop the central caption is centred above the same bar, and the dock covered most of the caption’s last line in every laboratory that has a dock. The caption now rises by the dock’s own height while the dock is up; the scene does not move, and the overlap measured at 1440 × 900 in four laboratories is 0.',
    numbers:{overlapAfterPx2:0, laboratoriesMeasured:4}},
+  {id:'qsoClock432', kind:'revises', domain:'cosmo', v:'4.432.0', labs:['cosmo','cmb','qso'], verifier:'docs/verify-the-clock-at-its-limits.mjs',
+   en:'The time machine at its limits: the quasars follow the clock’s light cone, and the clock itself is read to 10⁻¹³', ru:'Машина времени на пределе: квазары следуют световому конусу часов, а сами часы читаются с точностью 10⁻¹³', de:'Die Zeitmaschine am Anschlag: die Quasare folgen dem Lichtkegel der Uhr, und die Uhr selbst wird auf 10⁻¹³ gelesen',
+   claim:'A reader asked how the sphere of the universe behaves when the time machine runs flat out. Measured: nothing breaks — no non-finite value anywhere in the scene from t = 0 to t₀ + 100 Gyr — but the 5 959 quasars ignored the clock: at t = 707 Myr all were still drawn though 1 037 lay beyond that observer’s whole particle horizon (7 Myr after the Big Bang, all but 234), and at t₀ + 10 Gyr they shone as today. Each is now seen as the clock’s light cone finds it: at the emission time with χ_p(t_obs) − χ_p(t_e) = χ, at redshift a(t_obs)/a(t_e) − 1, its flux scaled by d_L and the band, and not at all beyond the particle horizon; its activity is a modelled window about today’s emission time (τ = 10⁸ yr by default — an assumption, measured lifetimes span 10⁶–10⁹ yr). The clock’s tables are now read as cubics with their exact slopes: the age at a scale factor, the horizons and their inverses agree with an independent integration to ~10⁻¹³ where linear reading left ~8·10⁻⁷, and the Sandage–Loeb redshift drift dz/dt₀ = (1 + z)H₀ − H(z) is reproduced by the light cone over ten thousand years. Far future dates now read in cosmic time.',
+   numbers:{quasars:5959, beyondHorizonAt707Myr:1037, seenAt7Myr:234, clockErrorBefore:8.3e-7, clockErrorAfter:1.4e-13, defaultLifetimeYears:1e8}},
   {id:'cstring431', kind:'tested', domain:'cosmo', v:'4.431.0', labs:['cstring','gw','dfx'], verifier:'docs/verify-the-cosmic-string-loop.mjs',
    en:'An integral a language model closed, computed three ways: the cosmic-string loop’s gravitational waves', ru:'Интеграл, замкнутый с языковой моделью, вычислен тремя путями: гравитационные волны петли космической струны', de:'Ein Integral, das ein Sprachmodell schloss, dreifach berechnet: die Gravitationswellen einer kosmischen Stringschleife',
    claim:'«Solving an Open Problem in Theoretical Physics using AI-Assisted Discovery» (arXiv:2603.04735, 5 March 2026) gives the power a Garfinkle–Vachaspati cosmic-string loop radiates in harmonic N as P_N = 32Gμ² I(N, α)/(π³N²) and closes I as a Legendre series whose coefficients are spherical Bessel sums with C₀ = ½ Cin(2Nπ). Run here: that series against a direct quadrature over the sphere agrees to about 10⁻¹⁴ for every harmonic and angle tried, up to N = 100; C₀ against a Legendre projection of f_N likewise; the large-N law is within 0.14 % at N = 100 and α = 90°. Summed over all harmonics, Γ(90°) = 44.36 — a number the paper does not give, computed here. Not claimed: that cosmic strings exist; by the authors’ account the closed form came from a human–AI hand-off, and the large-N law is derived with a regulator, not proved.',
@@ -115151,6 +115194,8 @@ function simDateString(){
       if(t<=-res) return TT('before t = 0 — the model has no time here','до t = 0 — здесь у модели нет времени','vor t = 0 — hier hat das Modell keine Zeit');
       if(t<=2*res) return 't ≈ 0 · '+TT('the Big Bang','Большой взрыв','der Urknall')+' (± '+sxLight(res*3.15576e16)+')';
       return 't = '+sxLight(t*3.15576e16)+' '+TT('after the Big Bang','после Большого взрыва','nach dem Urknall'); }catch(e){} }
+  /* and as far forward: a calendar date a billion years on says nothing its year number does not (v4.432) */
+  if((state.epochDays||0)/365.25>1e7){ try{ const t=hzNowGyr(); return 't = '+sxLight(t*3.15576e16)+' '+TT('after the Big Bang','после Большого взрыва','nach dem Urknall')+' · J2000 + '+sxLight((state.epochDays/365.25)*3.15576e7); }catch(e){} }
   return formatDeepDate(state.epochDays)+' UTC';
 }
 const epochYear=days=>2000+days/365.2425;
@@ -118712,6 +118757,8 @@ function buildCtlBody(){
         <input type="checkbox" id="skyDso" ${state.showDso3d!==false?'checked':''}></div>
       <div class="ctlrow" title="${TT('5 959 quasars of Véron-Cetty & Véron (2010) at their comoving distances out to z = 4.5, shown at cosmic scale.','5 959 квазаров Véron-Cetty & Véron (2010) на сопутствующих расстояниях до z = 4,5, в космическом масштабе.','5 959 Quasare von Véron-Cetty & Véron (2010) in ihren mitbewegten Entfernungen bis z = 4,5, im kosmischen Maßstab.')}"><label>${TT('Quasars · real 3D','Квазары · реальное 3D','Quasare · echtes 3D')}</label>
         <input type="checkbox" id="skyQso" ${state.showQso3d!==false?'checked':''}></div>
+      <div class="ctlrow" title="${TT('Under the time machine each quasar is seen as the clock’s light cone finds it. How long a quasar shines is not known for any one of them: measured lifetimes run from 10⁶ to 10⁹ years. This is the half-width of the window it is assumed to shine in about the moment we see it today; outside it its host galaxy remains.','Под машиной времени каждый квазар виден так, как его находит световой конус момента на часах. Сколько светит отдельный квазар, неизвестно: измеренные времена жизни от 10⁶ до 10⁹ лет. Это полуширина окна, в котором он считается светящимся вокруг момента, когда мы видим его сегодня; вне окна остаётся родительская галактика.','Unter der Zeitmaschine erscheint jeder Quasar so, wie der Lichtkegel des Uhrzeitpunkts ihn findet. Wie lange ein Quasar leuchtet, ist für keinen bekannt: gemessene Lebensdauern liegen zwischen 10⁶ und 10⁹ Jahren.')}"><label>${TT('quasar lifetime (assumption)','время жизни квазара (допущение)','Quasar-Lebensdauer (Annahme)')}</label>
+        <input type="range" id="skyQsoLife" min="6" max="9.5" step="0.1" value="${Number.isFinite(+state.qsoLifeLog)?state.qsoLifeLog:8}"><span class="val" id="skyQsoLifeV">10^${(Number.isFinite(+state.qsoLifeLog)?+state.qsoLifeLog:8).toFixed(1)} yr</span></div>
       <div class="ctlrow" title="${TT('The V-band light of every galaxy luminous enough to be seen anywhere in a cube 200 million light years across, smoothed by 2.4 Mpc: the large-scale distribution of the light itself.','Свет в полосе V всех галактик, достаточно ярких, чтобы быть видимыми в любой точке куба 200 млн св. лет, сглаженный на 2,4 Мпк: крупномасштабное распределение самого света.','Das V-Band-Licht aller Galaxien, die überall in einem Würfel von 200 Mio. Lj sichtbar wären, geglättet über 2,4 Mpc: die großräumige Verteilung des Lichts selbst.')}"><label>${TT('Light field · 200 Mly','Световое поле · 200 млн св. лет','Lichtfeld · 200 Mio. Lj')}</label>
         <input type="checkbox" id="skyLight" ${state.showLightField!==false?'checked':''}></div>
       ${exoPanelHTML()}
@@ -118930,6 +118977,7 @@ function buildCtlBody(){
     ctl.querySelector('#skyMwt')&&(ctl.querySelector('#skyMwt').onchange=e=>{ state.showMwTracers=e.target.checked; });
     ctl.querySelector('#skyDso')&&(ctl.querySelector('#skyDso').onchange=e=>{ state.showDso3d=e.target.checked; });
     ctl.querySelector('#skyQso')&&(ctl.querySelector('#skyQso').onchange=e=>{ state.showQso3d=e.target.checked; });
+    ctl.querySelector('#skyQsoLife')&&(ctl.querySelector('#skyQsoLife').oninput=e=>{ state.qsoLifeLog=+e.target.value; QSO_CLOCK.key=''; const o=ctl.querySelector('#skyQsoLifeV'); if(o) o.textContent='10^'+(+e.target.value).toFixed(1)+' yr'; });
     ctl.querySelector('#skyGaia')&&(ctl.querySelector('#skyGaia').onchange=e=>{ state.showGaia50=e.target.checked; buildCtl(); });
     ctl.querySelector('#skyExo')&&(ctl.querySelector('#skyExo').onchange=e=>{ state.showExoplanets=e.target.checked; buildCtl(); });
     { const q=k=>ctl.querySelector(k); q('#cmbBack')&&(q('#cmbBack').onchange=e=>{ state.cmbBackdrop=e.target.checked; });
