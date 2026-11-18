@@ -98,7 +98,7 @@ const pageMath = (() => { const a = src.indexOf('/* ═══ MLW-MATH-BEGIN'), 
 { const miss = ["{id:'metalaws', category:'inv'", "id:'metalaws', world:'s3', lab:'metalaws'", "mlwGroup.visible = (v==='metalaws');", "if(v==='metalaws'&&!mlwObjs){ mlwSetup(); }", "else if(V==='metalaws') body = mlwPanelHTML();",
     "if(V==='metalaws'){ mlwBind(ctl); }", "} else if(state.s3view==='metalaws'){", "metalaws:{speed:['mlwSpeed',1], pause:['mlwPaused','p']},", "['mlwAtlas','metalaws',mlwGroup,", "()=>goLab('s3','metalaws')", "fetch('api/metalaws.json'",
     "globalThis.HCC_METALAWS=Object.freeze({", "{id:'metalaws434', kind:'found'", "metalaws:'./api/metalaws.json'"].filter(s => !src.includes(s) && !fs.readFileSync(path.join(ROOT, 'scripts/build-api.mjs'), 'utf8').includes(s));
-  const v = J.validation, r = M.INSTRUMENTS.metalaws({}), E = pageMath.mlwEnrichment(v.all_pairs, v.declared_pairs, v.any.pairs, v.any.declared);
+  const v = J.validation, r = run('metalaws', {}), E = pageMath.mlwEnrichment(v.all_pairs, v.declared_pairs, v.any.pairs, v.any.declared);
   const inst = Math.abs(r.lift - v.any.lift) < 1e-3 && Math.abs(r.p_value - v.any.p_value) / v.any.p_value < 1e-9 && Math.abs(E.p - r.p_value) < 1e-15 * Math.max(1, r.p_value) + 1e-300;
   const pos = new Map(J.labs.map(l => [l.id, l.xyz])), dist = (a, b) => Math.hypot(...[0, 1, 2].map(q => pos.get(a)[q] - pos.get(b)[q])), mean = a => a.reduce((x, y) => x + y, 0) / a.length;
   const all = []; for (const a of J.labs) for (const b of J.labs) if (a.id < b.id) all.push(dist(a.id, b.id)); const linked = mean(J.links.map(l => dist(l.a, l.b))), rnd = mean(all);
