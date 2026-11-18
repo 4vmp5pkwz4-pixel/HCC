@@ -5,7 +5,7 @@
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
    declarations: 2552   ·   exported names: 2694
-   extracted physics, sha256 f97ac93d863c803b9ef8f7e6f25aed2d76642014fca1cd01edc164b75e5bcd72 */
+   extracted physics, sha256 70e908c853dd6203620e134e12087efd0a649987a1c9eda2b0437d0b2ee19185 */
 
 const HCC_VERSION='4.434.0';
 
@@ -14024,7 +14024,7 @@ const NEXUS_RELATIONS=[
   ['s3sky','hopf','representation','the sphere from outside, and from within','There S³ is drawn by projection and fibred into circles; here no projection is made at all — the observer’s own lines of sight are great circles of the same sphere.','structural-analogy'],
   ['s3sky','lens','contrast','two ways to see a thing twice','A lens makes two images by bending light with mass in a nearly flat space; a closed space makes two with no mass at all, by letting straight light arrive both ways round.','concept-contrast'],
   ['s3sky','cosmo','limit','the distance that turns back','The transverse distance sin χ/√|Ω_K| used there for a closed model is the same sin χ that sets the apparent size here; at small χ both reduce to the flat law.','established'],
-  ['metalaws','nexus','representation','the graph that is written, and the one that is found','The nexus draws the relations somebody declared, each with the sentence written for it; here the same laboratories are joined by what their formulas share when nobody is asked — and every declared edge is the yardstick the found ones are scored against.','method-transfer'],
+  ['metalaws','frontier','contrast','a closure claimed, and a tie found','The frontier observatory charts what a catalogue claims to have closed, gold where a formal proof is linked; here nothing is claimed in advance — ties are found in the atlas’s own formulas and each detector is scored against what was declared, so a reader sees how far from chance the finding is.','concept-contrast'],
   ['metalaws','discover','invariant','inside one laboratory, and across all of them','The discovery laboratory finds what a single laboratory keeps as its inputs move; here the same exactness — a law named only if it holds to 10⁻⁹ at every point — is asked between laboratories.','method-transfer'],
   ['metalaws','formulas','representation','the formulas, read as functions','The formula laboratory lists each law as it is written; here each is read as the curve it draws along each input, and named by the exact form it turns out to obey.','method-transfer'],
   ['metalaws','unify','contrast','one theory, or shared mathematics','The unification laboratory asks whether the forces are one; a law shared by two laboratories here says only that their mathematics coincides — often for a reason, sometimes by chance, and the score says which is likelier.','concept-contrast'],
