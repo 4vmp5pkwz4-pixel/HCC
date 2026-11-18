@@ -181,10 +181,13 @@ jointPairs.forEach((P, pk) => { const RA = jointOut[2 * pk], RB = jointOut[2 * p
     if (!rel && (ya.every(v => v > 0) || ya.every(v => v < 0)) && (yb.every(v => v > 0) || yb.every(v => v < 0))) { const la = ya.map(v => Math.log(Math.abs(v))), lb = yb.map(v => Math.log(Math.abs(v))), k = lsq([la.map(() => 1), la], lb);
       if (k && maxRes(lb, la.map(v => k[0] + k[1] * v)) <= 1e-9 * Math.max(span(lb), 1)) { const q = rat(k[1]); if (q && q !== '0') rel = { law: 'power', q, k: Math.sign(yb[0]) * Math.exp(k[0]) * (q === '1' ? 1 : 1) }; } }
     if (!rel) continue; const kk = rel.law === 'power' ? rel.k : rel.b, nm = recognise(kk);
-    found.push({ a: `${P.A.id}.${ka}`, b: `${P.B.id}.${kb}`, law: rel.law, q: rel.q || null, constant: kk, closed_form: nm, offset: rel.law === 'affine' ? rel.a : 0 }); } }
+    found.push({ a: `${P.A.id}.${ka}`, b: `${P.B.id}.${kb}`, law: rel.law, q: rel.q || null, constant: kk, closed_form: nm, offset: rel.law === 'affine' ? rel.a : 0, offset_form: rel.law === 'affine' ? recognise(rel.a) : null }); } }
+  const RANK = { equal: 0, proportional: 1, power: 2, affine: 3 }; found.sort((x, y) => RANK[x.law] - RANK[y.law] || x.b.localeCompare(y.b) || x.a.localeCompare(y.a));
   const dflt = id => Object.fromEntries(M.INSTRUMENT_META[id].inputs.filter(i => i.default !== undefined).map(i => [i.name, i.default]));
   if (found.length) bridges.push({ input: P.key, labs: [P.A.lab, P.B.lab], instruments: [P.A.id, P.B.id], range: [P.xs[0], P.xs[N - 1]], log: P.log, defaults: [dflt(P.A.id), dflt(P.B.id)], ties: found.length, examples: found.slice(0, 6) }); });
-for (const B of bridges) { const e = B.examples[0], txt = e.law === 'power' ? `${e.b} = ${e.closed_form || e.constant.toPrecision(6)} · ${e.a}^${e.q}` : e.law === 'affine' ? `${e.b} = ${e.offset.toPrecision(6)} + ${e.closed_form || e.constant.toPrecision(6)} · ${e.a}` : `${e.b} = ${e.law === 'equal' ? '' : (e.closed_form || e.constant.toPrecision(6)) + ' · '}${e.a}`;
+const tieText = e => { const k = v => v.closed_form || (+v.constant).toPrecision(6), neg = e.law === 'affine' && e.constant < 0, kk = neg ? (e.closed_form ? e.closed_form.replace(/^-/, '') : (-e.constant).toPrecision(6)) : k(e), unit = kk === '1' || kk === '';
+  return e.law === 'power' ? `${e.b} = ${unit ? '' : kk + ' · '}${e.a}^${e.q}` : e.law === 'affine' ? `${e.b} = ${e.offset_form || (+e.offset).toPrecision(6)} ${neg ? '−' : '+'} ${unit ? '' : kk + ' · '}${e.a}` : e.law === 'equal' ? `${e.b} = ${e.a}` : `${e.b} = ${kk.startsWith('-') ? '−' + kk.slice(1) : kk} · ${e.a}`; };
+for (const B of bridges) { const e = B.examples[0], txt = tieText(e);
   addLink(B.labs[0], B.labs[1], 'bridge', 1, `along ${B.input}, ${B.ties} exact tie${B.ties > 1 ? 's' : ''}: ${txt}`); }
 
 /* ── how much each detector agrees with what was declared by hand: rate, lift, and the hypergeometric tail ──
