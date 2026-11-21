@@ -187,6 +187,38 @@ jointPairs.forEach((P, pk) => { const RA = jointOut[2 * pk], RB = jointOut[2 * p
   if (found.length) bridges.push({ input: P.key, labs: [P.A.lab, P.B.lab], instruments: [P.A.id, P.B.id], range: [P.xs[0], P.xs[N - 1]], log: P.log, defaults: [dflt(P.A.id), dflt(P.B.id)], ties: found.length, examples: found.slice(0, 6) }); });
 const tieText = e => { const k = v => v.closed_form || (+v.constant).toPrecision(6), neg = e.law === 'affine' && e.constant < 0, kk = neg ? (e.closed_form ? e.closed_form.replace(/^-/, '') : (-e.constant).toPrecision(6)) : k(e), unit = kk === '1' || kk === '';
   return e.law === 'power' ? `${e.b} = ${unit ? '' : kk + ' · '}${e.a}^${e.q}` : e.law === 'affine' ? `${e.b} = ${e.offset_form || (+e.offset).toPrecision(6)} ${neg ? '−' : '+'} ${unit ? '' : kk + ' · '}${e.a}` : e.law === 'equal' ? `${e.b} = ${e.a}` : `${e.b} = ${kk.startsWith('-') ? '−' + kk.slice(1) : kk} · ${e.a}`; };
+/* SCOPE — what a tie found at the defaults is worth elsewhere. The claims ledger of Preece & Batenin (BINDU_VECTRA, 2026-11-21)
+   refuses to let agreement in one setting stand for agreement in general (its scope counterexamples C-039…C-041); the same
+   discipline here: every other numeric input of BOTH laboratories is moved to three seeded settings inside its declared range,
+   the two are swept together again, and each tie is classed —
+     universal  the same law with the same constant at every setting (still only three settings: evidence, not proof)
+     form       the same kind of law at every setting, its constant moving with the other inputs (the constant is theirs)
+     defaults   the law breaks at some setting: it holds at the defaults the atlas ships, and the record keeps where it broke
+     untested   no setting could be evaluated */
+const SCOPE_SETS = 3;
+const seedRng = (seed => () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648)(435);
+const perturb = (id, shared) => { const out = {}; for (const i of M.INSTRUMENT_META[id].inputs) { if (i.name === shared || !isNum(i)) continue; const u = 0.2 + 0.6 * seedRng(), lg = i.min > 0 && i.max / i.min >= 30;
+  let v = lg ? i.min * Math.pow(i.max / i.min, u) : i.min + (i.max - i.min) * u; if (Number.isInteger(i.default) && Number.isInteger(i.min) && Number.isInteger(i.max)) v = Math.round(v); out[i.name] = v; } return out; };
+const scopeTasks = [], scopeIndex = [];
+bridges.forEach((B, bi) => { const P = jointPairs.find(p => p.key === B.input && p.A.id === B.instruments[0] && p.B.id === B.instruments[1]); if (!P) return; const xs = Array.from({ length: 9 }, (_, q) => P.log ? P.xs[0] * Math.pow(P.xs[N - 1] / P.xs[0], (q + 0.5) / 9) : P.xs[0] + (P.xs[N - 1] - P.xs[0]) * (q + 0.5) / 9);
+  for (let s = 0; s < SCOPE_SETS; s++) { const eA = perturb(P.A.id, P.A.inp.name), eB = perturb(P.B.id, P.B.inp.name); scopeIndex.push({ bi, s, xs, eA, eB }); scopeTasks.push({ joint: true, key: 'sA', id: P.A.id, input: P.A.inp.name, xs, extra: eA }, { joint: true, key: 'sB', id: P.B.id, input: P.B.inp.name, xs, extra: eB }); } });
+const scopeOut = await pool(scopeTasks, t => `${t.id}(${t.input}) scope`);
+const lawAt = (e, ya, yb) => { /* does tie e's KIND of law hold here, and with which constants? */ const span = v => Math.max(...v) - Math.min(...v), tol = TOL * Math.max(span(yb), 1e-300);
+  if (e.law === 'power') { if (!(ya.every(v => v > 0) || ya.every(v => v < 0)) || !(yb.every(v => v > 0) || yb.every(v => v < 0))) return null; const q = frac(e.q), k = yb.map((v, j) => v / Math.pow(Math.abs(ya[j]), q)), m = k.reduce((a, b) => a + b, 0) / k.length;
+    return Math.max(...k.map(v => Math.abs(v - m))) <= 1e-9 * Math.max(Math.abs(m), 1e-300) ? { constant: m, offset: 0 } : null; }
+  const k = lsq([ya.map(() => 1), ya], yb); if (!k || maxRes(yb, ya.map(v => k[0] + k[1] * v)) > tol) return null; return { constant: k[1], offset: k[0] }; };
+const frac = q => { const [a, b] = String(q).split('/').map(Number); return b ? a / b : a; };
+for (const B of bridges) for (const e of B.examples) e.scope = { class: 'untested', sets: 0 };
+bridges.forEach((B, bi) => { const runs = scopeIndex.map((r, k) => ({ ...r, A: scopeOut[2 * k], B: scopeOut[2 * k + 1] })).filter(r => r.bi === bi);
+  for (const e of B.examples) { const oa = e.a.slice(e.a.indexOf('.') + 1), ob = e.b.slice(e.b.indexOf('.') + 1); let sets = 0, same = true, holds = true, broke = null;
+    for (const r of runs) { if (!r.A || !r.B) continue; const ya = [], yb = [], xs = []; r.xs.forEach((x, j) => { const a = r.A.rows[j] && r.A.rows[j][oa], b = r.B.rows[j] && r.B.rows[j][ob]; if (Number.isFinite(a) && Number.isFinite(b)) { ya.push(a); yb.push(b); xs.push(x); } });
+      if (ya.length < 6) continue; sets++; const L = lawAt(e, ya, yb); if (!L) { holds = false; same = false; if (!broke) broke = { A_inputs: r.eA, B_inputs: r.eB, x: xs[0], y_a: ya[0], y_b: yb[0] }; continue; }
+      const ys = Math.max(...yb.map(Math.abs), 1e-300), ysA = Math.max(...ya.map(Math.abs), 1e-300), rel = (u, v) => Math.abs(u - v) <= 1e-9 * Math.max(Math.abs(u), Math.abs(v), 1e-12);
+      /* the constant compares relatively; the offset against the size of the outputs it shifts (an offset of 10⁻¹⁶ is rounding, not a new law) */
+      if (!(rel(L.constant, e.constant) || Math.abs(L.constant - e.constant) * ysA <= 1e-9 * ys) || Math.abs(L.offset - (e.offset || 0)) > 1e-9 * ys) { same = false; if (!e.scope.moved) e.scope.moved = { A_inputs: r.eA, B_inputs: r.eB, constant: L.constant, offset: L.offset }; } }
+    e.scope.sets = sets; e.scope.class = !sets ? 'untested' : !holds ? 'defaults' : same ? 'universal' : 'form'; if (broke) e.scope.broke = broke; } });
+for (const B of bridges) { const c = {}; for (const e of B.examples) c[e.scope.class] = (c[e.scope.class] || 0) + 1; B.scope = c; }
+
 for (const B of bridges) { const e = B.examples[0], txt = tieText(e);
   addLink(B.labs[0], B.labs[1], 'bridge', 1, `along ${B.input}, ${B.ties} exact tie${B.ties > 1 ? 's' : ''}: ${txt}`); }
 
@@ -266,7 +298,10 @@ const pos = (() => { const r0 = emb.map(p => Math.hypot(...p)), ordr = r0.map((v
 const rad = Math.max(...pos.map(p => Math.hypot(...p))) || 1;
 
 /* ── the report ── */
-const all = [...links.values()].map(l => ({ a: l.a, b: l.b, weight: +l.weight.toFixed(6), evidence: +l.evidence.toFixed(6), detectors: l.detectors, declared: declared.has(key(l.a, l.b)), topology: +pct(aa(l.a, l.b)).toFixed(4), why: l.why }))
+/* the claim class of each kind of tie, in the vocabulary of the BINDU claims ledger: what kind of evidence stands behind it */
+const CLASS_OF = { bridge: 'EXACT_COMPUTATION', constant: 'EXACT_COMPUTATION', exponent: 'EXACT_COMPUTATION', form: 'EXACT_COMPUTATION', shape: 'NUMERIC' };
+const classOfLink = l => Object.keys(l.detectors).some(d => CLASS_OF[d] === 'EXACT_COMPUTATION') ? 'EXACT_COMPUTATION' : 'NUMERIC';
+const all = [...links.values()].map(l => ({ a: l.a, b: l.b, claim_class: classOfLink(l), weight: +l.weight.toFixed(6), evidence: +l.evidence.toFixed(6), detectors: l.detectors, declared: declared.has(key(l.a, l.b)), topology: +pct(aa(l.a, l.b)).toFixed(4), why: l.why }))
   .sort((x, y) => y.evidence - x.evidence || y.weight - x.weight || x.a.localeCompare(y.a) || x.b.localeCompare(y.b));
 const kinds = {}; for (const c of curves) kinds[c.kind] = (kinds[c.kind] || 0) + 1;
 const forms = {}; for (const c of curves) if (c.kind === 'law' || c.kind === 'power' || c.kind === 'exponential' || c.kind === 'affine') { const f = c.kind === 'power' ? 'x^p' : c.form; forms[f] = forms[f] || { curves: 0, labs: new Set() }; forms[f].curves++; forms[f].labs.add(c.lab); }
@@ -281,6 +316,7 @@ const out = { schema: 'hcc.metalaws/1', version: V.version, build: V.build, inst
     shape: `${FP}-point fingerprint on the unit square of a curve no form names; correlation ≥ 0.99999 under the four reflections; it must bend (≥ 0.08 from its chord) and not jump (no step over a third of its range); families by single linkage`,
     constants: 'api/invariants.json named closed forms that are irrational (a surd, φ, π, a logarithm …) — integers and plain fractions coincide too easily to bind anything',
     weight: 'a class shared by k laboratories gives each of its pairs 1/(k − 1); a bridge weighs 1',
+    scope: 'each bridge tie re-tested with every other numeric input of both laboratories moved to three seeded settings in its range: universal (same law, same constant), form (same law, constant moves), defaults (law breaks somewhere), untested',
     bridge: 'two laboratories with the same physical input (name and unit; counters, seeds and generic symbols left out) swept together over the overlap of their ranges; an exact tie y_B = a + b·y_A or y_B = k·y_A^q (q rational) to 1e-9, not implied by both being powers or straight lines in the input; the constant named as r·π^a·√s when it is one to 1e-9',
     validation: 'declared = the atlas’s typed relations join the two laboratories; hypergeometric tail of catching that many declared pairs by chance; strong = pairs bound with weight ≥ 1/3',
     topology: 'Adamic–Adar on the declared graph; a candidate’s value is the share of undeclared pairs it outranks; the score’s own AUC by leaving each declared edge out',
@@ -289,6 +325,8 @@ const out = { schema: 'hcc.metalaws/1', version: V.version, build: V.build, inst
   counts: { instruments: Object.keys(M.INSTRUMENTS).length, slow: skipped.length, curves: curves.length, by_kind: kinds, classes: classes.length, shape_matches: shapes.length, links: all.length, undeclared: all.filter(l => !l.declared).length, laboratories: labs.length },
   forms: Object.entries(forms).map(([f, v]) => ({ form: f, curves: v.curves, labs: v.labs.size })).sort((a, b) => b.labs - a.labs || a.form.localeCompare(b.form)),
   exponent_spectrum: Object.entries(exps).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([p, n]) => ({ p, laws: n })), exponent_denominators: dens,
+  claim_classes: { by_detector: CLASS_OF, scope: 'EXACT_COMPUTATION here means: exact to 1e-9 on the swept range with the other inputs at their defaults — not a proof off that range; NUMERIC: agreement of sampled shapes only', unresolved: 'an analytic argument that a tie holds off the swept range and at other settings of the other inputs' },
+  scope_counts: (() => { const c = {}; for (const B of bridges) for (const e of B.examples) c[e.scope.class] = (c[e.scope.class] || 0) + 1; return c; })(),
   validation, trusted_detectors: trusted, link_prediction: { score: 'Adamic–Adar', auc_leave_one_out: +auc.toFixed(4) },
   communities: { modularity: +Q.toFixed(4), nmi_world: +nmiWorld.toFixed(4), nmi_category: +nmiCat.toFixed(4), groups: groups.map(g => ({ labs: g, worlds: [...new Set(g.map(l => (LABINFO[l] || {}).world))].sort() })) },
   labs: labs.map((l, i) => ({ id: l, title: (LABINFO[l] || {}).title || l, world: (LABINFO[l] || {}).world || null, category: (LABINFO[l] || {}).category || null, community: commOf.has(l) ? commOf.get(l) : null,

@@ -226,7 +226,7 @@ const agent={schema:'hcc.agent-discovery/1',version:identity.version,build:ident
   access:{public_http_compute:false,public_mcp_endpoint:null,authentication_required:false,
     static_read:true,local_esm_compute:true,site_mutation:false},
   resources:{workspace:'./agent.html',instructions:'./llms.txt',manifest:'./api/manifest.json',
-    reach:'./api/reach.json',invariants:'./api/invariants.json',uniqueness:'./api/uniqueness.json',metalaws:'./api/metalaws.json',open_problems:'./api/open-problems.json',sdk:'./api/agent-client.mjs',
+    reach:'./api/reach.json',invariants:'./api/invariants.json',uniqueness:'./api/uniqueness.json',metalaws:'./api/metalaws.json',bindu_claims:'./api/bindu-claims.json',open_problems:'./api/open-problems.json',sdk:'./api/agent-client.mjs',
     research_catalog:'./api/research.json',research_kernel:'./core/research/geometry.mjs',
     math_workspace:'./math.html',math_catalog:'./api/math-catalog.json',math_bridges:'./api/math-bridges.json',
     cap_observability:'./core/math/s3-cap-observability.mjs',

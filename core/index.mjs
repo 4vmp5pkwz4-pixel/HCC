@@ -100,6 +100,10 @@ export const ISOLATION_NOTES = Object.freeze({
 });
 
 export const EVIDENCE_TIERS = [
+  /* a kernel-checked proof is a different thing from a proof on paper (v4.435, after the claims ledger of Preece & Batenin,
+     BINDU_VECTRA 2026-11-21, which keeps LEAN_PASS apart from ANALYTIC_PROOF and EXACT_COMPUTATION): first, so it is not
+     swallowed by the 'theorem' pattern */
+  ['machine-checked', /machine-checked|lean-kernel/],
   ['theorem',     /theorem|exact/],
   ['measured',    /measured|validated|observation|established/],
   ['open',        /\bopen\b|missing|epistemic-boundary/],
