@@ -19,7 +19,7 @@ const src = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 const read = f => JSON.parse(fs.readFileSync(path.join(ROOT, f), 'utf8'));
 let pass = 0, fail = 0;
 const check = (ok, claim, nums) => { if (ok) pass++; else fail++; console.log(`${ok ? 'PASS' : 'FAIL'} — ${claim} :: ${nums}`); };
-const J = read('api/metalaws.json'), V = read('version.json');
+const J = read('api/metalaws.json'), V = read('version.json'), v_all = F => F.validation.all_pairs;
 const M = await import(path.join(ROOT, 'core/atlas/instruments.mjs'));
 const { CORE } = await import(path.join(ROOT, 'core/index.mjs'));
 const defs = id => Object.fromEntries(M.INSTRUMENT_META[id].inputs.filter(i => i.default !== undefined).map(i => [i.name, i.default]));
@@ -98,12 +98,12 @@ const pageMath = (() => { const a = src.indexOf('/* ═══ MLW-MATH-BEGIN'), 
 { const miss = ["{id:'metalaws', category:'inv'", "id:'metalaws', world:'s3', lab:'metalaws'", "mlwGroup.visible = (v==='metalaws');", "if(v==='metalaws'&&!mlwObjs){ mlwSetup(); }", "else if(V==='metalaws') body = mlwPanelHTML();",
     "if(V==='metalaws'){ mlwBind(ctl); }", "} else if(state.s3view==='metalaws'){", "metalaws:{speed:['mlwSpeed',1], pause:['mlwPaused','p']},", "['mlwAtlas','metalaws',mlwGroup,", "()=>goLab('s3','metalaws')", "fetch('api/metalaws.json'",
     "globalThis.HCC_METALAWS=Object.freeze({", "{id:'metalaws434', kind:'found'", "metalaws:'./api/metalaws.json'"].filter(s => !src.includes(s) && !fs.readFileSync(path.join(ROOT, 'scripts/build-api.mjs'), 'utf8').includes(s));
-  const v = J.validation, r = run('metalaws', {}), E = pageMath.mlwEnrichment(v.all_pairs, v.declared_pairs, v.any.pairs, v.any.declared);
+  const v = J.validation, r = run('metalaws', { pairs_total: v_all(J), pairs_declared: J.validation.declared_pairs, pairs_linked: J.validation.any.pairs, linked_declared: J.validation.any.declared }), E = pageMath.mlwEnrichment(v.all_pairs, v.declared_pairs, v.any.pairs, v.any.declared);
   const inst = Math.abs(r.lift - v.any.lift) < 1e-3 && Math.abs(r.p_value - v.any.p_value) / v.any.p_value < 1e-9 && Math.abs(E.p - r.p_value) < 1e-15 * Math.max(1, r.p_value) + 1e-300;
   const pos = new Map(J.labs.map(l => [l.id, l.xyz])), dist = (a, b) => Math.hypot(...[0, 1, 2].map(q => pos.get(a)[q] - pos.get(b)[q])), mean = a => a.reduce((x, y) => x + y, 0) / a.length;
   const all = []; for (const a of J.labs) for (const b of J.labs) if (a.id < b.id) all.push(dist(a.id, b.id)); const linked = mean(J.links.map(l => dist(l.a, l.b))), rnd = mean(all);
-  check(!miss.length && inst && linked < 0.75 * rnd, 'the laboratory is in the page and its instrument tells the truth about the file: declared, registered, shown, set up, given a panel, ticked, listed among the laboratories and the trips, reading api/metalaws.json lazily, with an agent handle; at its defaults the instrument returns the lift and the hypergeometric tail of all five detectors together, the same as the file to nine digits; and in the layout, laboratories that share a law are nearer than random pairs',
-    `instrument at defaults: lift ${r.lift.toFixed(3)}, p ${r.p_value.toExponential(3)} (file ×${v.any.lift}, ${v.any.p_value.toExponential(3)}) · mean distance tied ${linked.toFixed(3)} vs all ${rnd.toFixed(3)}${miss.length ? ' · missing ' + miss.join(' | ') : ''}`); }
+  check(!miss.length && inst && linked < 0.75 * rnd, 'the laboratory is in the page and its instrument tells the truth about the file: declared, registered, shown, set up, given a panel, ticked, listed among the laboratories and the trips, reading api/metalaws.json lazily, with an agent handle; given the file’s own counts the instrument returns its lift and hypergeometric tail for all five detectors together, the same as the file to nine digits; and in the layout, laboratories that share a law are nearer than random pairs',
+    `instrument at the file’s counts: lift ${r.lift.toFixed(3)}, p ${r.p_value.toExponential(3)} (file ×${v.any.lift}, ${v.any.p_value.toExponential(3)}) · mean distance tied ${linked.toFixed(3)} vs all ${rnd.toFixed(3)}${miss.length ? ' · missing ' + miss.join(' | ') : ''}`); }
 
 { /* the scope of each bridge tie (v4.435), re-tested from outside the engine */
   const fracq = q => { const [a, b] = String(q).split('/').map(Number); return b ? a / b : a; };
