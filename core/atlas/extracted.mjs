@@ -5,7 +5,7 @@
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
    declarations: 2552   ·   exported names: 2694
-   extracted physics, sha256 9d590f5e15b0e1dd4758e133991171e37d2adbc65cd11bba60e7761336dab565 */
+   extracted physics, sha256 88cfde5bd030d5fddb00a5d62e315b1250eed9d28b634146ab883f4f60ab1066 */
 
 const HCC_VERSION='4.436.0';
 
@@ -1283,7 +1283,7 @@ const LAB_DECLARATIONS=Object.freeze([
           de:'Die Meta-Gesetze · was die Labore teilen, ohne dass es jemand notierte',
           ja:'メタ法則 · 誰も書き留めなかった研究室どうしの共通点'},
    purpose:'Turns the atlas on itself: every instrument that runs without a browser is swept along each numeric input (scripts/metalaws.mjs), each response is named by the exact law it obeys when one reproduces every point to 10⁻⁹, and five detectors look ACROSS laboratories — the same rational exponent, the same exact form, the same irrational constant, the same unnamed curve, and, where two laboratories take the same physical input, an exact algebraic tie between their outputs once that input is eliminated. Each detector is scored against the relations the atlas declares by hand (hypergeometric tail); the declared graph is asked which links it lacks (Adamic–Adar); the found graph is cut into communities and drawn in 3D, near meaning “shares laws”. What it finds is a list of candidates with the reason for each — relations among the atlas’s own formulas, not new physics.',
-   predictionTarget:'the five detectors together link 556 pairs of the 149 laboratories with a browser-free instrument, 1.92 times as often declared as a random pair (p = 3.5·10⁻⁵); the bridges are exact to 10⁻⁹ at 33 points and again at fresh points in the page: a geodesic ball’s volume in the redshift laboratory is 2π² times the volume fraction of Gauss’s theorem and its flux fraction is one minus it; a geodesic sphere’s area is 4π times the square of the angular-diameter distance of the mirage laboratory; the Tolman dimming is a⁴; the Bell correlation is minus the Bloch z; every rational exponent in the atlas has a denominator of at most four'},
+   predictionTarget:'the five detectors together link some 550 pairs of the 149 laboratories with a browser-free instrument, about 1.9 times as often declared as a random pair (p ≈ 4·10⁻⁵; the slowest instruments are swept against a time cap, so a run on a busier machine may find a few ties more or fewer); the bridges are exact to 10⁻⁹ at 33 points and again at fresh points in the page: a geodesic ball’s volume in the redshift laboratory is 2π² times the volume fraction of Gauss’s theorem and its flux fraction is one minus it; a geodesic sphere’s area is 4π times the square of the angular-diameter distance of the mirage laboratory; the Tolman dimming is a⁴; the Bell correlation is minus the Bloch z; every rational exponent in the atlas has a denominator of at most four'},
   {id:'cstring', category:'cosmo', domain:'astro', cluster:'astro', predictionClass:'exact',
    title:{en:'A cosmic-string loop · its gravitational waves, and an integral a language model closed',
           ru:'Петля космической струны · её гравитационные волны и интеграл, замкнутый с языковой моделью',
