@@ -49,9 +49,9 @@ const group = (...ch) => ({ visible: true, children: ch, matrixWorld: { elements
 
 { const need = ['function hccDietInstall(){ try{ const raw=renderer.render.bind(renderer), w=new THREE.Vector3();', 'if(sc!==scene||!(HCC_DIET.on||HCC_DIET.pure)||!cam||!renderer.domElement) return raw(sc,cam);',
     'try{ return raw(sc,cam); } finally{ if(hid) for(let k=0;k<hid.length;k++) hid[k].visible=true; } };', 'hccDietInstall();\nrenderer.setAnimationLoop(tick);', 'diet:v=>{ if(v!==undefined) HCC_DIET.on=!!v;',
-    'G.acc+=Math.min(dt,1); G.n++; if(G.acc<1.5) return;', 'const floor=fps<15?0.42:0.55;', "{id:'renderDiet428', kind:'revises'"];
+    'G.acc+=Math.min(dt,1); G.n++; if(G.acc<1.5) return;', 'const floor=fps<12?0.6:0.75;', "{id:'renderDiet428', kind:'revises'"];
   const miss = need.filter(s => !src.includes(s));
-  check(!miss.length, 'nothing else sees them gone: the pass runs inside the renderer’s own call for the main scene only and every object it switched off is switched back on in a finally clause, before any other code runs; it is installed once, before the frame loop starts, can be turned off for comparison (HCC_PERF.diet(false)), and the governor’s new rule is the one in the page',
+  check(!miss.length, 'nothing else sees them gone: the pass runs inside the renderer’s own call for the main scene only and every object it switched off is switched back on in a finally clause, before any other code runs; it is installed once, before the frame loop starts, can be turned off for comparison (HCC_PERF.diet(false)), and the governor’s rule is the one in the page (its floors raised in v4.436 to 0.75 and 0.6 of a pixel)',
     miss.length ? 'missing ' + miss.map(x => x.slice(0, 50)).join(' | ') : `${need.length} source pins present`); }
 
 console.log(`\n${pass} passed, ${fail} failed`);
