@@ -10,7 +10,7 @@ const flat = o => { const out = {}; for (const [k, v] of Object.entries(o || {})
 parentPort.on('message', msg => {
   if (msg && msg.joint) { /* a joint sweep: one instrument at the given values of one input, the others at their defaults */
     const meta = M.INSTRUMENT_META[msg.id], fn = M.INSTRUMENTS[msg.id], defs = Object.fromEntries(meta.inputs.map(i => [i.name, i.default]));
-    const rows = msg.xs.map(x => { try { return flat(fn({ ...defs, [msg.input]: x })); } catch (e) { return null; } });
+    const rows = msg.xs.map(x => { try { return flat(fn({ ...defs, ...(msg.extra || {}), [msg.input]: x })); } catch (e) { return null; } });
     parentPort.postMessage({ joint: true, key: msg.key, rows }); return; }
   const id = msg;
   const meta = M.INSTRUMENT_META[id], fn = M.INSTRUMENTS[id], defs = Object.fromEntries(meta.inputs.map(i => [i.name, i.default]));
