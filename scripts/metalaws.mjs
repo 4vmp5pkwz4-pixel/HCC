@@ -36,7 +36,10 @@ const N = 33, CAP_MS = 6000, FP = 48;
 
 /* ── the sweep: a pool of worker threads, one task at a time each, every task stopped from outside after HARD_MS ── */
 const { Worker } = await import('node:worker_threads'), os = await import('node:os');
-const HARD_MS = 20000, ids = Object.keys(M.INSTRUMENTS).sort(), skipped = [];
+/* the engine's own instrument is left out: its outputs are statistics of this very result, and sweeping it would make the result
+   depend on its own defaults (v4.435) */
+const SELF = new Set(['metalaws']);
+const HARD_MS = 20000, ids = Object.keys(M.INSTRUMENTS).filter(id => !SELF.has(id)).sort(), skipped = [];
 const pool = (tasks, label) => new Promise(done => { const out = new Array(tasks.length).fill(null); let next = 0, live = 0; if (!tasks.length) return done(out);
   const spawn = () => { const w = new Worker(new URL('./metalaws-sweep.mjs', import.meta.url), { workerData: { module: join(ROOT, 'core/atlas/instruments.mjs'), N, CAP_MS } });
     let timer = null, cur = -1; const feed = () => { if (next >= tasks.length) { w.terminate(); live--; if (!live) done(out); return; } cur = next++;
@@ -322,7 +325,7 @@ const out = { schema: 'hcc.metalaws/1', version: V.version, build: V.build, inst
     topology: 'Adamic–Adar on the declared graph; a candidate’s value is the share of undeclared pairs it outranks; the score’s own AUC by leaving each declared edge out',
     communities: 'greedy modularity on the detected graph; NMI against the worlds and categories the atlas assigns',
     layout: 'eigenvectors 2–4 of the normalised Laplacian of declared (½) ∪ detected, with a weak uniform coupling 0.02/n, radii by rank, then 400 cooling steps of a 3D Fruchterman–Reingold layout with the same weights and a gravity n·k²·x that holds the unconnected in' },
-  counts: { instruments: Object.keys(M.INSTRUMENTS).length, slow: skipped.length, curves: curves.length, by_kind: kinds, classes: classes.length, shape_matches: shapes.length, links: all.length, undeclared: all.filter(l => !l.declared).length, laboratories: labs.length },
+  counts: { instruments: Object.keys(M.INSTRUMENTS).length, swept: ids.length, not_swept: [...SELF], slow: skipped.length, curves: curves.length, by_kind: kinds, classes: classes.length, shape_matches: shapes.length, links: all.length, undeclared: all.filter(l => !l.declared).length, laboratories: labs.length },
   forms: Object.entries(forms).map(([f, v]) => ({ form: f, curves: v.curves, labs: v.labs.size })).sort((a, b) => b.labs - a.labs || a.form.localeCompare(b.form)),
   exponent_spectrum: Object.entries(exps).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([p, n]) => ({ p, laws: n })), exponent_denominators: dens,
   claim_classes: { by_detector: CLASS_OF, scope: 'EXACT_COMPUTATION here means: exact to 1e-9 on the swept range with the other inputs at their defaults — not a proof off that range; NUMERIC: agreement of sampled shapes only', unresolved: 'an analytic argument that a tie holds off the swept range and at other settings of the other inputs' },
