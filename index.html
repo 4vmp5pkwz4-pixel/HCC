@@ -18124,18 +18124,43 @@ app.appendChild(labelRenderer.domElement);
    visibility: for the duration of one render, force-hide any label living under
    an invisible ancestor, then restore its intended .visible (preserving per-label
    logic such as distance-faded φ-shell labels). */
+/* ══ LABELS AT THE COST OF WHAT MOVED (v4.437) ════════════════════════════════════════════════════════════════════════════════
+   Measured in Horizons (a CPU profile of the frame loop): the labels were half of the frame's script time — more than the
+   draw-call submission of the whole scene. Every frame the patch above walked the whole scene to find labels under hidden
+   groups, then three's own pass brought every world matrix up to date a second time, walked the whole scene again writing a
+   display and a transform to every label of every world, walked it a third time to collect them, sorted all of them and wrote a
+   z-index into each — thousands of style writes a frame for a picture in which a few hundred labels show, and every write
+   invalidates the page's style. On an old machine with a real GPU it is the processor, not the pixels, that sets the frame
+   rate, so this is where the time was. The pass is now ONE walk of the visible part of the scene: a hidden group is not
+   entered (its labels are hidden, as before — the patch's rule kept); a label is written only when its position, display or
+   order actually changed (positions to a tenth of a pixel); a label shown last frame and not now is hidden once; the order is
+   sorted among the labels on screen only; and the world matrices are not recomputed when the frame's own render already did.
+   Same pixels, same labels, same order. */
+const HCC_LABEL_FRAME={fresh:false, walked:0, labels:0, writes:0, frames:0};
 {
-  const _origLabelRender = labelRenderer.render.bind(labelRenderer);
-  labelRenderer.render = (sc, cam) => {
-    const forced = [];
-    sc.traverse(o => {
-      if (!o.isCSS2DObject || o.visible === false) return;
-      for (let p = o.parent; p; p = p.parent) {
-        if (p.visible === false) { o.visible = false; forced.push(o); break; }
-      }
-    });
-    _origLabelRender(sc, cam);
-    for (const o of forced) o.visible = true;
+  const _v=new THREE.Vector3(), _e=new THREE.Vector3(), _vp=new THREE.Matrix4(), dom=labelRenderer.domElement, LBL=new WeakMap(), vis=[];
+  let shown=new Set(), seen=new Set();
+  const cell=el=>{ let c=LBL.get(el); if(!c){ c={d:null, x:NaN, y:NaN, cx:NaN, cy:NaN, z:NaN}; LBL.set(el,c); } return c; };
+  labelRenderer.render=(sc,cam)=>{ const F=HCC_LABEL_FRAME;
+    if(cam.parent===null&&cam.matrixWorldAutoUpdate===true) cam.updateMatrixWorld();
+    if(sc.matrixWorldAutoUpdate===true&&F.fresh!==true) sc.updateMatrixWorld();   /* the frame's own render has done it */
+    F.fresh=false; _vp.multiplyMatrices(cam.projectionMatrix,cam.matrixWorldInverse); _e.setFromMatrixPosition(cam.matrixWorld);
+    const sz=labelRenderer.getSize(), wh=sz.width/2, hh=sz.height/2; let walked=0, writes=0; seen.clear(); vis.length=0;
+    const stack=[sc];
+    while(stack.length){ const o=stack.pop(); if(o.visible===false) continue; walked++;
+      if(o.isCSS2DObject){ _v.setFromMatrixPosition(o.matrixWorld); const dx=_v.x-_e.x, dy=_v.y-_e.y, dz=_v.z-_e.z; _v.applyMatrix4(_vp);
+        if(_v.z>=-1&&_v.z<=1&&o.layers.test(cam.layers)===true){ const el=o.element, c=cell(el); o.onBeforeRender(labelRenderer,sc,cam);
+          if(c.d!==''){ el.style.display=''; c.d=''; writes++; }
+          const x=Math.round((_v.x*wh+wh)*10)/10, y=Math.round((hh-_v.y*hh)*10)/10, ox=o.center.x, oy=o.center.y;
+          if(x!==c.x||y!==c.y||ox!==c.cx||oy!==c.cy){ el.style.transform='translate('+(-100*ox)+'%,'+(-100*oy)+'%)translate('+x+'px,'+y+'px)'; c.x=x; c.y=y; c.cx=ox; c.cy=oy; writes++; }
+          if(el.parentNode!==dom) dom.appendChild(el);
+          o.onAfterRender(labelRenderer,sc,cam); o.userData.__d2=dx*dx+dy*dy+dz*dz; seen.add(o); vis.push(o); } }
+      const ch=o.children; for(let i=ch.length-1;i>=0;i--) stack.push(ch[i]); }
+    for(const o of shown) if(!seen.has(o)){ const el=o.element, c=cell(el); if(c.d!=='none'){ el.style.display='none'; c.d='none'; writes++; } }
+    const t=shown; shown=seen; seen=t;
+    vis.sort((p,q)=>(q.renderOrder-p.renderOrder)||(p.userData.__d2-q.userData.__d2));
+    for(let i=0,n=vis.length;i<n;i++){ const el=vis[i].element, c=cell(el), z=n-i; if(c.z!==z){ el.style.zIndex=String(z); c.z=z; writes++; } }
+    F.walked=walked; F.labels=vis.length; F.writes=writes; F.frames++; F.shownEls=vis.map(o=>o.element);
     premiumDeclutterLabels();
   };
 }
@@ -18160,12 +18185,15 @@ function premiumDeclutterLabels(force=false){
   if(!premiumVisualsEnabled)return;
   const now=performance.now();if(!force&&!premiumDeclutterDirty&&now-premiumDeclutterLast<210)return;
   premiumDeclutterLast=now;premiumDeclutterDirty=false;
-  const els=[...labelRenderer.domElement.querySelectorAll('.label')];
-  for(const el of els)el.classList.remove('declutter-hidden','declutter-soft');
+  /* v4.437: only the labels the label pass has on screen are weighed (it hands them over) — not every label of every world, each
+     asked for its computed style; a label the page's CSS hides has no box and is skipped by its size, as before */
+  const F=typeof HCC_LABEL_FRAME!=='undefined'?HCC_LABEL_FRAME:null, els=F&&F.shownEls?F.shownEls:[...labelRenderer.domElement.querySelectorAll('.label')];
+  if(F&&F.shownEls){ for(const el of labelRenderer.domElement.querySelectorAll('.declutter-hidden,.declutter-soft')) el.classList.remove('declutter-hidden','declutter-soft'); }
+  else for(const el of els)el.classList.remove('declutter-hidden','declutter-soft');
   const vw=innerWidth,vh=innerHeight,pad=MOBILE_GPU?3:5,max=MOBILE_GPU?38:92;
   const rows=[];
   for(const el of els){
-    const s=getComputedStyle(el);if(s.display==='none'||s.visibility==='hidden')continue;
+    if(el.style.display==='none'||el.style.visibility==='hidden'||!el.classList.contains('label'))continue;
     const r=el.getBoundingClientRect();if(r.width<1||r.height<1||r.right<0||r.left>vw||r.bottom<0||r.top>vh)continue;
     rows.push({el,r,p:premiumLabelPriority(el)});
   }
@@ -25925,14 +25953,9 @@ PLANETS.forEach((p, idx)=>{
     new THREE.SphereGeometry(1, 36, 24),
     new THREE.MeshStandardMaterial({color:p.col, roughness:.85, metalness:.05})
   );
-  if(p.rings){
-    const ring = new THREE.Mesh(
-      new THREE.RingGeometry(1.24, 2.27, 96),
-      new THREE.MeshBasicMaterial({color:0xcdb88e, side:THREE.DoubleSide, transparent:true, opacity:.55})
-    );
-    ring.rotation.x = Math.PI/2 - 26.7*DEG;
-    mesh.add(ring);
-  }
+  /* v4.437: the rings in Saturn's own equator, with their measured structure and the planet's shadow (hccSaturnRings) — they were
+     tilted 26.7° out of it, the obliquity counted a second time on a planet already turned by its IAU pole */
+  let ringMesh=null; if(p.rings){ ringMesh=hccSaturnRings(); mesh.add(ringMesh); }
   const atm = planetAtmosphere(p.name, p.r);
   if(atm) mesh.add(atm);
   const lab = mkLabel(p.name, p.dwarf?'label dim':'label', 'planet'+idx);
@@ -25954,7 +25977,7 @@ PLANETS.forEach((p, idx)=>{
   );
   solarGroup.add(line);
   line.userData.orbitBaseColour=p.col;
-  planetObjs.push({p, mesh, line, pick, lab, spinCue, atm});
+  planetObjs.push({p, mesh, line, pick, lab, spinCue, atm, ringMesh});
 
   const periodYr = 36000/p.rate;
   registerSel('planet'+idx, {
@@ -25979,6 +26002,173 @@ PLANETS.forEach((p, idx)=>{
     },
   });
 });
+/* ══ THE PLANETS AS THEY LOOK (v4.437) ════════════════════════════════════════════════════════════════════════════════════════
+   Asked: check the realism of the Solar System and take the immersion further than before. What was found, looking at each
+   planet close up: every planet but the Earth was a plain-coloured ball of 36 × 24 facets under a flat light — Jupiter a tan
+   sphere with no belts and no Red Spot — and SATURN'S RINGS WERE NOT IN SATURN'S EQUATOR: the planet is turned by its IAU pole
+   (RA 40.59°, Dec 83.54°), and the ring was then tilted by a further 26.7° of its own — the obliquity counted twice. With the ring
+   in the equator, the atlas's own ephemeris and the IAU pole give the ring's opening angle seen from the Earth as +0.01° on
+   2025-03-23 — the ring-plane crossing that was observed that day — and 27.0° in October 2017, the widest opening of the cycle.
+   Now:
+     · the RINGS have their measured structure, radius by radius (D, C, B, the Cassini Division, A with the Encke and Keeler gaps,
+       the F ring; Saturn radii of 60 268 km), their opacity follows the slant of the line of sight through them (1 − e^(−τ/μ)),
+       the face the Sun lights is bright and the other only glows where light gets through, and Saturn's SHADOW lies on them;
+     · the PLANETS wear their observed faces, drawn once on the first close approach: Jupiter's belts and zones at their
+       planetographic latitudes and the Great Red Spot at −22°; Saturn's paler bands and its north-polar hexagon at 78°; the dark
+       albedo regions of Mars at their longitudes, Hellas, and both polar caps; Venus's featureless cloud deck; grey Mercury;
+       pale Uranus; blue Neptune;
+     · each is lit by the Sun where the Sun is, with the limb darkening of its kind (Minnaert: k ≈ 0.9 for the gas giants, ~0.6
+       for bare rock), a night side that is dark — a hundredth of the day, enough to see the disc against the stars — and on
+       Saturn the RINGS' SHADOW across the globe;
+     · the globes are round at any distance (96 × 64 instead of 36 × 24).
+   What is drawn is the observed appearance in broad strokes, not a map: the belts drift and change, the Spot shrinks, and these
+   planets are oriented by their poles but not turned by their rotation. */
+function hccSaturnRings(){
+  /* Saturn equatorial radius 60 268 km; the mesh's unit is the planet's mean radius, 58 232 km */
+  const RS=60268/58232;
+  const Z=[[1.110,1.236,0.002,0.10],[1.239,1.527,0.09,0.30],[1.527,1.951,1.50,0.95],[1.951,2.027,0.12,0.24],[2.027,2.269,0.55,0.72]];
+  const geo=new THREE.RingGeometry(1.105*RS,2.34*RS,256,1);
+  const m=new THREE.Mesh(geo,new THREE.ShaderMaterial({transparent:true, depthWrite:false, side:THREE.DoubleSide,
+    uniforms:{uSunL:{value:new THREE.Vector3(1,0,0)}, uCamL:{value:new THREE.Vector3(0,1,0)}, uRS:{value:RS}},
+    vertexShader:`varying vec3 vP; varying vec3 vPP;
+      #include <common>
+      #include <logdepthbuf_pars_vertex>
+      void main(){ vP=position; vPP=vec3(position.x,0.0,-position.y);   /* the ring's plane turned into the planet's frame: (x, y, 0) → (x, 0, −y) */
+        gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);
+        #include <logdepthbuf_vertex>
+      }`,
+    fragmentShader:`uniform vec3 uSunL; uniform vec3 uCamL; uniform float uRS; varying vec3 vP; varying vec3 vPP;
+      #include <logdepthbuf_pars_fragment>
+      /* the measured structure: normal optical depth and lit-face reflectivity by radius (Saturn radii) */
+      void zone(float r, out float tau, out float refl, out vec3 col){
+        tau=0.0; refl=0.0; col=vec3(0.80,0.74,0.64);
+        if(r>1.110&&r<1.236){ tau=0.002; refl=0.10; col=vec3(0.55,0.52,0.50); }
+        else if(r>=1.239&&r<1.527){ tau=0.09+0.06*smoothstep(1.24,1.52,r); refl=0.30; col=vec3(0.62,0.58,0.54); }
+        else if(r>=1.527&&r<1.951){ tau=1.2+0.9*smoothstep(1.53,1.75,r)-0.4*smoothstep(1.85,1.95,r); refl=0.95; col=vec3(0.93,0.86,0.72); }
+        else if(r>=1.951&&r<2.027){ tau=0.12; refl=0.22; col=vec3(0.66,0.62,0.58); }
+        else if(r>=2.027&&r<2.269){ tau=0.55; refl=0.72; col=vec3(0.86,0.80,0.70);
+          if(abs(r-2.2166)<0.0027) tau=0.0;      /* the Encke Gap, 325 km */
+          if(abs(r-2.2650)<0.0004) tau=0.0; }    /* the Keeler Gap */
+        else if(abs(r-2.3259)<0.0025){ tau=0.4; refl=0.6; col=vec3(0.85,0.82,0.78); }   /* the F ring */
+        /* fine ringlets: the B ring is grooved at every scale */
+        tau*=0.85+0.15*sin(r*1900.0)*sin(r*610.0+1.3);
+      }
+      void main(){
+        #include <logdepthbuf_fragment>
+        float rr=length(vP.xy)/uRS; float tau, refl; vec3 col; zone(rr,tau,refl,col); if(tau<=0.0) discard;
+        vec3 S=normalize(uSunL), V=normalize(uCamL-vPP), n=vec3(0.0,1.0,0.0);
+        float muS=abs(dot(n,S)), muV=max(abs(dot(n,V)),0.02);
+        float a=1.0-exp(-tau/muV);                                  /* opacity along the slant of the sight line */
+        bool litFace=(dot(n,S)>0.0)==(dot(n,V)>0.0);
+        float I=litFace? refl*(1.0-exp(-tau/max(muS,0.02)))/max(1.0-exp(-tau/muV),1e-3)*min(1.0,muS*4.0+0.25)
+                       : refl*0.35*(1.0-exp(-tau/max(muS,0.02)))*exp(-tau/muV)/max(a,1e-3);   /* the unlit face: light that got through */
+        /* the planet's shadow: the sunbeam to this point crosses the globe */
+        vec3 P=vPP; float b=dot(P,S), c=dot(P,P)-1.0, h=b*b-c; if(h>0.0&&(-b-sqrt(h))>0.0) I*=0.04;
+        gl_FragColor=vec4(col*I, a);
+      }`}));
+  m.rotation.x=-Math.PI/2;   /* in the planet's own equatorial plane: the mesh is already turned by Saturn's IAU pole */
+  m.userData.saturnRings=true; m.userData.noGrade=true; m.renderOrder=2;
+  return m;
+}
+/* ── the faces, drawn once: a seamless sphere-sampled noise, the observed bands and features ── */
+const HCC_SURF={done:new Map(), jobs:new Map(), W:1024, H:512};
+function hccSurfHash(i,j,k){ let h=(i*374761393+j*668265263+k*2147483647)|0; h=(h^(h>>>13))*1274126177|0; return ((h^(h>>>16))>>>0)/4294967296; }
+function hccSurfNoise(x,y,z){ const xi=Math.floor(x), yi=Math.floor(y), zi=Math.floor(z), xf=x-xi, yf=y-yi, zf=z-zi, u=xf*xf*(3-2*xf), v=yf*yf*(3-2*yf), w=zf*zf*(3-2*zf);
+  const L=(a,b,t)=>a+(b-a)*t, H=hccSurfHash;
+  return L(L(L(H(xi,yi,zi),H(xi+1,yi,zi),u),L(H(xi,yi+1,zi),H(xi+1,yi+1,zi),u),v),L(L(H(xi,yi,zi+1),H(xi+1,yi,zi+1),u),L(H(xi,yi+1,zi+1),H(xi+1,yi+1,zi+1),u),v),w); }
+function hccSurfFbm(x,y,z,o){ let s=0, a=0.5, f=1; for(let k=0;k<(o||4);k++){ s+=a*hccSurfNoise(x*f,y*f,z*f); f*=2.03; a*=0.5; } return s; }
+/* bands from pole to pole: [planetographic latitude of the upper edge, r, g, b] (sRGB) — Jupiter after Rogers, The Giant Planet
+   Jupiter (1995), and the Juno/Hubble OPAL colours; Saturn from Cassini; the ice giants nearly featureless in visible light */
+const HCC_PLANET_BANDS={
+  Jupiter:[[-60,156,152,146],[-45,178,166,150],[-38,198,182,156],[-33,176,148,120],[-27,218,204,174],[-20,180,142,108],[-17,226,214,188],[-7,170,128,94],[7,232,222,200],[17,166,122,90],[24,224,210,180],[31,182,146,112],[35,214,198,166],[38,186,160,130],[48,200,186,160],[90,158,154,148]],
+  Saturn:[[-70,176,168,150],[-50,204,186,150],[-35,214,196,158],[-20,198,176,136],[-8,214,194,150],[8,234,216,172],[20,212,190,146],[35,198,176,136],[50,212,194,154],[70,190,184,164],[90,148,162,172]],
+  Uranus:[[-60,176,222,228],[-20,168,216,224],[20,166,214,222],[60,170,218,226],[90,180,224,230]],
+  Neptune:[[-60,78,112,206],[-30,70,104,200],[-15,84,120,214],[15,72,108,204],[45,80,116,210],[90,74,110,204]]};
+function hccSurfBand(name,lat){ const B=HCC_PLANET_BANDS[name]; let i=0; while(i<B.length-1&&lat>B[i][0]) i++;
+  const c=B[i], p=B[Math.max(0,i-1)], lo=i>0?p[0]:-90, t=Math.max(0,Math.min(1,(lat-(lo))/1.2));   /* a degree's blend at each edge */
+  return i>0&&lat-lo<1.2?[p[1]+(c[1]-p[1])*t,p[2]+(c[2]-p[2])*t,p[3]+(c[3]-p[3])*t]:[c[1],c[2],c[3]]; }
+function hccSurfPixel(name,lat,lon,x,y,z){   /* lat, lon in degrees (lon east, 0..360); x,y,z on the unit sphere */
+  const n1=hccSurfFbm(x*3,y*3,z*3,4), n2=hccSurfFbm(x*11+5,y*11,z*11,3);
+  if(name==='Jupiter'||name==='Saturn'){ const g=name==='Jupiter';
+    /* turbulent band edges and the streaks along the jets */
+    const latT=lat+(n1-0.5)*(g?3.4:1.8)+(hccSurfFbm(x*2,y*24,z*2,3)-0.5)*(g?1.8:0.8)+(g?1.1*Math.sin(lon*DEG*7+n1*6)*Math.exp(-Math.pow((Math.abs(lat)-18)/8,2)):0);
+    let c=hccSurfBand(name,latT); const streak=0.95+0.10*hccSurfFbm(x*40,y*3,z*40,3); c=c.map(v=>v*streak);
+    if(g){ /* the Great Red Spot, −22.4°, about 11.5° × 8.6° today; its pale collar */
+      const dl=((lon-60+540)%360)-180, e=Math.hypot(dl/5.8,(lat+22.4)/4.3);
+      if(e<1.35){ const k=Math.max(0,1-e); const red=[204,112,82], col=[236,226,206]; const w=e<1?Math.min(1,k*3):0, wc=e>=0.95?Math.max(0,1-Math.abs(e-1.12)/0.2):0;
+        c=c.map((v,i)=>v*(1-w-wc*0.6)+red[i]*w+col[i]*wc*0.6); }
+      /* the white ovals of the south temperate belt, the brown barges of the north */
+      for(const [lo,la,s,col] of [[150,-33,2.0,[232,224,210]],[230,-41,1.4,[230,222,206]],[300,17.5,1.6,[120,82,58]],[20,15,1.2,[118,80,56]]]){ const d2=Math.hypot((((lon-lo+540)%360)-180)/s,(lat-la)/(s*0.6)); if(d2<1) c=c.map((v,i)=>v+(col[i]-v)*(1-d2)); }
+      /* festoons: blue-grey plumes at the north edge of the equatorial zone */
+      if(lat>3&&lat<8){ const f=Math.max(0,Math.sin(lon*DEG*12+n2*4))*Math.max(0,1-Math.abs(lat-6)/2.5); c=c.map((v,i)=>v*(1-0.35*f)+[90,100,120][i]*0.35*f); } }
+    else { /* the hexagon around Saturn's north pole, 78° */
+      const th=lon*DEG, hexR=Math.cos(Math.PI/6)/Math.cos(((th%(Math.PI/3))+Math.PI/3)%(Math.PI/3)-Math.PI/6), colat=90-lat, edge=12.2*hexR;
+      if(lat>60&&Math.abs(colat-edge)<0.9) c=c.map(v=>v*0.82); }
+    return c.map(v=>v*(0.94+0.12*n2)); }
+  if(name==='Uranus'||name==='Neptune'){ let c=hccSurfBand(name,lat+(n1-0.5)*2); if(name==='Neptune'){ const cl=hccSurfFbm(x*9,y*30,z*9,3); if(cl>0.72&&Math.abs(lat+25)<12) c=c.map(v=>v+(250-v)*Math.min(1,(cl-0.72)*4)); }
+    return c.map(v=>v*(0.97+0.06*n2)); }
+  if(name==='Mars'){ let c=[188,108,66];
+    /* the classical dark albedo regions, by east longitude and latitude */
+    const dark=[[70,8,12,14],[325,47,18,8],[5,-3,14,5],[325,-25,22,12],[230,-25,30,10],[110,47,18,7],[180,-20,18,8]];
+    let d=0; for(const [lo,la,wl,wa] of dark){ const q=Math.hypot((((lon-lo+540)%360)-180)/wl,(lat-la)/wa); d=Math.max(d,Math.max(0,1-q)); }
+    d=Math.min(1,d*1.6)*(0.6+0.6*n1); c=c.map((v,i)=>v*(1-0.55*d)+[92,62,48][i]*0.55*d);
+    /* Hellas, bright: 42°S, 70°E */
+    { const q=Math.hypot((((lon-70+540)%360)-180)/14,(lat+42)/9); if(q<1) c=c.map((v,i)=>v+([226,182,140][i]-v)*(1-q)); }
+    /* Valles Marineris */
+    if(lat>-14&&lat<-4&&lon>265&&lon<320) c=c.map(v=>v*(1-0.35*Math.max(0,1-Math.abs(lat+9)/4)*n2*1.4));
+    /* the polar caps */
+    const cap=Math.max(0,Math.min(1,(Math.abs(lat)-(lat>0?80:82)+(n1-0.5)*4)/2.5)); c=c.map(v=>v+(246-v)*cap);
+    return c.map(v=>v*(0.88+0.24*n2)); }
+  if(name==='Venus'){ const v=0.94+0.06*hccSurfFbm(x*2,y*6,z*2,3); return [234*v,220*v,180*v]; }
+  if(name==='Mercury'){ const cr=hccSurfFbm(x*16,y*16,z*16,4), b=0.86+0.28*n1+(cr>0.68?0.25:0)-(cr<0.3?0.08:0); return [152*b,146*b,140*b]; }
+  return null; }
+function hccSurfJob(name){ const W=HCC_SURF.W, H=HCC_SURF.H, cv=document.createElement('canvas'); cv.width=W; cv.height=H; const ctx=cv.getContext('2d'), img=ctx.createImageData(W,H);
+  return {name, cv, ctx, img, row:0, W, H}; }
+/* a few rows a frame, so no frame waits for a planet's face */
+function hccSurfStep(J,rows){ const {W,H,img}=J, d=img.data; const end=Math.min(H,J.row+rows);
+  for(let y=J.row;y<end;y++){ const lat=90-180*(y+0.5)/H, la=lat*DEG, cl=Math.cos(la), sy=Math.sin(la);
+    for(let x=0;x<W;x++){ const lon=360*(x+0.5)/W, lo=lon*DEG, c=hccSurfPixel(J.name,lat,lon,cl*Math.cos(lo),sy,cl*Math.sin(lo)), o=4*(y*W+x);
+      d[o]=Math.max(0,Math.min(255,c[0])); d[o+1]=Math.max(0,Math.min(255,c[1])); d[o+2]=Math.max(0,Math.min(255,c[2])); d[o+3]=255; } }
+  J.row=end; if(J.row<H) return null; J.ctx.putImageData(img,0,0); const t=new THREE.CanvasTexture(J.cv); t.colorSpace=THREE.SRGBColorSpace; t.wrapS=THREE.RepeatWrapping;
+  t.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy()); return t; }
+const HCC_MINNAERT={Mercury:0.62, Venus:0.80, Mars:0.72, Jupiter:0.92, Saturn:0.95, Uranus:1.0, Neptune:1.0};
+function hccPlanetMaterial(name,tex){ return new THREE.ShaderMaterial({
+    uniforms:{uMap:{value:tex}, uSunL:{value:new THREE.Vector3(1,0,0)}, uCamL:{value:new THREE.Vector3(0,0,5)}, uK:{value:HCC_MINNAERT[name]??0.8}, uNight:{value:0.012},
+      uRing:{value:name==='Saturn'?1:0}, uRS:{value:60268/58232}},
+    vertexShader:`varying vec2 vUv; varying vec3 vL;
+      #include <common>
+      #include <logdepthbuf_pars_vertex>
+      void main(){ vUv=uv; vL=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);
+        #include <logdepthbuf_vertex>
+      }`,
+    fragmentShader:`uniform sampler2D uMap; uniform vec3 uSunL; uniform vec3 uCamL; uniform float uK; uniform float uNight; uniform float uRing; uniform float uRS;
+      varying vec2 vUv; varying vec3 vL;
+      #include <logdepthbuf_pars_fragment>
+      float ringTau(float r){ r/=uRS; if(r>1.239&&r<1.527) return 0.12; if(r>=1.527&&r<1.951) return 1.6; if(r>=1.951&&r<2.027) return 0.12; if(r>=2.027&&r<2.269) return 0.55; return 0.0; }
+      void main(){
+        #include <logdepthbuf_fragment>
+        vec3 n=normalize(vL), S=normalize(uSunL), V=normalize(uCamL-vL);
+        float mu0=dot(n,S), mu=max(dot(n,V),1e-3);
+        vec3 alb=texture2D(uMap,vUv).rgb;
+        /* Minnaert's law, I = mu0^k mu^(k-1): the limb darkening of the kind of surface */
+        float I=mu0>0.0?pow(mu0,uK)*pow(mu,uK-1.0):0.0;
+        /* Saturn: the rings' shadow across the globe */
+        if(uRing>0.5&&mu0>0.0&&abs(S.y)>1e-4){ float t=-n.y/S.y; if(t>0.0){ vec3 q=n+S*t; I*=exp(-ringTau(length(q.xz))/abs(S.y)); } }
+        /* the terminator is soft by a degree or so: the Sun is a disc, not a point */
+        I*=smoothstep(-0.02,0.03,mu0);
+        gl_FragColor=vec4(alb*(I+uNight),1.0);
+      }`}); }
+/* per frame: the faces are drawn when a planet first stands larger than a few pixels; the light comes from where the Sun is */
+const _surfQ=new THREE.Quaternion();
+function hccPlanetSurfaceTick(){ const H=renderer.domElement.clientHeight||innerHeight, f=H/2/Math.tan(camera.fov*DEG/2);
+  for(const o of planetObjs){ const nm=o.p.name; if(nm==='Earth'||nm==='Pluto') continue; const S=HCC_SURF; const mesh=o.mesh;
+    if(!S.done.has(nm)){ const d=Math.max(1e-12,mesh.position.distanceTo(camera.position)), px=mesh.scale.x/d*f;
+      if(px>6||S.jobs.has(nm)){ let J=S.jobs.get(nm); if(!J){ J=hccSurfJob(nm); S.jobs.set(nm,J); }
+        const tex=hccSurfStep(J,12); if(tex){ S.jobs.delete(nm); const m=hccPlanetMaterial(nm,tex); o.surfMat=m; o.plainMat=mesh.material; mesh.material=m;
+          if(!o.hiGeo){ o.hiGeo=new THREE.SphereGeometry(1,96,64); mesh.geometry=o.hiGeo; } S.done.set(nm,true); } } }
+    if(o.surfMat||o.ringMesh){ _surfQ.copy(mesh.quaternion).invert(); const sunL=sunMesh.position.clone().sub(mesh.position).normalize().applyQuaternion(_surfQ), camL=mesh.worldToLocal(camera.position.clone());
+      if(o.surfMat){ o.surfMat.uniforms.uSunL.value.copy(sunL); o.surfMat.uniforms.uCamL.value.copy(camL); }
+      if(o.ringMesh){ const U=o.ringMesh.material.uniforms; U.uSunL.value.copy(sunL); U.uCamL.value.copy(camL); } } } }
 let orbitGeometryT=0, orbitGeometryAcc=1, geoOrbitsBuilt=false, geoBuiltT=0;
 
 /* ══ THE EARTH AS IT LOOKS ═══════════════════════════════════════════════════════
@@ -36004,8 +36194,15 @@ function updateHierarchyLocator(){
   if(hp){hp.parent.getWorldPosition(hierarchySelection.position);hierarchySelection.quaternion.copy(hierarchyCamera.quaternion);}
   locatorS3.rotation.y+=.0015;
 }
+/* v4.437: the inset's box was read from the page every frame — getComputedStyle and getBoundingClientRect right after the
+   labels had written their styles, which forces the whole page to lay out again, every frame. It is read four times a second
+   (and at once after a resize); the inset itself is still drawn every frame, as it must be. */
+const HCC_LOCATOR_BOX={t:-1e9, shown:false, r:null, w:0, h:0};
+function hccLocatorBox(){ const B=HCC_LOCATOR_BOX, now=performance.now(), W=innerWidth, H=innerHeight;
+  if(now-B.t>250||B.w!==W||B.h!==H){ B.t=now; B.w=W; B.h=H; B.shown=getComputedStyle(hierarchyLegend).display!=='none'; B.r=B.shown?hierarchyLegend.getBoundingClientRect():null; }
+  return B; }
 function renderHierarchyLocator(){
-  if(!hierLocatorAllowed()||getComputedStyle(hierarchyLegend).display==='none') return;
+  if(!hierLocatorAllowed()) return; const LB=hccLocatorBox(); if(!LB.shown||!LB.r) return;
   // NOTE: must render EVERY frame — the main pass clears the whole framebuffer, so
   // skipping this scissor draw on alternate frames made the navigator blink (flicker).
   /* the attitude indicator is only honest if it is re-slaved every frame: the scene
@@ -36015,7 +36212,7 @@ function renderHierarchyLocator(){
      its own stored quaternion and never read the scene back, so it was write-only and any
      other way of moving the view left the picture disagreeing with it. */
   try{ if(HOPF_MODE!=='4d') hierSyncFromMain(); else hopfSyncMarkers(); }catch(e){}
-  const r=hierarchyLegend.getBoundingClientRect();
+  const r=LB.r;
   const full=renderer.getSize(hierarchyFullSize);
   const x=Math.round(r.left),y=Math.round(full.y-r.bottom),w=Math.round(r.width),h=Math.round(r.height);
   if(w<2||h<2) return;
@@ -115717,9 +115914,13 @@ function hccTimeMachineTick(dt){
   }
   /* AND THE INTERFACE MAKES ROOM: one variable, measured from the bar itself, so
      nothing below it has to guess a height that changes with the viewport. */
-  try{ const h=el.hidden?0:Math.round(el.getBoundingClientRect().height);
-    if(h!==HCC_TM.h){ HCC_TM.h=h; document.documentElement.style.setProperty('--tm-h', h+'px'); try{ requestHierarchyLayout(); }catch(e){} } }catch(e){}   /* the inset re-seats itself on the bar (v4.365) */
+  /* v4.437: measured when the bar changes size (a ResizeObserver) — it was read every frame, a forced layout of the page right
+     after the labels had written their styles */
+  try{ if(!HCC_TM.ro&&typeof ResizeObserver!=='undefined'){ HCC_TM.ro=new ResizeObserver(()=>hccTmMeasure(el)); HCC_TM.ro.observe(el); hccTmMeasure(el); }
+    else if(!HCC_TM.ro){ HCC_TM.acc=(HCC_TM.acc||0)+dt; if(HCC_TM.acc>0.5){ HCC_TM.acc=0; hccTmMeasure(el); } } }catch(e){}
 }
+function hccTmMeasure(el){ try{ const h=el.hidden?0:Math.round(el.getBoundingClientRect().height);
+    if(h!==HCC_TM.h){ HCC_TM.h=h; document.documentElement.style.setProperty('--tm-h', h+'px'); try{ requestHierarchyLayout(); }catch(e){} } }catch(e){} }   /* the inset re-seats itself on the bar (v4.365) */
 
 /* the spacing of representable day counts at x — the clock's resolution there */
 function hccEpochUlpDays(x){ const ax=Math.abs(x)||1; return Math.pow(2,Math.floor(Math.log2(ax))-52); }
@@ -135104,6 +135305,10 @@ function hccPaceSkip(now){ const P=HCC_PACE;
   /* a camera the reader or a tour is moving keeps 60; the atlas's own slow idle drift is content to run at 30 */
   if(moved&&!drift) P.lastInput=Math.max(P.lastInput,now-P.idleAfter+1500); P.idle=now-P.lastInput>P.idleAfter;
   const minMs=1000/(P.idle?P.idleCap:P.cap)-3.5; if(now-P.lastDraw<minMs){ P.skipped++; return true; } P.lastDraw=now; P.drawn++; return false; }
+/* where a frame's main-thread time goes (v4.437): the logic before the draw, the draw call submission (renderMain — with a
+   software renderer this includes the drawing itself), the labels, the rest; HCC_PERF.split() reads the averages */
+const HCC_SPLIT={n:0, logic:0, draw:0, labels:0, tail:0};
+function hccSplitAdd(t0,r0,r1,r2,t3){ const S=HCC_SPLIT; if(!(t3>=t0)) return; S.n++; S.logic+=r0-t0; S.draw+=r1-r0; S.labels+=r2-r1; S.tail+=t3-r2; }
 function tick(now, frame){
   try{ if(hccPaceSkip(now)) return; }catch(e){}
   try{ tickBody(now, frame); }
@@ -135333,6 +135538,7 @@ function tickBody(now, frame){
       const dCam = o.mesh.position.distanceTo(camera.position);
       o.pick.scale.setScalar(Math.max(o.mesh.scale.x*1.6, dCam*0.012));
     }
+    try{ hccPlanetSurfaceTick(); }catch(e){ if(!hccPlanetSurfaceTick._w){ hccPlanetSurfaceTick._w=1; console.warn('planet surfaces:',e); } }   /* v4.437: faces, light, rings */
     updateSolarVectors(T, geoShift);   // the motion-vector & axes atlas rides the same frame data
     updateAsteroids(T, geoShift);      // GPU restricted N-body swarm layered over the ephemeris
     updateLagrange(T, geoShift);       // Sun–Earth L1–L5 ride the live ephemeris
@@ -136162,13 +136368,18 @@ function tickBody(now, frame){
   try{ hccSelInsetTick(dt); }catch(e){}   /* the card never covers what was chosen (v4.353) */
   try{ hccSeamDoorSync(); }catch(e){}   /* the door a seam offers (v4.404) */
   try{ hccInstrTick(dt); }catch(e){}   /* the laboratory instrument (v4.354) */
+  const _tR0=performance.now();
   if(MV.on && state.mode==='s3' && !renderer.xr.isPresenting) mvTick(dt);
   else renderMain();
   xrHopfDrive(dt);
   if(ATLAS_TELEMETRY.firstFrameMs===null)ATLAS_TELEMETRY.firstFrameMs=performance.now()-ATLAS_BOOT_T0;
+  const _tR1=performance.now();
+  if(!MV.on) HCC_LABEL_FRAME.fresh=true;   /* renderMain drew `scene`, which brought every world matrix up to date */
   if(!MV.on&&!renderer.xr.isPresenting&&(!MOBILE_GPU||++labelRenderFrame%2===0))labelRenderer.render(scene,camera);
+  const _tR2=performance.now();
   renderHierarchyLocator();
   XRX.telemetry(dt);
+  hccSplitAdd(now,_tR0,_tR1,_tR2,performance.now());
 }
 /* Virtual research-model entries make non-pickable analytical environments
    discoverable through the global object atlas without pretending that a
@@ -138008,6 +138219,7 @@ function hccPostPasses(o){ ensureBloom(); const C=bloomComposer, P=C?C.passes:[]
   return P.map(p=>({pass:name(p), enabled:p.enabled!==false})); }
 globalThis.HCC_PERF=Object.freeze({ cost:o=>hccFrameCost(o), layers:n=>hccOverdrawLayers(n), bench:n=>hccBenchFrame(n), post:o=>hccPostPasses(o),
   draws:n=>hccDrawCensus(n),
+  split:reset=>{ const S=HCC_SPLIT, k=Math.max(1,S.n), o={frames:S.n, logic_ms:+(S.logic/k).toFixed(2), draw_ms:+(S.draw/k).toFixed(2), labels_ms:+(S.labels/k).toFixed(2), tail_ms:+(S.tail/k).toFixed(2)}; if(reset){ S.n=0; S.logic=S.draw=S.labels=S.tail=0; } return o; },
   pixelRatio:v=>{ if(v!==undefined&&v>0){ renderer.setPixelRatio(v); try{ syncRendererViewport(); }catch(e){ requestRendererResize(); } } return renderer.getPixelRatio(); }, wallCheck:()=>hccWallCheck(), oneWall:v=>{ if(v!==undefined) HCC_SHELL_ONE.on=!!v; return HCC_SHELL_ONE.on; }, pace:o=>{ if(o&&typeof o==='object') for(const k of ['on','force','cap','idleCap','idleAfter']) if(o[k]!==undefined) HCC_PACE[k]=k==='on'||k==='force'?!!o[k]:Math.max(k==='idleAfter'?0:10,+o[k]); const P=HCC_PACE; return {on:P.on, force:P.force, cap:P.cap, idleCap:P.idleCap, idleAfter:P.idleAfter, idle:P.idle, drawn:P.drawn, skipped:P.skipped}; }, governor:()=>({key:PERF_GOV.key, scale:PERF_GOV.scale, fps:PERF_GOV.fps, steps:PERF_GOV.steps, memory:{...PERF_GOV.mem}}), diet:v=>{ if(v!==undefined) HCC_DIET.on=!!v; return {on:HCC_DIET.on, faint:HCC_DIET.faint, tiny:HCC_DIET.tiny, single:HCC_DIET.single, frames:HCC_DIET.frames}; }, state:()=>({diet:{on:HCC_DIET.on, faint:HCC_DIET.faint, tiny:HCC_DIET.tiny, single:HCC_DIET.single}, fps:+PERF_GOV.fps.toFixed(1), scale:+PERF_GOV.scale.toFixed(3), pixelRatio:renderer.getPixelRatio(), base:PERF_GOV.base, steps:PERF_GOV.steps, on:PERF_GOV.on, automated:!!navigator.webdriver}),
   on:v=>{ PERF_GOV.on=!!v; return PERF_GOV.on; }, force:v=>{ PERF_GOV.force=!!v; return !!PERF_GOV.force; }, lite:v=>{ if(v!==undefined) hccLiteSet(v===null?'auto':v?'on':'off'); return {...HCC_LITE}; }, reset:()=>{ const G=PERF_GOV; if(G.base){ G.scale=1; try{ renderer.setPixelRatio(G.base); requestRendererResize(); }catch(e){} } return true; } });
 /* ══ LIGHT EFFECTS (v4.431) ══════════════════════════════════════════════════════════════════════════════════════════════
