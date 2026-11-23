@@ -25,7 +25,10 @@
     10. the COLOUR: the planet and ring shaders end in the screen's colour space — they were in linear light, too dark and too
         saturated, whenever the post chain was off, which is the default;
     11. levels of detail, the ambient fill, the landing on an ellipsoid, the giants' haze;
-    12. found on the way: on an upright phone the floating buttons stood on the selection card's subtitle.
+    12. found on the way: on an upright phone the floating buttons stood on the selection card's subtitle;
+    13. Horizons on any device — the main thread: the declutter pass without class churn or forced layout, the writes that
+        changed nothing, the cursor's glow;
+    14. the crossing to the universe: shaders compiled while idle; glass that changes no pixel folded into the veil.
    What is NOT checked here: what a particular GPU draws or how fast — the headless renderer is software. */
 import fs from 'node:fs'; import path from 'node:path'; import vm from 'node:vm';
 import * as THREE from 'three';
@@ -253,6 +256,54 @@ const FACE = new Function('const DEG=Math.PI/180;' + lift('const HCC_PLANET_BAND
   const rule = /body\.selcard-up \.fab\{display:none!important\}/.test(src);
   check(portUp && !portDown && !landUp && rule, 'found on the way, on an upright phone: the rule that steps the floating buttons (☰, ▶) aside while the selection card is up was switched on only past the cockpit’s early return, so they stood on the card and hid the start of its subtitle (“Gas giant · 9.5367 AU”) — in v4.436 as well; it is now set in the upright cockpit, and a phone on its side, where the card stands clear of them, keeps them',
     `upright, card up → buttons ${portUp ? 'aside' : 'OVER THE CARD'} · card closed → ${portDown ? 'aside' : 'back'} · on its side → ${landUp ? 'aside' : 'kept'} · rule present ${rule}`); }
+
+{ /* 13. Horizons on any device — the main thread: the declutter pass, the writes that changed nothing, the cursor's glow */
+  const body = fn('premiumLabelPriority') + fn('premiumDeclutterLabels');
+  let classWrites = 0, layoutReads = 0;
+  const mkEl = (txt, cls, x, y, w, h) => { const set = new Set(cls.split(' ')); const el = { textContent: txt, style: { display: '' },
+      classList: { contains: c => set.has(c), add: c => { if (!set.has(c)) { set.add(c); classWrites++; } }, remove: (...cs) => { for (const c of cs) if (set.has(c)) { set.delete(c); classWrites++; } } },
+      getBoundingClientRect() { layoutReads++; return { left: x, top: y, right: x + w, bottom: y + h, width: w, height: h }; } };
+    Object.defineProperty(el, 'className', { get: () => [...set].join(' ') }); el.__hccLbl = { x, y, cx: 0, cy: 0, w, h, ox: 0, oy: 0 }; return el; };
+  const els = []; for (let i = 0; i < 60; i++) els.push(mkEl('label ' + i, i % 7 === 0 ? 'label major' : 'label', 40 + (i % 10) * 70, 40 + Math.floor(i / 10) * 18, 90, 14));
+  const env = { labelRenderer: { domElement: { style: {}, querySelectorAll: () => [] } }, premiumVisualsEnabled: true, MOBILE_GPU: false, HCC_LABEL_FRAME: { shownEls: els }, innerWidth: 1440, innerHeight: 900, performance: { now: () => 1e6 } };
+  const D = new Function(...Object.keys(env), 'let premiumDeclutterLast=0, premiumDeclutterDirty=true;' + body + ';return premiumDeclutterLabels;')(...Object.values(env));
+  classWrites = 0; D(true); const first = classWrites, hidden = els.filter(e => e.classList.contains('declutter-hidden')).length;
+  classWrites = 0; D(true); const second = classWrites;
+  els[3].__hccLbl.x += 400; classWrites = 0; D(true); const moved = classWrites;
+  /* the four write helpers, on an element that counts its writes */
+  const H = new Function(fn('hccTxt') + fn('hccAttr') + fn('hccTitle') + fn('hccData') + ';return {hccTxt,hccAttr,hccTitle,hccData};')();
+  let w = 0; const attrs = {}; const el = { _t: 'a', _ti: 'b', dataset: new Proxy({ k: 'v' }, { set(o, k, v) { w++; o[k] = v; return true; } }), getAttribute: n => attrs[n] ?? null, setAttribute: (n, v) => { w++; attrs[n] = v; } };
+  Object.defineProperty(el, 'textContent', { get() { return this._t; }, set(v) { w++; this._t = v; } }); Object.defineProperty(el, 'title', { get() { return this._ti; }, set(v) { w++; this._ti = v; } });
+  H.hccAttr(el, 'aria-label', 'x'); w = 0; H.hccTxt(el, 'a'); H.hccTitle(el, 'b'); H.hccData(el, 'k', 'v'); H.hccAttr(el, 'aria-label', 'x'); const same = w; H.hccTxt(el, 'c'); const changed = w;
+  const tm = fn('hccTimeMachineTick'), cr = fn('updateContextRail'), sc = fn('hccScaleTick');
+  const pins = !/\.textContent=|\.title=|setAttribute\(/.test(tm.replace(/hcc(Txt|Title|Attr|Data)\([^;]*;/g, '').replace(/b\.onclick[^\n]*/g, '').replace(/lb\.onclick[^\n]*/g, '').replace(/if\(!lb\.onclick\)[^\n]*/g, '')) &&
+    /hccData\(document\.body,'mode',state\.mode\)/.test(cr) && !/\.offsetParent/.test(sc.split('\n')[0]) && !/setProperty\('--lux-x'/.test(src) && /#luxGlow\{/.test(src) && /glow\.style\.transform='translate3d\('/.test(src);
+  const ok = first === hidden && hidden > 0 && second === 0 && moved <= 4 && layoutReads === 0 && same === 0 && changed === 1 && pins;
+  check(ok, 'Horizons on any device, the main thread (measured there before: 35 ms of script, 15–17 ms of style recalculation and a forced layout every frame): the declutter pass, lifted and run twice on the same 60 labels, writes the hidden class once and then NOTHING — it used to take it off every hidden label and put it back, restyling ~200 labels a pass — and never asks the page for a box (sizes come from a ResizeObserver); the time machine, the context rail, the clocks, the φ-scale and the tabs write a text, a title or an attribute only when it changed (each rewrite also woke the text fitter, which re-measured every button on the page ~4 times a second); the cursor’s glow is a layer moved by a transform — it was two custom properties on the document root, restyling every element at every pointer move, in premium mode where it is not even seen',
+    `declutter: ${first} class writes for ${hidden} hidden, then ${second}; a moved label → ${moved}; page boxes read ${layoutReads} · helpers: unchanged ${same} writes, changed ${changed} · per-frame writers compare first: ${pins}`); }
+
+{ /* 14. the crossing to the universe — shaders compiled while idle; and glass that changes no pixel folded into the veil */
+  const body = lift('const HCC_PRECOMPILE=', 'const HCC_MASKED=new Map();');
+  let got = null; const renderer = { info: { programs: [] }, compileAsync: (proxy, cam, target) => { got = { proxy, cam, target }; return Promise.resolve(); } };
+  const scene = new THREE.Scene(), mA = new THREE.MeshBasicMaterial(), mB = new THREE.PointsMaterial(), g1 = new THREE.SphereGeometry(1, 8, 6), g2 = new THREE.SphereGeometry(2, 8, 6);
+  const grp = new THREE.Group(); grp.material = mA; scene.add(grp);                         /* a handle with a material and no geometry */
+  const a1 = new THREE.Mesh(g1, mA), a2 = new THREE.Mesh(g2, mA), p1 = new THREE.Points(new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0], 3)), mB); a2.visible = false; grp.add(a1, a2); scene.add(p1);
+  const P = new Function('renderer', 'scene', 'camera', 'webglContextLost', 'requestIdleCallback', body + ';return {hccPrecompile,HCC_PRECOMPILE};')(renderer, scene, new THREE.PerspectiveCamera(), false, undefined);
+  P.hccPrecompile('test'); const seen = []; got.proxy.traverse(o => seen.push(o)); let lights = 0; got.proxy.traverseVisible(() => lights++);
+  const hooks = /if\(mode!==state\.mode\) try\{ hccPrecompileSoon\('world:'\+mode\); \}catch\(e\)\{\}/.test(src) && /hccPrecompileSoon\('scale:'\+layer,300\)/.test(src) && /setTimeout\(\(\)=>hccPrecompileSoon\('boot',0\),3000\)/.test(src) && /scale:l=>\{ if\(!\['local','galactic','andromeda','cosmic'\]\.includes\(l\)\) return false;/.test(src);
+  /* the fold: shells at many distances, against the shader's alpha taken over a thousand rays from the eye */
+  const F = new Function('THREE', 'scene', lift('const HCC_SHELL_ONE={on:true};', 'function hccShellMesh(') + ';return {hccShellFold, HCC_VEIL};')(THREE, new THREE.Scene());
+  const shaderA = (op, q) => { let best = 0; const t = Math.min(1, Math.abs(q - 1) / 0.3), near = 0.1 + 0.9 * t * t * (3 - 2 * t);
+    for (let k = 0; k <= 1000; k++) { const th = Math.PI * k / 1000, s = q * Math.sin(th), mu = Math.sqrt(Math.max(0, 1 - s * s)); best = Math.max(best, op * (0.02 + 0.98 * Math.pow(1 - mu, 5)) * near); } return best; };
+  let agree = 0, total = 0, foldedFar = 0; const rows = [];
+  for (const op of [0.05, 0.1, 0.13, 0.3]) for (const q of [0.3, 0.59, 0.62, 0.7, 0.8, 0.9, 0.95, 0.985, 1.2]) {
+    const root = new THREE.Group(), m = new THREE.ShaderMaterial({ uniforms: { uOp: { value: op }, uGrid: { value: 0 }, uSingle: { value: 0 }, uCol: { value: new THREE.Color(1, 1, 1) } } });
+    const sh = new THREE.Mesh(new THREE.SphereGeometry(10, 8, 6), m); root.add(sh); root.updateMatrixWorld(true); const hid = [];
+    F.hccShellFold(root, 10 * q, 0, 0, hid); const folded = hid.includes(sh), expect = q < 1 && (q < 0.6 || shaderA(op, q) < 1 / 255);
+    total++; if (folded === expect) agree++; if (folded && q >= 0.6) foldedFar++; rows.push(`${op}/${q}:${folded ? 'F' : '-'}`); }
+  const ok = seen.length === 2 && seen.includes(a1) && seen.includes(p1) && !seen.includes(grp) && got.target === scene && lights === 0 && hooks && agree === total && foldedFar > 0;
+  check(ok, 'the crossing to the universe: its longest frame was the first that drew the next scale — three compiles each new material’s program then and waits for the driver; every material of the scene is now compiled while the page is idle (after boot, after a change of world, as a scale is crossed), through a view of the scene that offers only what can be drawn (a fading handle carries a .material and no geometry, and three’s own traversal threw on it) and one object per material, kind and attributes, with the lights taken once from the scene; and glass the eye is inside that can change no pixel by a whole grey level — the shader’s own alpha at its most grazing ray, checked here against a thousand rays — is folded into the one veil, not drawn full-screen',
+    `precompile sees ${seen.length} drawables (handle skipped, shared material once), lights from the scene, hooks ${hooks} · fold agrees with the ray sweep ${agree}/${total}, ${foldedFar} folded beyond 0.6 R`); }
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
