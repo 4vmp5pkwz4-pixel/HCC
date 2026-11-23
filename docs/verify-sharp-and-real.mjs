@@ -24,7 +24,8 @@
         it, runs alone and draws the same bytes as the page's own function; the face of the planet largest on the screen first;
     10. the COLOUR: the planet and ring shaders end in the screen's colour space — they were in linear light, too dark and too
         saturated, whenever the post chain was off, which is the default;
-    11. levels of detail, the ambient fill, the landing on an ellipsoid, the giants' haze.
+    11. levels of detail, the ambient fill, the landing on an ellipsoid, the giants' haze;
+    12. found on the way: on an upright phone the floating buttons stood on the selection card's subtitle.
    What is NOT checked here: what a particular GPU draws or how fast — the headless renderer is software. */
 import fs from 'node:fs'; import path from 'node:path'; import vm from 'node:vm';
 import * as THREE from 'three';
@@ -240,6 +241,18 @@ const FACE = new Function('const DEG=Math.PI/180;' + lift('const HCC_PLANET_BAND
   const ok = lod && amb && fill < 0.025 && haze;
   check(ok, 'detail where it is seen: each globe has three levels (20 × 14, 48 × 32, 96 × 64 facets) and wears the one its size on the screen needs — the overview of the planets draws fewer triangles than before the faces, the close-up the finest; the solar fill light is a night side’s floor of about 2 % of the day, grey (it lit every moon’s night side at a blue 7.6 %); the giants’ limbs are their haze, not a blue Rayleigh rim',
     `triangles for seven planets: overview ${overviewNow} (were ${before}), all fine ${allFine} · fill ${(100 * fill).toFixed(1)} % of the Sun (was ${(100 * oldFill).toFixed(1)} %) · haze 0.85 for both giants: ${haze}`); }
+
+{ /* 12. found on the way: on an upright phone the floating buttons stood on the selection card */
+  const body = fn('labBarPlace');
+  const run = (layout, cardShown) => { const cls = new Set(); const env = {
+      document: { documentElement: { classList: { contains: c => c === layout } }, body: { classList: { toggle: (c, on) => { if (on) cls.add(c); else cls.delete(c); }, remove: c => cls.delete(c), contains: c => cls.has(c) } },
+        getElementById: id => id === 'selCard' ? { id } : null },
+      getComputedStyle: () => ({ display: cardShown ? 'block' : 'none' }) };
+    new Function(...Object.keys(env), body + ';return labBarPlace;')(...Object.values(env))({ style: {} }); return cls.has('selcard-up'); };
+  const portUp = run('port', true), portDown = run('port', false), landUp = run('land', true);
+  const rule = /body\.selcard-up \.fab\{display:none!important\}/.test(src);
+  check(portUp && !portDown && !landUp && rule, 'found on the way, on an upright phone: the rule that steps the floating buttons (☰, ▶) aside while the selection card is up was switched on only past the cockpit’s early return, so they stood on the card and hid the start of its subtitle (“Gas giant · 9.5367 AU”) — in v4.436 as well; it is now set in the upright cockpit, and a phone on its side, where the card stands clear of them, keeps them',
+    `upright, card up → buttons ${portUp ? 'aside' : 'OVER THE CARD'} · card closed → ${portDown ? 'aside' : 'back'} · on its side → ${landUp ? 'aside' : 'kept'} · rule present ${rule}`); }
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
