@@ -230,8 +230,10 @@ check(html.includes('--safe-l:env(safe-area-inset-left,0px)')
   && /#hccTabs\{[\s\S]{0,220}?var\(--safe-r\)[\s\S]{0,220}?var\(--safe-l\)/.test(html)
   && /right:calc\(8px \+ var\(--safe-r\)\)!important/.test(html),
   'landscape sheets and compact navigation share the left/right iPhone safe corridor');
-check(html.includes("b.setAttribute('aria-label',label)")
-  && html.includes("b.querySelector('i')?.setAttribute('aria-hidden','true')")
+/* v4.437: the names and the silenced glyphs are written compare-first (hccAttr/hccTitle) — the pass runs on a timer, and an
+   unchanged write was a mutation that woke the text fitter */
+check((html.includes("b.setAttribute('aria-label',label)")||html.includes("hccAttr(b,'aria-label',label)"))
+  && (html.includes("b.querySelector('i')?.setAttribute('aria-hidden','true')")||html.includes("const ic=b.querySelector('i'); if(ic) hccAttr(ic,'aria-hidden','true')"))
   && html.includes("b.setAttribute('aria-current','page')"),
   'compact icon navigation preserves names, silent decorative glyphs and one current-page state');
 check((html.match(/window\.visualViewport\?\.height\|\|innerHeight/g)||[]).length >= 2
@@ -593,10 +595,12 @@ check(html.includes('let premiumVisualsEnabled=true') && html.includes("localSto
 check(html.includes('id="premiumVisualsBtn"') && html.includes('aria-pressed="false"')
   && html.includes('function setPremiumVisuals(') && html.includes("PREMIUM_VISUALS_KEY='s3.premiumVisuals'"),
   'settings exposes one persistent Premium visuals switch');
+/* v4.437: the post chain's resolution is the picture's sharpness — it is no longer stepped down for a slow frame (the
+   motion rule softens only a moving camera); a budget lowered by a lost context is restored after three calm seconds */
 check(html.includes('const PREMIUM_POST_MAX=') && html.includes('function premiumPerformanceTick(')
-  && html.includes("premiumSetPostQuality(premiumPostQuality-.14,'frame-pressure')")
-  && html.includes("premiumSetPostQuality(premiumPostQuality+.08,'quality-recovery')"),
-  'flat-screen bloom has bounded adaptive degradation and slow quality recovery');
+  && !html.includes("'frame-pressure')")
+  && html.includes("premiumSetPostQuality(PREMIUM_POST_MAX,'quality-restored')"),
+  'flat-screen bloom keeps its full quality on a slow frame and restores a lowered budget');
 check(html.includes('function premiumBloomProfile(') && html.includes('function resetBloomComposer(')
   && html.includes('premiumComposerPixelRatio()') && html.includes('new SMAAPass(')
   && html.includes('bloomComposer.addPass(smaaPass)'),
