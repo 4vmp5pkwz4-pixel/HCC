@@ -56,9 +56,9 @@ const DEG = Math.PI / 180, rng = (() => { let s = 437; return () => (s = (s * 16
     `5 fps × 60 s: ${slow.calls.length} changes, quality ${slow.q()} · after a lost context: ${lost.calls.map(c => c.join(' ')).join(', ')} · old device: lite ${g0[0]} · reduced transparency: lite ${g1[0]} · slow frames: ${L0.hccLiteAuto(4)}`); }
 
 { /* 2. the label pass against three.js's own CSS2DRenderer */
-  let writes = 0; const counted = new Set();
+  let writes = 0; const counted = new Set(), byKey = {};
   const mkEl = track => { const el = { parentNode: null, kids: [], setAttribute() {}, appendChild(c) { c.parentNode = el; el.kids.push(c); }, removeChild(c) { c.parentNode = null; } };
-    el.style = track ? new Proxy({}, { set(t, k, v) { writes++; counted.add(el); t[k] = v; return true; } }) : {}; return el; };
+    el.style = track ? new Proxy({}, { set(t, k, v) { writes++; counted.add(el); byKey[k] = (byKey[k] || 0) + 1; t[k] = v; return true; } }) : {}; return el; };
   globalThis.document = { createElement: () => mkEl(false) };
   const W = 1200, H = 800;
   const build = track => { const r = (() => { let s = 77; return () => (s = (s * 16807) % 2147483647) / 2147483647; })(), sc = new THREE.Scene(), labs = [], groups = [];
@@ -69,7 +69,7 @@ const DEG = Math.PI / 180, rng = (() => { let s = 437; return () => (s = (s * 16
   const lr = { domElement: mkEl(false), getSize: () => ({ width: W, height: H }) };
   const FR = new Function('THREE', 'labelRenderer', 'premiumDeclutterLabels', lift('const HCC_LABEL_FRAME=', '/* Label intelligence:') + ';return HCC_LABEL_FRAME;')(THREE, lr, () => {});
   const ref = new CSS2DRenderer(); ref.setSize(W, H);
-  const frame = () => { A.sc.updateMatrixWorld(); FR.fresh = true; writes = 0; counted.clear(); lr.render(A.sc, A.cam); return writes; };
+  const frame = () => { A.sc.updateMatrixWorld(); FR.fresh = true; writes = 0; counted.clear(); for (const k in byKey) delete byKey[k]; lr.render(A.sc, A.cam); return writes; };
   const w1 = frame(); ref.render(B.sc, B.cam);
   const xy = el => { const m = /translate\(([-\d.e]+)px,([-\d.e]+)px\)/.exec(el.style.transform || ''); return m ? [+m[1], +m[2]] : null; };
   let shownA = 0, sameShown = true, worstPx = 0, sameCentre = true;
@@ -79,12 +79,12 @@ const DEG = Math.PI / 180, rng = (() => { let s = 437; return () => (s = (s * 16
   const order = S => S.labs.map((o, i) => [i, o.element]).filter(([, e]) => e.style.display === '').sort((p, q) => +q[1].style.zIndex - +p[1].style.zIndex).map(([i]) => i).join(',');
   const sameOrder = order(A) === order(B);
   const w2 = frame();                                                     /* nothing moved */
-  const mover = A.labs.find(o => o.element.style.display === ''); mover.position.x += 0.3; const w3 = frame(), onlyMover = counted.size <= 3 && counted.has(mover.element);
-  const hidden = A.groups[2], hiddenLabs = hidden.children.filter(o => o.element.style.display === '').length; hidden.visible = false; const w4 = frame();
-  const allHidden = hidden.children.every(o => o.element.style.display === 'none'), walked = FR.walked;
-  const ok = sameShown && shownA > 20 && shownA < A.labs.length && worstPx <= 0.05 + 1e-9 && sameCentre && sameOrder && w1 >= 3 * shownA && w2 === 0 && w3 >= 1 && onlyMover && w4 === hiddenLabs && allHidden && walked < 1 + A.groups.length + A.labs.length - hidden.children.length + 1;
-  check(ok, 'labels at the cost of what moved: lifted and run beside three.js’s own CSS2DRenderer on 72 labels in six groups, the pass shows the same labels, at the same places to a twentieth of a pixel, with the same anchor and the same front-to-back order; a frame in which nothing moved writes NOTHING (three.js rewrites every label every frame); a moved label rewrites only itself; a hidden group is not entered and its labels are hidden once',
-    `${shownA}/${A.labs.length} shown in both · worst offset ${worstPx.toFixed(3)} px · order ${sameOrder ? 'identical' : 'DIFFERENT'} · writes: first frame ${w1}, still frame ${w2}, one label moved ${w3} (${counted.size} element) · group hidden: ${w4} writes for ${hiddenLabs} shown labels, ${walked} objects walked`); }
+  const mover = A.labs.find(o => o.element.style.display === ''); mover.position.x += 0.3; const w3 = frame(), moved = counted.size, onlyMover = counted.size <= 3 && counted.has(mover.element);
+  const hidden = A.groups[2], hiddenLabs = hidden.children.filter(o => o.element.style.display === '').length; hidden.visible = false; const w4 = frame(), hid = byKey.display || 0, shifted = byKey.transform || 0, ranks = byKey.zIndex || 0;
+  const allHidden = hidden.children.every(o => o.element.style.display === 'none'), walked = FR.walked, orderAfter = order(A) === (() => { B.groups[2].visible = false; ref.render(B.sc, B.cam); return B.labs.map((o, i) => [i, o]).filter(([, o]) => !o.parent || o.parent.visible).map(([i, o]) => [i, o.element]).filter(([, e]) => e.style.display === '').sort((p, q) => +q[1].style.zIndex - +p[1].style.zIndex).map(([i]) => i).join(','); })();
+  const ok = sameShown && shownA > 20 && shownA < A.labs.length && worstPx <= 0.05 + 1e-9 && sameCentre && sameOrder && w1 >= 3 * shownA && w2 === 0 && w3 >= 1 && onlyMover && hid === hiddenLabs && shifted === 0 && allHidden && orderAfter && walked < 1 + A.groups.length + A.labs.length - hidden.children.length + 1;
+  check(ok, 'labels at the cost of what moved: lifted and run beside three.js’s own CSS2DRenderer on 72 labels in six groups, the pass shows the same labels, at the same places to a twentieth of a pixel, with the same anchor and the same front-to-back order; a frame in which nothing moved writes NOTHING (three.js rewrites every label every frame); a moved label rewrites only itself; a hidden group is not entered, its labels are hidden once and the others keep their places and their order',
+    `${shownA}/${A.labs.length} shown in both · worst offset ${worstPx.toFixed(3)} px · order ${sameOrder ? 'identical' : 'DIFFERENT'} · writes: first frame ${w1}, still frame ${w2}, one label moved ${w3} (${moved} element) · group hidden: ${hid} hidden of ${hiddenLabs} shown, ${shifted} moved, ${ranks} re-ranked, order ${orderAfter ? 'still identical' : 'DIFFERENT'}, ${walked} objects walked`); }
 
 { /* 3. the forced layouts and the boot-time Buddhabrot */
   const loc = fn('hccLocatorBox'), tm = fn('hccTmMeasure'), rl = fn('renderHierarchyLocator');
@@ -121,7 +121,8 @@ const RING = new Function('THREE', fn('hccSurfHash') + lift('const HCC_RING=', '
 { /* 5. the rings' profile */
   const RS = 60268, at = km => RING.hccRingAt(km / RS)[0];
   const gaps = [['Colombo', 77870, 150], ['Maxwell', 87491, 270], ['Herschel', 118234, 102], ['Russell', 118614, 33], ['Jeffreys', 118950, 38], ['Laplace', 119967, 238], ['Encke', 133589, 325], ['Keeler', 136505, 42]];
-  const gapOk = gaps.map(([n, c, w]) => [n, at(c) === 0 && at(c - w / 2 - 25) > 0 && at(c + w / 2 + 25) > 0]);
+  /* the Maxwell gap holds the Maxwell ringlet (87 510 km): the gap is tested beside it */
+  const gapOk = gaps.map(([n, c, w]) => [n, (n === 'Maxwell' ? at(c - 90) === 0 && at(c + 90) === 0 && at(87510) > 0.5 : at(c) === 0) && at(c - w / 2 - 25) > 0 && at(c + w / 2 + 25) > 0]);
   const mean = (a, b) => { let s = 0, n = 0; for (let km = a; km <= b; km += 5) { s += at(km); n++; } return s / n; };
   const tauC = mean(75000, 91900), tauB3 = mean(104600, 109900), tauCD = mean(118100, 120900), tauA = mean(122200, 133000);
   const edges = at(91900) < 0.5 && at(92050) > 0.5 && at(117450) > 0.3 && at(117560) === 0 && at(136700) > 0 && at(136850) === 0 && at(140180) > 0.3 && at(139000) === 0 && at(117830) > 0.5;
@@ -129,7 +130,7 @@ const RING = new Function('THREE', fn('hccSurfHash') + lift('const HCC_RING=', '
   for (const tau of [0.05, 0.1, 0.35, 1, 2.4, 5]) { const code = Math.round(255 * Math.sqrt(tau / 6)), back = (code / 255) ** 2 * 6; worst = Math.max(worst, Math.abs(back - tau) / tau); }
   const iE = Math.floor((133589 / RS - RING.HCC_RING.R0) / (RING.HCC_RING.R1 - RING.HCC_RING.R0) * N);
   const ok = gapOk.every(g => g[1]) && edges && tauC > 0.04 && tauC < 0.3 && tauB3 > 4 && tauCD > 0.05 && tauCD < 0.25 && tauA > 0.4 && tauA < 0.9 && worst < 0.03 && d[4 * iE] === 0 && T.image.width === 8192 && T.generateMipmaps && T.minFilter === THREE.LinearMipmapLinearFilter;
-  check(ok, 'the rings, radius by radius (60 268 km Saturn radii): every gap empty at its measured radius and ring on both sides of it, the Huygens ringlet inside its gap, the B ring’s edges, the A ring’s outer edge and the F ring where Cassini measured them; mean normal optical depths — C ≈ 0.1, the B-ring core > 4, the Cassini Division ≈ 0.1, A ≈ 0.6; the profile is one mip-mapped row of 8192 samples (9 km each), so a gap finer than a pixel greys the ring instead of flickering as moiré',
+  check(ok, 'the rings, radius by radius (60 268 km Saturn radii): every gap empty at its measured radius and ring on both sides of it, the Huygens and Maxwell ringlets inside their gaps, the B ring’s edges, the A ring’s outer edge and the F ring where Cassini measured them; mean normal optical depths — C ≈ 0.1, the B-ring core > 4, the Cassini Division ≈ 0.1, A ≈ 0.6; the profile is one mip-mapped row of 8192 samples (9 km each), so a gap finer than a pixel greys the ring instead of flickering as moiré',
     `${gapOk.map(g => g[0] + (g[1] ? '' : '✗')).join(' · ')} gaps empty · τ: C ${tauC.toFixed(2)}, B core ${tauB3.toFixed(1)}, CD ${tauCD.toFixed(2)}, A ${tauA.toFixed(2)} · √(τ/6) in 8 bits loses ≤ ${(100 * worst).toFixed(1)} % of τ · Encke texel ${d[4 * iE]}`); }
 
 { /* 6. the rings' light */
@@ -185,7 +186,7 @@ const RING = new Function('THREE', fn('hccSurfHash') + lift('const HCC_RING=', '
   const mesh = new THREE.Mesh(g); mesh.quaternion.setFromAxisAngle(new THREE.Vector3(1, 0, 0), 0.4);
   const eq = SP.hccSurfaceRadius(mesh, new THREE.Vector3(0, 0, 1).applyQuaternion(mesh.quaternion)), pole = SP.hccSurfaceRadius(mesh, new THREE.Vector3(0, 1, 0).applyQuaternion(mesh.quaternion));
   const landing = /multiplyScalar\(vR\*1\.003\*hccSurfaceRadius\(B\.mesh,L\.dir\)\)/.test(src), atm = /atm\.scale\.set\(ae,ap,ae\)/.test(src);
-  const ok = worstVol < 5e-4 && Math.abs(fS - 0.0980) < 5e-4 && Math.abs(fJ - 0.0649) < 5e-4 && Math.abs(maxY - c) < 1e-9 && Math.abs(maxR - a) < 1e-6 && worstN < 1e-6 && Math.abs(eq - a) < 1e-9 && Math.abs(pole - c) < 1e-9 && landing && atm;
+  const ok = worstVol < 5e-4 && Math.abs(fS - 0.0980) < 5e-4 && Math.abs(fJ - 0.0649) < 5e-4 && Math.abs(maxY - c) < 1e-6 && Math.abs(maxR - a) < 1e-6 && worstN < 1e-6 && Math.abs(eq - a) < 1e-9 && Math.abs(pole - c) < 1e-9 && landing && atm;
   check(ok, 'the giants are as flat as measured: the equatorial and polar radii (IAU) give back the atlas’s mean radius of each, (a²c)^⅓; Saturn is flattened by 9.8 %, Jupiter by 6.5 %; the globe is built on that ellipsoid with its true normals; a camera landing on it stands on the ellipsoid (at the mean radius it stood 3.5 % inside Saturn’s equator), and the air shell is as flat as the globe',
     `(a²c)^⅓ vs r: ${vol.map(([n, v]) => n + ' ' + (v * 100).toFixed(3) + ' %').join(', ')} · f: Saturn ${fS.toFixed(4)}, Jupiter ${fJ.toFixed(4)} · globe: polar ${maxY.toFixed(5)}, equatorial ${maxR.toFixed(5)}, normals ${worstN.toExponential(1)} rad · ground: equator ${eq.toFixed(5)}, pole ${pole.toFixed(5)} mean radii`); }
 
@@ -231,13 +232,13 @@ const FACE = new Function('const DEG=Math.PI/180;' + lift('const HCC_PLANET_BAND
     `planet shader ${tail.test(planetFrag) ? 'ends in sRGB' : 'LINEAR'} · ring shader ${tail.test(ringFrag) ? 'ends in sRGB' : 'LINEAR'} · bloom off by default ${defaultOff}`); }
 
 { /* 11. detail where it is seen, the fill, the haze */
-  const lod = /const HCC_PLANET_LOD=Object\.freeze\(\{facets:\[\[20,14\],\[48,32\],\[96,64\]\], px:\[14,90\]\}\);/.test(src) && /const g=LOD\[px<P\[0\]\?0:px<P\[1\]\?1:2\]; if\(mesh\.geometry!==g\) mesh\.geometry=g;/.test(src);
+  const lod = /const HCC_PLANET_LOD=Object\.freeze\(\{facets:\[\[20,14\],\[48,32\],\[96,64\]\], px:\[14,90\]\}\);/.test(src) && /g=LOD\[px<P\[0\]\?0:px<P\[1\]\?1:2\]; if\(mesh\.geometry!==g\) mesh\.geometry=g;/.test(src);
   const tri = (w, h) => 2 * w * (h - 1), overviewNow = 7 * tri(20, 14), allFine = 7 * tri(96, 64), before = 7 * tri(36, 24);
   const amb = /solarGroup\.add\(new THREE\.AmbientLight\(0x3c4048, \.2\)\);/.test(src) && /solarGroup\.add\(new THREE\.PointLight\(0xfff4e0, 2\.2, 0, 0\)\);/.test(src);
   const fill = (0x3c + 0x40 + 0x48) / 3 / 255 * 0.2 / 2.2, oldFill = (0x40 + 0x4a + 0x60) / 3 / 255 * 0.55 / 2.2;
   const haze = /Jupiter:\{T:165, mu:2\.22,  g:24\.79, tint:\[1\.00,0\.90,0\.78\], mie:0\.45, haze:0\.85\}/.test(src) && /Saturn: \{T:134, mu:2\.07,  g:10\.44, tint:\[1\.00,0\.92,0\.76\], mie:0\.45, haze:0\.85\}/.test(src);
   const ok = lod && amb && fill < 0.025 && haze;
-  check(ok, 'detail where it is seen: each globe has three levels (20 × 14, 48 × 32, 96 × 64 facets) and wears the one its size on the screen needs — the overview of the planets draws fewer triangles than before the faces, the close-up the finest; the solar fill light is a night side’s floor of about 2 % of the day, grey (it lit every moon’s night side at a blue 6 %); the giants’ limbs are their haze, not a blue Rayleigh rim',
+  check(ok, 'detail where it is seen: each globe has three levels (20 × 14, 48 × 32, 96 × 64 facets) and wears the one its size on the screen needs — the overview of the planets draws fewer triangles than before the faces, the close-up the finest; the solar fill light is a night side’s floor of about 2 % of the day, grey (it lit every moon’s night side at a blue 7.6 %); the giants’ limbs are their haze, not a blue Rayleigh rim',
     `triangles for seven planets: overview ${overviewNow} (were ${before}), all fine ${allFine} · fill ${(100 * fill).toFixed(1)} % of the Sun (was ${(100 * oldFill).toFixed(1)} %) · haze 0.85 for both giants: ${haze}`); }
 
 console.log(`\n${pass} passed, ${fail} failed`);
