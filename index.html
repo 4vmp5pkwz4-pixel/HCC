@@ -18055,17 +18055,11 @@ function premiumPerformanceTick(dt){
   hccSeamTick(dt);
   if(hccSeamQuiet>0) return;
   if(!premiumVisualsEnabled||ATLAS_TELEMETRY.frames<120||renderer.xr.isPresenting||document.hidden||state.bloomOn===false)return;
-  /* v4.436: as for the resolution governor — each scene keeps the post quality it earned, the idle pace is not slowness */
-  try{ const key=perfGovKey(); if(key!==PREMIUM_SCENE.key){ if(PREMIUM_SCENE.key) PREMIUM_SCENE.mem[PREMIUM_SCENE.key]=premiumPostQuality; PREMIUM_SCENE.key=key; premiumPerfSlow=0; premiumPerfFast=0; premiumSetPostQuality(PREMIUM_SCENE.mem[key]??PREMIUM_POST_MAX,'scene'); return; } if(HCC_PACE.idle) return; }catch(e){}
-  if(premiumPerfCooldown>0){premiumPerfCooldown-=dt;return;}
-  const ms=ATLAS_TELEMETRY.frameEmaMs;
-  premiumPerfSlow=ms>27?premiumPerfSlow+dt:Math.max(0,premiumPerfSlow-dt*1.6);
-  premiumPerfFast=ms<18?premiumPerfFast+dt:Math.max(0,premiumPerfFast-dt*.65);
-  if(premiumPerfSlow>2.4){premiumPerfSlow=0;premiumPerfFast=0;
-    if(premiumSetPostQuality(premiumPostQuality-.14,'frame-pressure'))premiumPerfCooldown=5.5;
-  }else if(premiumPerfFast>4){premiumPerfSlow=0;premiumPerfFast=0;   /* v4.436: the small step stays (it keeps the quality from oscillating); the wait is 4 good seconds and 3 of cooldown, not 11 and 7 */
-    if(premiumSetPostQuality(premiumPostQuality+.08,'quality-recovery'))premiumPerfCooldown=3;
-  }
+  /* v4.437: the post chain is no longer stepped down for a slow frame — its resolution is the picture's sharpness, and the
+     motion rule (perfGovTick) is the one place the picture may soften, and only while it moves. A budget lowered by a lost
+     context is given back after three calm seconds. */
+  if(premiumPostQuality>=PREMIUM_POST_MAX-1e-3){ premiumPerfFast=0; return; }
+  premiumPerfFast+=dt; if(premiumPerfFast>3){ premiumPerfFast=0; premiumSetPostQuality(PREMIUM_POST_MAX,'quality-restored'); }
 }
 /* three.js resets renderer.info.render at the START of every render() call, and the
    3D hierarchy locator draws its little inset AFTER the atlas — so anything reading
@@ -34675,6 +34669,7 @@ function skyRing(col,op,dash){ const pts=[]; for(let k=0;k<=240;k++){ const a=k/
 function skyShell(col,op){ const g=new THREE.Group();
   const skin=new THREE.Mesh(new THREE.SphereGeometry(1,48,32),new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.008,side:THREE.BackSide,depthWrite:false}));
   skin.layers.set(1);   /* v4.436: a pick target, tested by the ray on layer 1 and never drawn — it was a full-screen blend at 0.8 % for every sky shell */
+  skin.layers.set(1);   /* v4.437: a pick target for the ray (raycaster layer 1), not drawn — it was a full-screen 0.8 % blend */
   const glass=hccShellMesh(1,col,op), ring=skyRing(col,Math.min(0.85,op*3.4)); ring.rotation.x=-Math.PI/3; g.add(skin,glass,ring); g.userData={skin,glass,ring}; return g; }
 function skyLabel(id,dir){ const L=mkLabel('','label skymap','sky_'+id); L.position.copy(dir); return L; }
 function skyItem(id){ const P={id, sel:'sky_'+id, lab:SKY_LAB[id], home:SKY_HOME[id], grp:new THREE.Group(), v:{}}; P.grp.name='skymap-'+id; SKYMAP.items.set(id,P); return P; }
@@ -110029,7 +110024,7 @@ function buildBuddhabrotTexture(){
         buddhaBlitDisplay(); buddhaProgress=prog; updCtlVals(); },
       (low,mid,deep)=>{ if(token!==buddhaToken) return;
         if(FULL<=BUDDHA_DISPLAY_CAP) buddhaPlanes={low,mid,deep,W:FULL,H:FULL};
-        buddhaProgress=1; buddhaBuilding=false; updCtlVals(); });
+        buddhaProgress=1; buddhaBuilding=false; updCtlVals(); if(state.mode==='fractal'&&fractalType==='buddha3d') try{ updateBifurcView(); }catch(e){} });
   } else {
     // ── 16K: seam-free TILED build. A fast low-res proxy pass estimates the GLOBAL
     // per-tier maxima (per-pixel dwell scales with samples × pixel-area, so
@@ -110161,8 +110156,9 @@ function saveSceneShot(){
     _shotBusy=false;
   }
 }
-if('requestIdleCallback' in window)requestIdleCallback(buildBuddhabrotTexture,{timeout:3000});
-else setTimeout(buildBuddhabrotTexture,MOBILE_GPU?1200:500);
+/* v4.437: the orbit-density integration ran at boot in every world — seconds of main-thread work, in slices, while a reader
+   looked at the Sun or the horizons. It now starts the first time a Buddhabrot view is opened (the panel shows its progress). */
+function hccBuddhaEnsure(){ if(buddhaBuilding||buddhaPlanes||buddhaProgress>=1) return false; try{ buildBuddhabrotTexture(); }catch(e){ return false; } return true; }
 
 const fractalUniforms = {
   uRes:    {value:new THREE.Vector2(renderer.domElement.width,renderer.domElement.height)},
@@ -111090,6 +111086,7 @@ function updateBifurcView(){
   const isFrac=state.mode==='fractal', geo=isFrac&&GEO_FRACTALS.has(fractalType);
   if(isFrac&&fractalType==='bifurc3d') buildBifurcMandelbrot3D();
   if(isFrac&&fractalType==='dimatlas') buildDimensionAtlas();
+  if(isFrac&&(fractalType==='buddhabrot'||fractalType==='buddha3d')) hccBuddhaEnsure();
   if(isFrac&&fractalType==='buddha3d') buildBuddha3D();
   if(isFrac&&fractalType==='polytope4d') buildPolytope4D();
   if(isFrac&&fractalType==='orbital3d') buildOrbital3D();
@@ -135097,12 +135094,15 @@ function updateAsteroids(T,geoShift){
    what made the machine hot. Frames are now drawn at most 60 times a second, and 30 once nothing has moved for six seconds:
    no input, the camera still. A 60 Hz display is never halved (the gate leaves 3.5 ms of slack), a headset is never paced
    (the runtime owns its frames), nor is an automated browser unless asked. HCC_PERF.pace() reads and sets it. */
-const HCC_PACE={on:true, force:false, cap:60, idleCap:30, idleAfter:6000, lastDraw:-1e9, lastInput:0, drawn:0, skipped:0, idle:false, cam:new Float64Array(7)};
+const HCC_PACE={on:true, force:false, cap:60, idleCap:30, idleAfter:6000, lastDraw:-1e9, lastInput:0, lastMove:-1e9, drawn:0, skipped:0, idle:false, cam:new Float64Array(7)};
 for(const ev of ['pointerdown','pointermove','wheel','keydown','touchstart']) addEventListener(ev,()=>{ HCC_PACE.lastInput=performance.now(); },{capture:true,passive:true});
 function hccCameraMoved(){ const P=HCC_PACE.cam, p=camera.position, q=camera.quaternion, v=[p.x,p.y,p.z,q.x,q.y,q.z,q.w]; let moved=false; for(let i=0;i<7;i++){ const d=Math.abs(v[i]-P[i]); if(d>(i<3?1e-6*Math.max(1,Math.abs(v[i])):1e-7)) moved=true; P[i]=v[i]; } return moved; }
-function hccPaceSkip(now){ const P=HCC_PACE; if(!P.on||document.hidden||(navigator.webdriver&&!P.force)) return false; if(renderer.xr&&renderer.xr.isPresenting) return false;
+function hccPaceSkip(now){ const P=HCC_PACE;
+  /* v4.437: the camera is read every frame, paced or not — the sharpness rule needs to know when the reader is moving it */
+  const moved=hccCameraMoved(), drift=typeof idleDrift!=='undefined'&&idleDrift; if(moved&&!drift) P.lastMove=now;
+  if(!P.on||document.hidden||(navigator.webdriver&&!P.force)) return false; if(renderer.xr&&renderer.xr.isPresenting) return false;
   /* a camera the reader or a tour is moving keeps 60; the atlas's own slow idle drift is content to run at 30 */
-  const moved=hccCameraMoved(); if(moved&&!(typeof idleDrift!=='undefined'&&idleDrift)) P.lastInput=Math.max(P.lastInput,now-P.idleAfter+1500); P.idle=now-P.lastInput>P.idleAfter;
+  if(moved&&!drift) P.lastInput=Math.max(P.lastInput,now-P.idleAfter+1500); P.idle=now-P.lastInput>P.idleAfter;
   const minMs=1000/(P.idle?P.idleCap:P.cap)-3.5; if(now-P.lastDraw<minMs){ P.skipped++; return true; } P.lastDraw=now; P.drawn++; return false; }
 function tick(now, frame){
   try{ if(hccPaceSkip(now)) return; }catch(e){}
@@ -136889,6 +136889,8 @@ const HCC_CTX={worldId:'solar', labId:null, inspectorTab:'controls',
   selectedObjectId:null, openPanels:[], navigationHistory:[]};
 globalThis.HCC_CTX=HCC_CTX;
 globalThis.HCC_NAV={go:(w,l)=>hccGo({worldId:w,labId:l||null}),back:()=>navUnifiedBack(),
+  /* select a registered object and fly the camera to it, as a double-click does (v4.437: agents and the release's own views) */
+  focus:k=>{ const s=SELECT.get(k); if(!s) return false; try{ selectKey(k); focusOn(s); }catch(e){ return false; } return true; },
   route:()=>hccRoute(),
   scene:()=>{
     const multi=MV.on, tile=multi?MV.views[MV.active]:null;
@@ -137894,17 +137896,30 @@ const PERF_GOV={acc:0, n:0, hot:0, scale:1, base:0, steps:0, fps:0, on:true, las
    restores what that one had (full, if never lowered). The floors are 0.75 of a pixel, and 0.6 only below 12 frames a
    second; and resolution comes back after three good seconds instead of six great ones. */
 function perfGovKey(){ try{ return state.mode+':'+(state.mode==='solar'?(state.solarScaleLayer||'local'):state.mode==='s3'?(state.s3view||''):''); }catch(e){ return ''; } }
-function perfGovTick(dt){ const G=PERF_GOV; if(!G.on||!(dt>0)||dt>3||document.hidden) return; if(renderer.xr&&renderer.xr.isPresenting) return; if(navigator.webdriver&&!G.force) return;
-  try{ if(HCC_PACE.idle) return; }catch(e){}   /* v4.436: a frame held back on purpose is not a slow one — the idle pace is never read as weakness */
-  /* v4.428: a frame slower than half a second used to be thrown away — so a device at two frames a second was never helped at all.
-     It now counts (up to a second each); the window is 1.5 s; a device under 12 is cut by a third at a time, and one that cannot
-     hold 15 is taken below the old floor, to 0.42 of a CSS pixel */
-  const key=perfGovKey(); if(key!==G.key){ if(G.key) G.mem[G.key]=G.scale; const s0=G.mem[key]??1; G.key=key; G.acc=0; G.n=0; G.hot=0;
-    if(G.base&&Math.abs(s0-G.scale)>1e-3){ G.scale=s0; G.steps++; G.last=performance.now(); try{ renderer.setPixelRatio(G.base*s0); requestRendererResize(); }catch(e){} } return; }
-  G.acc+=Math.min(dt,1); G.n++; if(G.acc<1.5) return; const win=G.acc, fps=G.n/G.acc; G.fps=fps; G.acc=0; G.n=0; const cur=renderer.getPixelRatio(); if(!G.base||cur>G.base*G.scale*1.001) { G.base=cur/G.scale; }
-  const floor=fps<12?0.6:0.75; let s=G.scale; if(fps<24&&G.base*s>floor+1e-9){ s=Math.max(floor/G.base,s*(fps<12?0.7:0.85)); G.hot=0; } else if(fps>45){ G.hot+=win; if(G.hot>=3&&s<1){ s=Math.min(1,s*(fps>55?1.5:1.2)); G.hot=0; } } else G.hot=0;
-  if(fps<24&&typeof hccLiteAuto==='function') hccLiteAuto(fps);   /* v4.431: a device that cannot hold 24 also loses the glass */
-  if(Math.abs(s-G.scale)>1e-3){ G.scale=s; G.steps++; G.last=performance.now(); try{ renderer.setPixelRatio(G.base*s); requestRendererResize(); }catch(e){} } }
+/* ══ SHARP WHEN STILL (v4.437) ══════════════════════════════════════════════════════════════════════════════════════════════
+   A reader asked for the atlas to run faster on old machines and NOT to look worse — and it had started to look worse: the
+   governor above lowered the drawing buffer to 0.75 of a pixel (0.6, and once 0.42) whenever the frame rate fell, kept it per
+   scene, and the post-processing chain stepped its own resolution down from 1.28 to 0.78 beside it, so a planet or a label
+   studied on a slow laptop was blurred for the whole visit. Measured before changing anything (HCC_PERF.bench, the full chain,
+   the GPU made to finish): in Sun → Cosmos the frame cost 151 ms at a full pixel, 146 at 0.75 and 117 at 0.5 — the blur had
+   bought three per cent; only the Horizons view, which is fill-bound, paid for pixels (636 → 513 ms at 0.75). So the rule is
+   now the one interactive viewers use: the picture the reader LOOKS at is always drawn at full resolution; only while the
+   reader is moving the camera (drag, zoom, a flight), and only if that motion drops under 30 frames a second, is the buffer
+   lowered — never under half a pixel — and the moment the camera stops (180 ms) it is drawn sharp again. The atlas's own idle
+   drift is not motion: a slowly turning view is a view being looked at. Never in a headset; not in an automated browser,
+   unless forced. HCC_PERF.governor() says what it did. */
+const HCC_SHARP={hold:180, floor:0.5, low:30, high:50};
+function perfGovTick(dt){ const G=PERF_GOV; if(!G.on||!(dt>0)||dt>3||document.hidden) return; if(renderer.xr&&renderer.xr.isPresenting) return;
+  const now=performance.now(), moving=now-(HCC_PACE.lastMove||-1e9)<HCC_SHARP.hold, cur=renderer.getPixelRatio();
+  if(!G.base||cur>G.base*G.scale*1.001) G.base=cur/G.scale;
+  G.key=perfGovKey(); G.moving=moving;
+  /* still: full resolution, at once */
+  if(!moving){ G.acc=0; G.n=0; if(G.scale<1){ G.scale=1; G.refines=(G.refines||0)+1; G.last=now; try{ renderer.setPixelRatio(G.base); requestRendererResize(); }catch(e){} } return; }
+  if(navigator.webdriver&&!G.force) return;   /* an automated browser measures the picture as it is */
+  /* moving: half a second of the motion's own frames decides */
+  G.acc+=Math.min(dt,1); G.n++; if(G.acc<0.5) return; const fps=G.n/G.acc; G.fps=fps; G.acc=0; G.n=0;
+  let s=G.scale; if(fps<HCC_SHARP.low) s=Math.max(HCC_SHARP.floor,s*(fps<15?0.7:0.85)); else if(fps>HCC_SHARP.high&&s<1) s=Math.min(1,s*1.15);
+  if(Math.abs(s-G.scale)>1e-3){ G.scale=s; G.steps++; G.last=now; try{ renderer.setPixelRatio(G.base*s); requestRendererResize(); }catch(e){} } }
 /* ═══ DIET-BEGIN ═══ THE RENDER DIET (v4.428): do not draw what cannot be seen. Measured in the Horizons world: 529 draw calls and
    1.5 million vertices a frame, part of them for things that leave no pixel — meshes faded to nothing but still submitted, and
    spheres of five thousand triangles standing under half a pixel. Before the main scene is drawn these are switched off, and
@@ -137961,7 +137976,39 @@ function hccWallCheck(){ const gl=renderer.getContext(), w=renderer.domElement.w
   finally{ HCC_SHELL_ONE.on=was; }
   let sum=0, max=0, over2=0, lit=0; for(let i=0;i<A.length;i+=4){ let m=0; for(let k=0;k<3;k++){ const d=Math.abs(A[i+k]-B[i+k]); sum+=d; if(d>m) m=d; } if(m>max) max=m; if(m>2) over2++; if(B[i]+B[i+1]+B[i+2]>6) lit++; }
   return {pixels:w*h, lit, shells, mean:+(sum/(w*h*3)).toFixed(5), max, over2}; }
-globalThis.HCC_PERF=Object.freeze({ cost:o=>hccFrameCost(o), wallCheck:()=>hccWallCheck(), oneWall:v=>{ if(v!==undefined) HCC_SHELL_ONE.on=!!v; return HCC_SHELL_ONE.on; }, pace:o=>{ if(o&&typeof o==='object') for(const k of ['on','force','cap','idleCap','idleAfter']) if(o[k]!==undefined) HCC_PACE[k]=k==='on'||k==='force'?!!o[k]:Math.max(k==='idleAfter'?0:10,+o[k]); const P=HCC_PACE; return {on:P.on, force:P.force, cap:P.cap, idleCap:P.idleCap, idleAfter:P.idleAfter, idle:P.idle, drawn:P.drawn, skipped:P.skipped}; }, governor:()=>({key:PERF_GOV.key, scale:PERF_GOV.scale, fps:PERF_GOV.fps, steps:PERF_GOV.steps, memory:{...PERF_GOV.mem}}), diet:v=>{ if(v!==undefined) HCC_DIET.on=!!v; return {on:HCC_DIET.on, faint:HCC_DIET.faint, tiny:HCC_DIET.tiny, single:HCC_DIET.single, frames:HCC_DIET.frames}; }, state:()=>({diet:{on:HCC_DIET.on, faint:HCC_DIET.faint, tiny:HCC_DIET.tiny, single:HCC_DIET.single}, fps:+PERF_GOV.fps.toFixed(1), scale:+PERF_GOV.scale.toFixed(3), pixelRatio:renderer.getPixelRatio(), base:PERF_GOV.base, steps:PERF_GOV.steps, on:PERF_GOV.on, automated:!!navigator.webdriver}),
+/* ── WHAT COVERS THE SCREEN, AND HOW MANY TIMES (v4.437) ──────────────────────────────────────────────────────────────────────
+   A frame on a slow GPU is paid per covered pixel, and a transparent layer that covers the screen costs a full-screen blend
+   whatever it holds. This lists every visible drawable by the share of the screen its bounding sphere covers (1 when the camera
+   is inside it), with what it is — so overdraw is found by measurement, not by guessing. */
+function hccOverdrawLayers(top){ const out=[], cp=new THREE.Vector3(), c=new THREE.Vector3(), f=renderer.domElement.height/(2*Math.tan((camera.fov||55)*Math.PI/360)), W=renderer.domElement.width, H=renderer.domElement.height;
+  camera.getWorldPosition(cp); const path=o=>{ const a=[]; for(let x=o;x&&x!==scene&&a.length<5;x=x.parent) a.push(x.name||x.type); return a.reverse().join('/'); };
+  scene.traverseVisible(o=>{ if(!(o.isMesh||o.isPoints||o.isSprite||o.isLine)) return; const g=o.geometry; if(!g) return; if(!g.boundingSphere) try{ g.computeBoundingSphere(); }catch(e){ return; }
+    const b=g.boundingSphere; if(!b) return; o.updateWorldMatrix(true,false); c.copy(b.center).applyMatrix4(o.matrixWorld); const e=o.matrixWorld.elements, sc=Math.sqrt(Math.max(e[0]*e[0]+e[1]*e[1]+e[2]*e[2],e[4]*e[4]+e[5]*e[5]+e[6]*e[6],e[8]*e[8]+e[9]*e[9]+e[10]*e[10])), R=b.radius*sc, d=c.distanceTo(cp);
+    const inside=d<R, rpx=inside?Infinity:R*f/Math.sqrt(Math.max(1e-30,d*d-R*R)), cover=inside?1:Math.min(1,Math.PI*rpx*rpx/(W*H)); const m=Array.isArray(o.material)?o.material[0]:o.material;
+    out.push({path:path(o), type:o.type+':'+(g.type||'').replace('Geometry',''), cover:+cover.toFixed(3), inside, R:+R.toPrecision(3), d:+d.toPrecision(3), mat:m?m.type:'', transparent:!!(m&&m.transparent), opacity:m&&m.opacity!=null?+(+m.opacity).toFixed(3):null,
+      side:m?m.side:null, blending:m?m.blending:null, depthTest:m?m.depthTest:null, order:o.renderOrder, frustumCulled:o.frustumCulled}); });
+  out.sort((a,b)=>b.cover-a.cover); const full=out.filter(x=>x.cover>=0.5);
+  return {layers:out.length, fullScreen:full.length, fullScreenTransparent:full.filter(x=>x.transparent).length, top:out.slice(0,top||30)}; }
+/* the whole picture, as the reader gets it (scene, bloom, resolve, optics, encode), drawn n times with the GPU made to finish
+   each time: the milliseconds one frame costs on this machine at this view — and the passes of the chain, read and switched */
+function hccBenchFrame(n){ const gl=renderer.getContext(), px=new Uint8Array(4), k=Math.max(2,Math.min(60,n|0||8)); renderMain(); gl.readPixels(0,0,1,1,gl.RGBA,gl.UNSIGNED_BYTE,px);
+  const t0=performance.now(); for(let i=0;i<k;i++){ renderMain(); gl.readPixels(0,0,1,1,gl.RGBA,gl.UNSIGNED_BYTE,px); } const ms=(performance.now()-t0)/k;
+  return {ms:+ms.toFixed(2), frames:k, buffer:[renderer.domElement.width,renderer.domElement.height], pixelRatio:renderer.getPixelRatio(), composerRatio:bloomComposer&&bloomComposer._pixelRatio!=null?bloomComposer._pixelRatio:null, mode:state.mode}; }
+/* what one frame submits: draw calls, triangles, points and lines as the renderer counts them, and — over the visible scene —
+   the drawables grouped by kind, so the source of a draw-call storm is named */
+function hccDrawCensus(top){ const ar=renderer.info.autoReset; renderer.info.autoReset=false; renderer.info.reset(); try{ renderMain(); }finally{ renderer.info.autoReset=ar; }
+  const R=renderer.info.render, out={calls:R.calls, triangles:R.triangles, points:R.points, lines:R.lines, programs:(renderer.info.programs||[]).length, geometries:renderer.info.memory.geometries, textures:renderer.info.memory.textures};
+  const by=new Map(), path=o=>{ const a=[]; for(let x=o.parent;x&&x!==scene&&a.length<3;x=x.parent) a.push(x.name||x.type); return a.reverse().join('/'); };
+  scene.traverseVisible(o=>{ if(!(o.isMesh||o.isPoints||o.isLine||o.isSprite)) return; const m=Array.isArray(o.material)?o.material[0]:o.material, g=o.geometry;
+    const k=(o.isInstancedMesh?'Instanced':o.type)+':'+((g&&g.type)||'').replace('Geometry','')+':'+((m&&m.type)||'').replace('Material','')+' @ '+path(o);
+    const e=by.get(k)||{kind:k, n:0, verts:0}; e.n++; e.verts+=g&&g.attributes&&g.attributes.position?g.attributes.position.count:0; by.set(k,e); });
+  out.groups=[...by.values()].sort((a,b)=>b.n-a.n).slice(0,top||24); return out; }
+function hccPostPasses(o){ ensureBloom(); const C=bloomComposer, P=C?C.passes:[], name=p=>p===bloomPass?'bloom':p===smaaPass?'smaa':p===opticsPass?'optics':p.constructor&&p.constructor.name||'pass';
+  if(o&&typeof o==='object') for(const p of P){ const k=name(p); if(o[k]!==undefined) p.enabled=!!o[k]; }
+  return P.map(p=>({pass:name(p), enabled:p.enabled!==false})); }
+globalThis.HCC_PERF=Object.freeze({ cost:o=>hccFrameCost(o), layers:n=>hccOverdrawLayers(n), bench:n=>hccBenchFrame(n), post:o=>hccPostPasses(o),
+  draws:n=>hccDrawCensus(n),
+  pixelRatio:v=>{ if(v!==undefined&&v>0){ renderer.setPixelRatio(v); try{ syncRendererViewport(); }catch(e){ requestRendererResize(); } } return renderer.getPixelRatio(); }, wallCheck:()=>hccWallCheck(), oneWall:v=>{ if(v!==undefined) HCC_SHELL_ONE.on=!!v; return HCC_SHELL_ONE.on; }, pace:o=>{ if(o&&typeof o==='object') for(const k of ['on','force','cap','idleCap','idleAfter']) if(o[k]!==undefined) HCC_PACE[k]=k==='on'||k==='force'?!!o[k]:Math.max(k==='idleAfter'?0:10,+o[k]); const P=HCC_PACE; return {on:P.on, force:P.force, cap:P.cap, idleCap:P.idleCap, idleAfter:P.idleAfter, idle:P.idle, drawn:P.drawn, skipped:P.skipped}; }, governor:()=>({key:PERF_GOV.key, scale:PERF_GOV.scale, fps:PERF_GOV.fps, steps:PERF_GOV.steps, memory:{...PERF_GOV.mem}}), diet:v=>{ if(v!==undefined) HCC_DIET.on=!!v; return {on:HCC_DIET.on, faint:HCC_DIET.faint, tiny:HCC_DIET.tiny, single:HCC_DIET.single, frames:HCC_DIET.frames}; }, state:()=>({diet:{on:HCC_DIET.on, faint:HCC_DIET.faint, tiny:HCC_DIET.tiny, single:HCC_DIET.single}, fps:+PERF_GOV.fps.toFixed(1), scale:+PERF_GOV.scale.toFixed(3), pixelRatio:renderer.getPixelRatio(), base:PERF_GOV.base, steps:PERF_GOV.steps, on:PERF_GOV.on, automated:!!navigator.webdriver}),
   on:v=>{ PERF_GOV.on=!!v; return PERF_GOV.on; }, force:v=>{ PERF_GOV.force=!!v; return !!PERF_GOV.force; }, lite:v=>{ if(v!==undefined) hccLiteSet(v===null?'auto':v?'on':'off'); return {...HCC_LITE}; }, reset:()=>{ const G=PERF_GOV; if(G.base){ G.scale=1; try{ renderer.setPixelRatio(G.base); requestRendererResize(); }catch(e){} } return true; } });
 /* ══ LIGHT EFFECTS (v4.431) ══════════════════════════════════════════════════════════════════════════════════════════════
    Measured: in the S³ world on a phone, sixteen panels and bars blur what lies behind them, and the page drew 23.5 frames a
@@ -137974,11 +138021,13 @@ const HCC_LITE={on:false, mode:'auto', reason:''};
 function hccLiteApply(on,reason){ HCC_LITE.on=!!on; HCC_LITE.reason=reason||''; try{ document.documentElement.classList.toggle('hcc-lite',HCC_LITE.on); }catch(e){} }
 function hccLiteSet(mode){ HCC_LITE.mode=mode==='on'||mode==='off'?mode:'auto'; try{ localStorage.setItem('hcc.lite',HCC_LITE.mode); if(HCC_LITE.mode==='auto') localStorage.removeItem('hcc.lite.auto'); }catch(e){}
   if(HCC_LITE.mode==='on') hccLiteApply(true,'chosen'); else if(HCC_LITE.mode==='off') hccLiteApply(false,'chosen'); else hccLiteApply(...hccLiteGuess()); }
-function hccLiteGuess(){ try{ if(localStorage.getItem('hcc.lite.auto')==='1') return [true,'remembered: this device fell under 24 frames a second']; }catch(e){}
+/* v4.437: the glass is part of how the atlas looks; it is no longer taken away because a device is old, small or slow (the
+   remembered automatic switch of v4.431 is forgotten) — only the reader's own choice, or the system's request for less
+   transparency, removes it */
+function hccLiteGuess(){ try{ localStorage.removeItem('hcc.lite.auto'); }catch(e){}
   try{ if(matchMedia('(prefers-reduced-transparency: reduce)').matches) return [true,'the system asks for less transparency']; }catch(e){}
-  const c=navigator.hardwareConcurrency||8, m=navigator.deviceMemory||8; if(c<=4||m<=4) return [true,`a small device (${c} cores, ${navigator.deviceMemory?m+' GB':'memory not said'})`];
   return [false,'']; }
-function hccLiteAuto(fps){ if(HCC_LITE.mode!=='auto'||HCC_LITE.on) return; hccLiteApply(true,`the frame rate fell to ${fps.toFixed(1)}`); try{ localStorage.setItem('hcc.lite.auto','1'); }catch(e){} }
+function hccLiteAuto(fps){ /* v4.437: kept for callers; a slow frame no longer removes the glass */ return false; }
 try{ const m=localStorage.getItem('hcc.lite'); HCC_LITE.mode=m==='on'||m==='off'?m:'auto'; }catch(e){}
 if(navigator.webdriver) hccLiteApply(false,'automated browser: measured as it is'); else if(HCC_LITE.mode==='on') hccLiteApply(true,'chosen'); else if(HCC_LITE.mode==='off') hccLiteApply(false,'chosen'); else hccLiteApply(...hccLiteGuess());
 /* ══ THE LADDER IS ALSO A CLOCK (v4.420) ═══════════════════════════════════════════════════════════════════════════════════
