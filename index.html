@@ -25996,8 +25996,10 @@ const HCC_PLANET_W=Object.freeze({Mercury:[329.5988,6.1385108], Venus:[160.20,-1
 /* equatorial and polar radii, km (the same reports); the atlas's radius of a planet is the volumetric mean, (a²c)^⅓ */
 const HCC_PLANET_SHAPE=Object.freeze({Mars:[3396.19,3376.20], Jupiter:[71492,66854], Saturn:[60268,54364], Uranus:[25559,24973], Neptune:[24764,24341]});
 function hccPlanetShape(p){ const S=HCC_PLANET_SHAPE[p.name]; return S?[S[0]/p.r,S[1]/p.r]:[1,1]; }   /* [equatorial, polar] in mean radii */
-/* the globe: 96 × 64 facets, the oblate ones flattened as they are */
-function hccPlanetGeometry(p){ const g=new THREE.SphereGeometry(1,96,64), [a,c]=hccPlanetShape(p); g.userData.shape=[a,c]; if(a===1&&c===1) return g;
+/* a globe of ws × hs facets, the oblate ones flattened as they are; each planet carries three (HCC_PLANET_LOD) and wears the one
+   its size on the screen needs — a planet one pixel across does not need 12 000 triangles */
+const HCC_PLANET_LOD=Object.freeze({facets:[[20,14],[48,32],[96,64]], px:[14,90]});
+function hccPlanetGeometry(p,ws=96,hs=64){ const g=new THREE.SphereGeometry(1,ws,hs), [a,c]=hccPlanetShape(p); g.userData.shape=[a,c]; if(a===1&&c===1) return g;
   const P=g.attributes.position, N=g.attributes.normal;
   for(let i=0;i<P.count;i++){ const x=P.getX(i)*a, y=P.getY(i)*c, z=P.getZ(i)*a, nx=x/(a*a), ny=y/(c*c), nz=z/(a*a), l=Math.hypot(nx,ny,nz)||1;
     P.setXYZ(i,x,y,z); N.setXYZ(i,nx/l,ny/l,nz/l); }
@@ -26092,7 +26094,9 @@ function hccSaturnRings(){
         if(tau<1e-4) discard;
         float muS=max(abs(S.y),0.004), muV=max(abs(V.y),0.004), a=1.0-exp(-tau/muV);
         float al=acos(clamp(dot(S,V),-1.0,1.0));
-        float Pf=pr.g*lambertPhase(al)*(1.0+0.4*exp(-al/0.03)) + pr.a*0.03*hgPhase(-cos(al),0.7);
+        /* ϖ₀P/4 for the dust, ϖ₀ ≈ 0.6 and P normalised over the sphere: a twentieth of the ice's light at full phase, twenty times it
+           against the Sun */
+        float Pf=pr.g*lambertPhase(al)*(1.0+0.4*exp(-al/0.03)) + pr.a*0.15*hgPhase(-cos(al),0.7);
         bool lit=(S.y>0.0)==(V.y>0.0);
         float I=lit? Pf*muS/(muS+muV)*(1.0-exp(-tau*(1.0/muS+1.0/muV)))                                      /* the lit face: single scattering in the layer */
                    : Pf*muS*(abs(muS-muV)>1e-3?(exp(-tau/muS)-exp(-tau/muV))/(muS-muV):tau/(muS*muS)*exp(-tau/muS));   /* the unlit face: diffuse transmission */
@@ -26161,7 +26165,8 @@ function hccSurfPixel(name,lat,lon,x,y,z){   /* lat planetographic, lon east (0.
     return c.map(v=>v*(0.97+0.06*n2)); }
   if(name==='Mars'){ let c=[188,108,66];
     /* the classical dark albedo regions, by east longitude and latitude */
-    const dark=[[70,8,12,14],[325,47,18,8],[5,-3,14,5],[325,-25,22,12],[230,-25,30,10],[110,47,18,7],[180,-20,18,8]];
+    /* Syrtis Major, Acidalia, Sinus Meridiani, Mare Erythraeum, Mare Sirenum, Utopia, Mare Cimmerium */
+    const dark=[[70,8,12,14],[335,47,18,8],[5,-3,14,5],[320,-25,22,12],[205,-30,26,9],[118,47,18,7],[145,-20,20,8]];
     let d=0; for(const [lo,la,wl,wa] of dark){ const q=Math.hypot((((lon-lo+540)%360)-180)/wl,(lat-la)/wa); d=Math.max(d,Math.max(0,1-q)); }
     d=Math.min(1,d*1.6)*(0.6+0.6*n1); c=c.map((v,i)=>v*(1-0.66*d)+[88,60,46][i]*0.66*d);
     /* Hellas, bright: 42°S, 70°E */
@@ -26209,7 +26214,7 @@ function hccSurfTexture(W,H,d){ const t=new THREE.DataTexture(new Uint8Array(d.b
   t.colorSpace=THREE.SRGBColorSpace; t.wrapS=THREE.RepeatWrapping; t.magFilter=THREE.LinearFilter; t.minFilter=THREE.LinearMipmapLinearFilter; t.generateMipmaps=true;
   t.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy()); t.needsUpdate=true; return t; }
 const HCC_MINNAERT={Mercury:0.62, Venus:0.80, Mars:0.72, Jupiter:0.92, Saturn:0.95, Uranus:1.0, Neptune:1.0};
-function hccPlanetMaterial(o,tex){ const name=o.p.name, [a,c]=hccPlanetShape(o.p), ringed=!!o.ringMesh; return new THREE.ShaderMaterial({
+function hccPlanetMaterial(o,tex){ const name=o.p.name, [a,c]=hccPlanetShape(o.p), ringed=!!o.ringMesh; return new THREE.ShaderMaterial({ defines:ringed?{RINGED:1}:{},
     uniforms:{uMap:{value:tex}, uSunL:{value:new THREE.Vector3(1,0,0)}, uCamL:{value:new THREE.Vector3(0,0,5)}, uK:{value:HCC_MINNAERT[name]??0.8}, uNight:{value:0.012},
       uRing:{value:ringed?1:0}, uRS:{value:60268/58232}, uShape:{value:new THREE.Vector2(a,c)}, uProf:{value:ringed?hccRingTexture():null}, uSpan:{value:new THREE.Vector2(HCC_RING.R0,HCC_RING.R1)}},
     vertexShader:`varying vec2 vUv; varying vec3 vL;
@@ -26233,13 +26238,15 @@ function hccPlanetMaterial(o,tex){ const name=o.p.name, [a,c]=hccPlanetShape(o.p
         float I=mu0>0.0?pow(mu0,uK)*pow(mu,uK-1.0):0.0, night=uNight;
         /* Saturn: the rings' shadow across the globe — where the sunbeam to this point crosses the ring plane, and how much of the
            ring it crosses (sampled outside any branch, so the profile's mip level is defined everywhere) */
+        #ifdef RINGED
         float sy=abs(S.y)>1e-4?S.y:1e-4, t=-vL.y/sy; vec2 q=vL.xz+S.xz*t;
         float tauR=ringTauAt(uProf,uSpan,length(q)/uRS);
-        if(uRing>0.5){
+        {
           if(t>0.0) I*=exp(-tauR/abs(sy));
           /* ringshine: the night side under the rings' lit face, in the sunlight they throw back */
           float side=n.y*sign(sy); night+=0.035*clamp(abs(sy)*3.0,0.0,1.0)*smoothstep(0.0,0.25,side)*(1.0-smoothstep(0.55,0.9,side))*(1.0-smoothstep(-0.05,0.1,mu0));
         }
+        #endif
         /* the terminator is soft by a degree or so: the Sun is a disc, not a point */
         I*=smoothstep(-0.02,0.03,mu0);
         gl_FragColor=vec4(alb*(I+night),1.0);
@@ -26262,17 +26269,20 @@ function hccPlanetSurfaceTick(){ const S=HCC_SURF, H=renderer.domElement.clientH
     S.tex.set(R.name,tex); S.level.set(R.name,R.lvl); }
   for(const o of planetObjs){ const nm=o.p.name; if(nm==='Earth'||nm==='Pluto') continue; const mesh=o.mesh;
     const d=Math.max(1e-12,mesh.position.distanceTo(camera.position)), px=mesh.scale.x/d*f; S.px.set(nm,px); if(px>6) S.want.add(nm);
+    const LOD=mesh.userData.lod; if(LOD){ const P=HCC_PLANET_LOD.px, g=LOD[px<P[0]?0:px<P[1]?1:2]; if(mesh.geometry!==g) mesh.geometry=g; }
     if(o.surfMat||o.ringMesh){ _surfQ.copy(mesh.quaternion).invert(); const sunL=sunMesh.position.clone().sub(mesh.position).normalize().applyQuaternion(_surfQ), camL=mesh.worldToLocal(camera.position.clone());
       if(o.surfMat){ o.surfMat.uniforms.uSunL.value.copy(sunL); o.surfMat.uniforms.uCamL.value.copy(camL); }
       if(o.ringMesh){ const U=o.ringMesh.material.uniforms; U.uSunL.value.copy(sunL); U.uCamL.value.copy(camL); } } }
   hccSurfDispatch(); }
 const planetObjs = [];
 PLANETS.forEach((p, idx)=>{
-  /* v4.437: every globe but the Earth's (which has its own) at 96 × 64 facets, the giants flattened as they are (hccPlanetGeometry) */
+  /* v4.437: every globe but the Earth's (which has its own) in three levels of detail, the giants flattened as they are */
+  const lod = p.name==='Earth' ? null : HCC_PLANET_LOD.facets.map(([w,h])=>hccPlanetGeometry(p,w,h));
   const mesh = new THREE.Mesh(
-    p.name==='Earth'?new THREE.SphereGeometry(1, 36, 24):hccPlanetGeometry(p),
+    lod ? lod[0] : new THREE.SphereGeometry(1, 36, 24),
     new THREE.MeshStandardMaterial({color:p.col, roughness:.85, metalness:.05})
   );
+  if(lod) mesh.userData.lod=lod;
   /* v4.437: the rings in Saturn's own equator, with their measured structure and the planet's shadow (hccSaturnRings) — they were
      tilted 26.7° out of it, the obliquity counted a second time on a planet already turned by its IAU pole */
   let ringMesh=null; if(p.rings){ ringMesh=hccSaturnRings(); mesh.add(ringMesh); }
