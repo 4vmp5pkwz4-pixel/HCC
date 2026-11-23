@@ -22140,6 +22140,15 @@ function focusOn(s){
   followSel = s;
   if(s.onFocus) s.onFocus();
 }
+/* v4.437: where the camera lands, for agents and the release's own views — `phase` is the angle Sun–object–camera in
+   degrees (0 = the Sun behind the camera, 180 = looking at the night side), `elev` the camera's height above the plane
+   that holds the Sun and the scene's up, `zoom` multiplies the framing distance */
+function hccFocusFrom(o){ const A=focusAnim; if(!A) return false; const T=A.toT, L=A.toP.distanceTo(T)*(o.zoom>0?o.zoom:1);
+  const sun=T.clone().negate(); if(sun.lengthSq()<1e-12) sun.set(1,0,0); sun.normalize();
+  const up=new THREE.Vector3(0,1,0), side=new THREE.Vector3().crossVectors(sun,up); if(side.lengthSq()<1e-9) side.set(0,0,1); side.normalize();
+  const flat=new THREE.Vector3().crossVectors(up,side).normalize(), ph=(+o.phase||0)*Math.PI/180, el=(+o.elev||0)*Math.PI/180;
+  const d=flat.multiplyScalar(Math.cos(ph)).addScaledVector(side,Math.sin(ph)).multiplyScalar(Math.cos(el)).addScaledVector(up,Math.sin(el));
+  A.toP.copy(T).addScaledVector(d.normalize(),L); return true; }
 function clearFocus(){ followSel=null; focusAnim=null; controls.autoRotate=false; }
 /* Cinematic dual-focus orbit. Soft auto-rotation around the followed (primary)
    object; an optional second object is kept framed (target → weighted midpoint,
@@ -25377,7 +25386,9 @@ const sunSpinCue=spinReferenceCue(0xffb55e); sunMesh.add(sunSpinCue);
 const sunLabel = mkLabel('Sun','label major','sun'); sunMesh.add(sunLabel);
 solarGroup.add(sunMesh);
 solarGroup.add(new THREE.PointLight(0xfff4e0, 2.2, 0, 0));
-solarGroup.add(new THREE.AmbientLight(0x404a60, .55));
+/* v4.437: the fill is a night side's floor, not a studio light — it lit every moon's night side at a blue 6 % of its day (the planets'
+   own shaders keep theirs at about 1 %); now about 2 %, and grey: enough to find a moon's disc against the stars */
+solarGroup.add(new THREE.AmbientLight(0x3c4048, .2));
 
 registerSel('sun', {
   name:'Sun', mode:'solar', desc:'G2V star, the gravitational anchor of the system. Local physics on all these scales is the quasi-local Euclidean patch U ⊂ S³_R of the article.',
@@ -25790,8 +25801,10 @@ const HCC_ATM=Object.freeze({
     Venus:  {T:737, mu:43.45, g:8.87,  tint:[1.00,0.93,0.72], mie:0.72, haze:0.85},
     Earth:  {T:288, mu:28.97, g:9.807, tint:[0.65,0.82,1.00], mie:0.20, haze:0.12},
     Mars:   {T:210, mu:43.34, g:3.721, tint:[1.00,0.78,0.62], mie:0.55, haze:0.42},
-    Jupiter:{T:165, mu:2.22,  g:24.79, tint:[1.00,0.90,0.78], mie:0.45, haze:0.35},
-    Saturn: {T:134, mu:2.07,  g:10.44, tint:[1.00,0.92,0.76], mie:0.45, haze:0.40},
+    /* v4.437: the giants' limbs are their stratospheric haze, not their hydrogen — above the ~100 mbar haze tops the Rayleigh
+       optical depth at 550 nm is a few thousandths, so a blue rim was wrong; the haze scatters forward and glows at high phase */
+    Jupiter:{T:165, mu:2.22,  g:24.79, tint:[1.00,0.90,0.78], mie:0.45, haze:0.85},
+    Saturn: {T:134, mu:2.07,  g:10.44, tint:[1.00,0.92,0.76], mie:0.45, haze:0.85},
     Uranus: {T:76,  mu:2.64,  g:8.87,  tint:[0.62,0.93,0.95], mie:0.30, haze:0.22},
     Neptune:{T:72,  mu:2.53,  g:11.15, tint:[0.52,0.72,1.00], mie:0.30, haze:0.22}}),
   /* written down rather than left as an absence, because a body with no shell and a
@@ -25947,17 +25960,324 @@ function hccAudioTick(){
       voice.pan.pan.value=THREE.MathUtils.clamp(p.x,-1,1); }
   });
 }
+/* ══ THE PLANETS AS THEY LOOK (v4.437) ════════════════════════════════════════════════════════════════════════════════════════
+   Asked: check the realism of the Solar System and take the immersion further than before. What was found, looking at each
+   planet close up: every planet but the Earth was a plain-coloured ball of 36 × 24 facets under a flat light — Jupiter a tan
+   sphere with no belts and no Red Spot, Saturn as round as the Earth — none of them turned, and SATURN'S RINGS WERE NOT IN
+   SATURN'S EQUATOR: the planet is turned by its IAU pole (RA 40.59°, Dec 83.54°), and the ring was then tilted by a further 26.7°
+   of its own — the obliquity counted twice. With the ring in the equator, the atlas's own ephemeris and the IAU pole give the
+   ring's opening angle seen from the Earth as +0.01° on 2025-03-23 — the ring-plane crossing that was observed that day — and
+   27.0° in October 2017, the widest opening of the cycle.
+   Now:
+     · each planet TURNS: its prime meridian is the IAU W(d) on the atlas clock — Jupiter in 9 h 55 m, Venus backwards in 243 days,
+       Mars's dark regions facing the Earth when they really do;
+     · the giants are FLATTENED as they are — Saturn's poles 9.8 % nearer its centre than its equator, Jupiter's 6.5 % — and the
+       bands sit at their planetographic latitudes on the flattened globe;
+     · the RINGS carry their measured structure radius by radius in a profile 9 km a sample (the D, C, B rings, the Cassini
+       Division with the Huygens ringlet, A with the Encke and Keeler gaps, the F ring); they are mip-mapped, so no ringlet ever
+       becomes moiré; the light obeys the single-scattering law of a ring layer on the lit face, μ₀/(μ₀+μ)(1 − e^(−τ(1/μ₀+1/μ))),
+       and the diffuse transmission through it on the unlit one; big ice grains scatter back (a Lambert sphere with the
+       opposition surge) and dust forward (Henyey–Greenstein, g = 0.7), so the dusty F and D rings brighten against the Sun as
+       they do in every back-lit Cassini picture; Saturn's SHADOW, an oblate one, lies across them;
+     · the PLANETS wear their observed faces, drawn once off the main thread on the first close approach: Jupiter's belts and zones
+       at their latitudes and the Great Red Spot at −22°; Saturn's paler bands and its north-polar hexagon at 78°; the dark albedo
+       regions of Mars at their longitudes, Hellas, and both polar caps; Venus's featureless cloud deck; grey Mercury; pale Uranus;
+       blue Neptune;
+     · each is lit by the Sun where the Sun is, with the limb darkening of its kind (Minnaert: k ≈ 0.9 for the gas giants, ~0.6
+       for bare rock), a night side that is dark — a hundredth of the day, enough to see the disc against the stars — and on
+       Saturn the RINGS' SHADOW across the globe and RINGSHINE: the night side under the rings' lit face glows with the sunlight
+       they throw back.
+   What is drawn is the observed appearance in broad strokes, not a map: the belts drift and change, the Spot shrinks and wanders
+   in longitude, and the faces stand at fixed System III longitudes. */
+/* IAU WGCCRE (Archinal et al. 2011, 2018): the prime meridian W = W0 + Ẇ·d, d in days from J2000, measured east along the
+   planet's equator from the node of that equator on the ICRF equator. Mars carries its 2009 values, the pole the atlas uses. */
+const HCC_PLANET_W=Object.freeze({Mercury:[329.5988,6.1385108], Venus:[160.20,-1.4813688], Mars:[176.630,350.89198226],
+  Jupiter:[284.95,870.5360000], Saturn:[38.90,810.7939024], Uranus:[203.81,-501.1600928], Neptune:[249.978,541.1397757]});
+/* equatorial and polar radii, km (the same reports); the atlas's radius of a planet is the volumetric mean, (a²c)^⅓ */
+const HCC_PLANET_SHAPE=Object.freeze({Mars:[3396.19,3376.20], Jupiter:[71492,66854], Saturn:[60268,54364], Uranus:[25559,24973], Neptune:[24764,24341]});
+function hccPlanetShape(p){ const S=HCC_PLANET_SHAPE[p.name]; return S?[S[0]/p.r,S[1]/p.r]:[1,1]; }   /* [equatorial, polar] in mean radii */
+/* the globe: 96 × 64 facets, the oblate ones flattened as they are */
+function hccPlanetGeometry(p){ const g=new THREE.SphereGeometry(1,96,64), [a,c]=hccPlanetShape(p); g.userData.shape=[a,c]; if(a===1&&c===1) return g;
+  const P=g.attributes.position, N=g.attributes.normal;
+  for(let i=0;i<P.count;i++){ const x=P.getX(i)*a, y=P.getY(i)*c, z=P.getZ(i)*a, nx=x/(a*a), ny=y/(c*c), nz=z/(a*a), l=Math.hypot(nx,ny,nz)||1;
+    P.setXYZ(i,x,y,z); N.setXYZ(i,nx/l,ny/l,nz/l); }
+  g.computeBoundingSphere(); return g; }
+/* the radius of a body's surface along a world direction, in its mean radii (1 for a sphere): where a camera can stand on it */
+const _srQ=new THREE.Quaternion(), _srD=new THREE.Vector3();
+function hccSurfaceRadius(mesh,dirW){ const s=mesh&&mesh.geometry&&mesh.geometry.userData.shape; if(!s||(s[0]===1&&s[1]===1)) return 1;
+  const d=_srD.copy(dirW).applyQuaternion(_srQ.copy(mesh.quaternion).invert()).normalize(); return 1/Math.sqrt((d.x*d.x+d.z*d.z)/(s[0]*s[0])+d.y*d.y/(s[1]*s[1])); }
+/* the orientation: local +Y on the IAU pole and the faces' longitude 0 (local −X) on the prime meridian W(d), east toward +Z */
+let HCC_POLE_FRAME=null; const _spM=new THREE.Vector3(), _spE=new THREE.Vector3(), _spX=new THREE.Vector3(), _spB=new THREE.Matrix4();
+function hccPlanetSpinQ(name,d,out){ const w=HCC_PLANET_W[name]; if(!w||!Number.isFinite(d)) return false;
+  if(!HCC_POLE_FRAME){ HCC_POLE_FRAME={}; for(const [n,[ra,dec]] of Object.entries(PLANET_POLES)){ const p=raDecDir(ra/15,dec).normalize(), Q=raDecDir((ra+90)/15,0).normalize();
+      HCC_POLE_FRAME[n]={p, Q, E:new THREE.Vector3().crossVectors(p,Q).normalize()}; } }
+  const F=HCC_POLE_FRAME[name]; if(!F) return false; const W=(((w[0]+w[1]*d)%360)+360)%360*DEG;
+  _spM.copy(F.Q).multiplyScalar(Math.cos(W)).addScaledVector(F.E,Math.sin(W));      /* the prime meridian */
+  _spE.crossVectors(F.p,_spM); _spX.copy(_spM).negate();
+  out.setFromRotationMatrix(_spB.makeBasis(_spX,F.p,_spE)); return true; }
+/* ── SATURN'S RINGS, radius by radius ──
+   In Saturn equatorial radii (60 268 km): the normal optical depth τ, the lit-face reflectivity of the ring's big ice grains,
+   how red they are, and how much of the ring is fine dust — after the Cassini UVIS/VIMS occultation profiles (Colwell et al.
+   2009, 2010) and the measured radii of the gaps. The plateaus of the C ring and the grooves of the B ring are placed in broad
+   strokes; the edges, gaps and ringlets at their measured radii. */
+const HCC_RING=Object.freeze({R0:1.105, R1:2.335, N:8192});
+function hccRingFbm(r,f){ let s=0, a=0.5, t=0; for(let k=0;k<5;k++){ const x=r*f*Math.pow(2.17,k)+k*7.3, i=Math.floor(x), u=x-i, w=u*u*(3-2*u);
+    s+=a*(hccSurfHash(i,k,11)*(1-w)+hccSurfHash(i+1,k,11)*w); t+=a; a*=0.55; } return s/t; }
+function hccRingAt(r){ /* → [τ, reflectivity, redness, dust] */
+  const Z=[0,0,0,0], gap=(c,w)=>Math.abs(r-c)<w/2;
+  if(r<1.1100||r>2.3320) return Z;
+  if(r<1.2363) return [0.002,0.02,0.2,1];                                                  /* D: faint and dusty */
+  if(r<1.2388) return Z;
+  if(r<1.5261){ /* C: τ 0.06–0.11 rising outward; the Colombo and Maxwell gaps, the Maxwell ringlet, the plateaus */
+    if(gap(1.2921,0.0025)) return Z;
+    if(Math.abs(r-1.4520)<0.00053) return [1.2,0.5,0.3,0.05];
+    if(gap(1.4517,0.0045)) return Z;
+    let tau=0.06+0.05*(r-1.2388)/0.2873;
+    for(const [c,w] of [[1.3934,0.0060],[1.4043,0.0035],[1.4210,0.0080],[1.4356,0.0050],[1.4690,0.0070],[1.4790,0.0045],[1.4955,0.0040]]) if(gap(c,w)) tau=0.35;
+    return [tau*(0.8+0.4*hccRingFbm(r,900)),0.42*(0.85+0.3*hccRingFbm(r,600)),0.25,0.06]; }
+  if(r<1.9497){ /* B: B1 τ ≈ 1–1.6, B2 ≈ 2.4, B3 — the core — ≳ 5, B4 ≈ 2.4; grooved at every scale */
+    const n=hccRingFbm(r,700)-0.5, g=0.82+0.36*hccRingFbm(r+3.1,500); let tau, w;
+    if(r<1.6427){ tau=1.0+0.6*(r-1.5261)/0.1166+0.5*n; w=0.80; } else if(r<1.7339){ tau=2.4+1.2*n; w=0.97; } else if(r<1.8252){ tau=5.0+2.0*n; w=1.0; } else { tau=2.4+1.6*n; w=0.93; }
+    return [Math.max(0.3,tau),Math.min(1,w*g),1.0,0.02]; }
+  if(r<2.0252){ /* the Cassini Division: the Huygens gap and ringlet; the Herschel, Russell, Jeffreys and Laplace gaps; the outer ramp */
+    if(Math.abs(r-1.9551)<0.0004) return [1.0,0.6,0.5,0.05];
+    if(r<1.9583) return Z;
+    if(gap(1.9618,0.0017)||gap(1.9681,0.00055)||gap(1.9737,0.00063)||gap(1.9906,0.0040)) return Z;
+    const tau=r>2.0080?0.12+0.10*(r-2.0080)/0.0172:0.08+0.04*hccRingFbm(r,1200); return [tau,0.35,0.15,0.10]; }
+  if(r<2.2694){ /* A: τ 0.5 → 0.8 → 0.45 outward; the Encke and Keeler gaps; the density waves */
+    if(gap(2.2166,0.0054)||gap(2.2650,0.0007)) return Z;
+    const tau=(r<2.0600?0.5+0.3*(r-2.0252)/0.0348:0.8-0.35*(r-2.0600)/0.2094)*(0.88+0.24*hccRingFbm(r,1500));
+    return [tau,(0.78+0.08*(r-2.0252)/0.2442)*(0.92+0.16*hccRingFbm(r+1.7,800)),0.75,0.03]; }
+  if(Math.abs(r-2.3259)<0.0008) return [0.6,0.5,0.4,0.6];                                  /* F: a narrow core */
+  if(Math.abs(r-2.3259)<0.0060) return [0.01,0.05,0.3,1];                                   /* and its dusty envelope */
+  return Z; }
+/* the profile as a texture of one row: τ stored as √(τ/6); its mip chain is the band-limited ring at every distance */
+let HCC_RING_TEX=null;
+function hccRingTexture(){ if(HCC_RING_TEX) return HCC_RING_TEX; const {R0,R1,N}=HCC_RING, d=new Uint8Array(N*4);
+  for(let i=0;i<N;i++){ const r=R0+(R1-R0)*(i+0.5)/N, [tau,refl,red,dust]=hccRingAt(r), o=4*i;
+    d[o]=Math.round(255*Math.sqrt(Math.min(6,tau)/6)); d[o+1]=Math.round(255*refl); d[o+2]=Math.round(255*red); d[o+3]=Math.round(255*dust); }
+  const t=new THREE.DataTexture(d,N,1,THREE.RGBAFormat); t.magFilter=THREE.LinearFilter; t.minFilter=THREE.LinearMipmapLinearFilter; t.generateMipmaps=true; t.needsUpdate=true;
+  HCC_RING_TEX=t; return t; }
+const HCC_RING_GLSL=`
+  float ringTauAt(sampler2D prof, vec2 span, float r){ vec4 p=texture2D(prof,vec2((r-span.x)/(span.y-span.x),0.5)); return p.r*p.r*6.0; }`;
+function hccSaturnRings(){
+  /* Saturn's equatorial radius 60 268 km; the mesh's unit is the planet's mean radius, 58 232 km */
+  const RS=60268/58232, R=HCC_RING;
+  const geo=new THREE.RingGeometry(R.R0*RS,R.R1*RS,256,1);
+  const m=new THREE.Mesh(geo,new THREE.ShaderMaterial({transparent:true, depthWrite:false, side:THREE.DoubleSide,
+    uniforms:{uProf:{value:hccRingTexture()}, uSpan:{value:new THREE.Vector2(R.R0,R.R1)}, uSunL:{value:new THREE.Vector3(1,0,0)}, uCamL:{value:new THREE.Vector3(0,1,0)},
+      uRS:{value:RS}, uShape:{value:new THREE.Vector2(RS,54364/58232)}, uGain:{value:1.45}},
+    vertexShader:`varying vec3 vP; varying vec3 vPP;
+      #include <common>
+      #include <logdepthbuf_pars_vertex>
+      void main(){ vP=position; vPP=vec3(position.x,0.0,-position.y);   /* the ring's plane turned into the planet's frame: (x, y, 0) → (x, 0, −y) */
+        gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);
+        #include <logdepthbuf_vertex>
+      }`,
+    fragmentShader:`uniform sampler2D uProf; uniform vec2 uSpan; uniform vec3 uSunL; uniform vec3 uCamL; uniform float uRS; uniform vec2 uShape; uniform float uGain;
+      varying vec3 vP; varying vec3 vPP;
+      #include <common>
+      #include <logdepthbuf_pars_fragment>
+      /* big grains: a Lambert sphere, 1 at full phase; dust: Henyey–Greenstein in the scattering angle */
+      float lambertPhase(float al){ return (sin(al)+(PI-al)*cos(al))/PI; }
+      float hgPhase(float cosTh,float g){ float gg=g*g; return (1.0-gg)/pow(max(1.0+gg-2.0*g*cosTh,1e-4),1.5); }
+      void main(){
+        #include <logdepthbuf_fragment>
+        float rr=length(vP.xy)/uRS; vec4 pr=texture2D(uProf,vec2((rr-uSpan.x)/(uSpan.y-uSpan.x),0.5));
+        float tau=pr.r*pr.r*6.0;
+        vec3 S=normalize(uSunL), V=normalize(uCamL-vPP);
+        /* Saturn's shadow: the line to the Sun passes within the oblate globe (in the frame where the globe is a unit sphere) */
+        vec3 sc=vec3(uShape.x,uShape.y,uShape.x), P=vPP/sc, Sd=S/sc; float B=dot(P,Sd), dmin=sqrt(max(dot(P,P)-B*B/dot(Sd,Sd),0.0));
+        float e=max(fwidth(dmin)*1.5,0.002), sun=B<0.0?smoothstep(1.0-e,1.0+e,dmin):1.0;
+        if(tau<1e-4) discard;
+        float muS=max(abs(S.y),0.004), muV=max(abs(V.y),0.004), a=1.0-exp(-tau/muV);
+        float al=acos(clamp(dot(S,V),-1.0,1.0));
+        float Pf=pr.g*lambertPhase(al)*(1.0+0.4*exp(-al/0.03)) + pr.a*0.03*hgPhase(-cos(al),0.7);
+        bool lit=(S.y>0.0)==(V.y>0.0);
+        float I=lit? Pf*muS/(muS+muV)*(1.0-exp(-tau*(1.0/muS+1.0/muV)))                                      /* the lit face: single scattering in the layer */
+                   : Pf*muS*(abs(muS-muV)>1e-3?(exp(-tau/muS)-exp(-tau/muV))/(muS-muV):tau/(muS*muS)*exp(-tau/muS));   /* the unlit face: diffuse transmission */
+        I*=mix(0.02,1.0,sun);
+        vec3 col=mix(vec3(0.62,0.60,0.60),vec3(1.0,0.84,0.64),pr.b);
+        gl_FragColor=vec4(col*I*uGain/max(a,1e-4), a);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }`}));
+  m.rotation.x=-Math.PI/2;   /* in the planet's own equatorial plane: the mesh is already turned by Saturn's IAU pole */
+  m.userData.saturnRings=true; m.userData.noGrade=true; m.renderOrder=2;
+  return m;
+}
+/* ── the faces, drawn once: a seamless sphere-sampled noise, the observed bands and features ── */
+/* a face in two steps: 512 × 256 for a planet seen as a disc, 2048 × 1024 once it fills more than LEVEL_PX pixels of radius */
+const HCC_SURF={tex:new Map(), level:new Map(), want:new Set(), ready:[], busy:null, jobs:new Map(), worker:null, noWorker:false,
+  LEVELS:[[512,256],[2048,1024]], LOCAL:[1024,512], LEVEL_PX:60, px:new Map()};
+function hccSurfHash(i,j,k){ let h=(i*374761393+j*668265263+k*2147483647)|0; h=(h^(h>>>13))*1274126177|0; return ((h^(h>>>16))>>>0)/4294967296; }
+function hccSurfNoise(x,y,z){ const xi=Math.floor(x), yi=Math.floor(y), zi=Math.floor(z), xf=x-xi, yf=y-yi, zf=z-zi, u=xf*xf*(3-2*xf), v=yf*yf*(3-2*yf), w=zf*zf*(3-2*zf);
+  const L=(a,b,t)=>a+(b-a)*t, H=hccSurfHash;
+  return L(L(L(H(xi,yi,zi),H(xi+1,yi,zi),u),L(H(xi,yi+1,zi),H(xi+1,yi+1,zi),u),v),L(L(H(xi,yi,zi+1),H(xi+1,yi,zi+1),u),L(H(xi,yi+1,zi+1),H(xi+1,yi+1,zi+1),u),v),w); }
+function hccSurfFbm(x,y,z,o){ let s=0, a=0.5, f=1; for(let k=0;k<(o||4);k++){ s+=a*hccSurfNoise(x*f,y*f,z*f); f*=2.03; a*=0.5; } return s; }
+/* bands from pole to pole: [planetographic latitude of the upper edge, r, g, b] (sRGB) — Jupiter after Rogers, The Giant Planet
+   Jupiter (1995), and the Juno/Hubble OPAL colours; Saturn from Cassini; the ice giants nearly featureless in visible light */
+const HCC_PLANET_BANDS={
+  /* SPR · S3TZ · SSTZ · SSTB · STZ · STB · STrZ (the Red Spot's zone) · SEB(S) · the SEB's pale middle · SEB(N) · EZ · NEB · NTrZ ·
+     NTB · NTZ · NNTB · NNTZ · N3TB · NPR */
+  Jupiter:[[-55,150,146,140],[-48,172,164,150],[-43,186,176,158],[-38,170,152,128],[-33,204,192,166],[-27,170,140,110],[-21,218,206,178],[-16,164,118,84],[-11,182,144,108],[-7,166,120,86],[7,228,220,200],[18,164,118,84],[24,220,208,180],[31,176,144,110],[35,208,196,166],[39,180,160,134],[44,198,186,164],[50,176,164,146],[90,148,144,138]],
+  /* as the planet looks in the late 2020s: the north golden after its long summer, the south — just out of fifteen years of winter —
+     still in the blue-grey that a winter hemisphere's thinned haze lets the hydrogen give it */
+  Saturn:[[-70,150,156,158],[-50,170,172,164],[-35,196,184,150],[-20,184,162,118],[-8,204,180,128],[8,226,202,148],[20,200,174,124],[35,186,160,114],[50,200,176,128],[70,184,166,128],[90,170,156,124]],
+  Uranus:[[-60,164,210,216],[-20,156,204,212],[20,154,202,210],[60,160,208,214],[90,170,214,218]],
+  /* Neptune in its true colour (Irwin et al. 2024, from the Hubble/STIS and VLT/MUSE spectra): a pale azure only a little bluer
+     than Uranus — the deep blue of the 1989 Voyager pictures was a contrast stretch */
+  Neptune:[[-60,138,176,214],[-30,130,170,210],[-15,144,182,218],[15,134,174,212],[45,140,180,216],[90,134,174,212]]};
+function hccSurfBand(name,lat){ const B=HCC_PLANET_BANDS[name]; let i=0; while(i<B.length-1&&lat>B[i][0]) i++;
+  /* a degree's blend at each edge near the equator, widening to several toward the poles, where the bands fade into the polar haze */
+  const w=1.2+3.5*Math.max(0,Math.min(1,(Math.abs(lat)-35)/25)), sm=t=>t*t*(3-2*t);
+  const c=B[i], lo=i>0?B[i-1][0]:-90, hi=c[0];
+  if(i>0&&lat-lo<w){ const p=B[i-1], t=0.5+0.5*sm(Math.max(0,Math.min(1,(lat-lo)/w))); return [p[1]+(c[1]-p[1])*t,p[2]+(c[2]-p[2])*t,p[3]+(c[3]-p[3])*t]; }
+  if(i<B.length-1&&hi-lat<w){ const n=B[i+1], t=0.5-0.5*sm(Math.max(0,Math.min(1,(hi-lat)/w))); return [c[1]+(n[1]-c[1])*t,c[2]+(n[2]-c[2])*t,c[3]+(n[3]-c[3])*t]; }
+  return [c[1],c[2],c[3]]; }
+function hccSurfPixel(name,lat,lon,x,y,z){   /* lat planetographic, lon east (0..360), in degrees; x,y,z on the unit sphere */
+  const n1=hccSurfFbm(x*3,y*3,z*3,4), n2=hccSurfFbm(x*11+5,y*11,z*11,3);
+  if(name==='Jupiter'||name==='Saturn'){ const g=name==='Jupiter';
+    /* turbulent band edges and the streaks along the jets */
+    const latT=lat+(n1-0.5)*(g?3.4:1.8)+(hccSurfFbm(x*2,y*24,z*2,3)-0.5)*(g?1.8:0.8)+(g?1.1*Math.sin(lon*DEG*7+n1*6)*Math.exp(-Math.pow((Math.abs(lat)-18)/8,2)):0)
+      +(g?(hccSurfFbm(x*7+n1*2,y*46,z*7-n1*2,4)-0.5)*2.6:0);   /* Jupiter: the filaments the jets draw out along each edge */
+    let c=hccSurfBand(name,latT); const streak=g?0.95+0.10*hccSurfFbm(x*40,y*3,z*40,3):0.975+0.05*hccSurfFbm(x*40,y*3,z*40,3); c=c.map(v=>v*streak);
+    if(g){ /* the Great Red Spot, −22.4°, about 11.5° × 8.6° today; its pale collar */
+      const dl=((lon-60+540)%360)-180, e=Math.hypot(dl/5.8,(lat+22.4)/4.3);
+      if(e<1.35){ const k=Math.max(0,1-e); const red=[204,112,82], col=[236,226,206]; const w=e<1?Math.min(1,k*3):0, wc=e>=0.95?Math.max(0,1-Math.abs(e-1.12)/0.2):0;
+        c=c.map((v,i)=>v*(1-w-wc*0.6)+red[i]*w+col[i]*wc*0.6); }
+      /* the white ovals of the south temperate belt, the brown barges of the north */
+      for(const [lo,la,s,col] of [[150,-33,2.0,[232,224,210]],[230,-41,1.4,[230,222,206]],[300,17.5,1.6,[120,82,58]],[20,15,1.2,[118,80,56]]]){ const d2=Math.hypot((((lon-lo+540)%360)-180)/s,(lat-la)/(s*0.6)); if(d2<1) c=c.map((v,i)=>v+(col[i]-v)*(1-d2)); }
+      /* festoons: blue-grey plumes trailing south-west from the hot spots on the NEB's southern edge, a dozen around the planet */
+      if(lat>-1&&lat<8.5){ const k=Math.round((lon+(8.5-lat)*1.6)/30), dl=lon+(8.5-lat)*1.6-k*30, f=Math.exp(-dl*dl/(3+0.8*(8.5-lat)))*Math.min(1,(lat+1)/3)*(0.6+0.8*n2);
+        c=c.map((v,i)=>v*(1-0.42*Math.min(1,f))+[96,104,122][i]*0.42*Math.min(1,f)); } }
+    else { /* the hexagon around Saturn's north pole, 78° */
+      const th=lon*DEG, hexR=Math.cos(Math.PI/6)/Math.cos(((th%(Math.PI/3))+Math.PI/3)%(Math.PI/3)-Math.PI/6), colat=90-lat, edge=12.2*hexR;
+      if(lat>60&&Math.abs(colat-edge)<0.9) c=c.map(v=>v*0.82); }
+    /* and darker toward the poles, under more haze at a slant */
+    const pd=1-0.18*Math.max(0,Math.min(1,(Math.abs(lat)-45)/40));
+    return c.map(v=>v*pd*(g?0.94+0.12*n2:0.965+0.07*n2)); }
+  if(name==='Uranus'||name==='Neptune'){ let c=hccSurfBand(name,lat+(n1-0.5)*2); if(name==='Neptune'){ const cl=hccSurfFbm(x*9,y*30,z*9,3); if(cl>0.72&&Math.abs(lat+25)<12) c=c.map(v=>v+(250-v)*Math.min(1,(cl-0.72)*4)); }
+    return c.map(v=>v*(0.97+0.06*n2)); }
+  if(name==='Mars'){ let c=[188,108,66];
+    /* the classical dark albedo regions, by east longitude and latitude */
+    const dark=[[70,8,12,14],[325,47,18,8],[5,-3,14,5],[325,-25,22,12],[230,-25,30,10],[110,47,18,7],[180,-20,18,8]];
+    let d=0; for(const [lo,la,wl,wa] of dark){ const q=Math.hypot((((lon-lo+540)%360)-180)/wl,(lat-la)/wa); d=Math.max(d,Math.max(0,1-q)); }
+    d=Math.min(1,d*1.6)*(0.6+0.6*n1); c=c.map((v,i)=>v*(1-0.66*d)+[88,60,46][i]*0.66*d);
+    /* Hellas, bright: 42°S, 70°E */
+    { const q=Math.hypot((((lon-70+540)%360)-180)/14,(lat+42)/9); if(q<1) c=c.map((v,i)=>v+([226,182,140][i]-v)*(1-q)); }
+    /* Valles Marineris */
+    if(lat>-14&&lat<-4&&lon>265&&lon<320) c=c.map(v=>v*(1-0.35*Math.max(0,1-Math.abs(lat+9)/4)*n2*1.4));
+    /* the polar caps */
+    const cap=Math.max(0,Math.min(1,(Math.abs(lat)-(lat>0?80:82)+(n1-0.5)*4)/2.5)); c=c.map(v=>v+(246-v)*cap);
+    return c.map(v=>v*(0.88+0.24*n2)); }
+  if(name==='Venus'){ const v=0.94+0.06*hccSurfFbm(x*2,y*6,z*2,3); return [234*v,220*v,180*v]; }
+  /* Mercury as dark as it is (geometric albedo 0.14, the Moon's), its bright ray craters standing out */
+  if(name==='Mercury'){ const cr=hccSurfFbm(x*16,y*16,z*16,4), b=0.88+0.24*n1+(cr>0.68?0.3:0)-(cr<0.3?0.08:0); return [126*b,120*b,113*b]; }
+  return [128,128,128]; }
+/* rows y0..y1 of a face, south pole first (a texture's first row is its bottom); a row is the parametric latitude β of the
+   flattened globe, and the bands are looked up at the planetographic latitude there, tan φ = tan β · a/c (q = c/a) */
+function hccSurfFill(name,W,H,d,y0,y1,q){ const R=Math.PI/180;
+  for(let y=y0;y<y1;y++){ const be=(-90+180*(y+0.5)/H)*R, cb=Math.cos(be), sb=Math.sin(be), lat=Math.atan2(sb,cb*q)/R;
+    for(let x=0;x<W;x++){ const lon=360*(x+0.5)/W, lo=lon*R, c=hccSurfPixel(name,lat,lon,cb*Math.cos(lo),sb,cb*Math.sin(lo)), o=4*(y*W+x);
+      d[o]=c[0]; d[o+1]=c[1]; d[o+2]=c[2]; d[o+3]=255; } } }
+/* OFF THE MAIN THREAD: the same functions, sent to a worker as their own source, draw the faces while the atlas keeps its frame
+   rate — one at a time, the planet largest on the screen first, a quick small face before a sharp large one; where a worker
+   cannot start, a face is drawn here at 1024 × 512, a few milliseconds a frame */
+function hccSurfWorker(){ const S=HCC_SURF; if(S.worker||S.noWorker) return S.worker;
+  try{ const src=['const DEG=Math.PI/180;','const HCC_PLANET_BANDS='+JSON.stringify(HCC_PLANET_BANDS)+';',
+        hccSurfHash, hccSurfNoise, hccSurfFbm, hccSurfBand, hccSurfPixel, hccSurfFill].map(String).join('\n')+
+      '\nonmessage=e=>{ const {name,W,H,q,lvl}=e.data, d=new Uint8ClampedArray(W*H*4); hccSurfFill(name,W,H,d,0,H,q); postMessage({name,W,H,d,lvl},[d.buffer]); };';
+    const w=new Worker(URL.createObjectURL(new Blob([src],{type:'text/javascript'})));
+    w.onmessage=e=>{ const m=e.data; if(m&&m.d) S.ready.push(m); S.busy=null; };
+    w.onerror=ev=>{ try{ ev.preventDefault(); }catch(e){} S.noWorker=true; S.worker=null; S.busy=null; try{ w.terminate(); }catch(e){} };
+    S.worker=w; }catch(e){ S.noWorker=true; S.worker=null; }
+  return S.worker; }
+/* the next face to draw: a planet with no face yet before a sharper face for one that has a small one, and among those the one
+   largest on the screen; a sharp face only for a planet larger than LEVEL_PX pixels of radius */
+function hccSurfNext(maxLevel){ const S=HCC_SURF; let best=null;
+  for(const nm of S.want){ const L=S.level.get(nm)||0, px=S.px.get(nm)||0; if(L>=maxLevel||(L>=1&&px<S.LEVEL_PX)) continue;
+    const score=L===0?px*4:px; if(!best||score>best.score) best={nm, L, score}; }
+  return best; }
+function hccSurfDispatch(){ const S=HCC_SURF; if(S.busy||S.jobs.size||!S.want.size) return;
+  const w=hccSurfWorker();
+  if(w){ const b=hccSurfNext(S.LEVELS.length); if(!b) return; const o=planetObjs.find(x=>x.p.name===b.nm), [a,c]=hccPlanetShape(o.p), [W,H]=S.LEVELS[b.L];
+    S.busy=b.nm; w.postMessage({name:b.nm, W, H, q:c/a, lvl:b.L+1}); return; }
+  const b=hccSurfNext(1); if(!b) return; const o=planetObjs.find(x=>x.p.name===b.nm), [a,c]=hccPlanetShape(o.p), [W,H]=S.LOCAL;
+  S.jobs.set(b.nm,{name:b.nm, W, H, q:c/a, row:0, lvl:S.LEVELS.length, d:new Uint8ClampedArray(W*H*4)}); }
+function hccSurfTexture(W,H,d){ const t=new THREE.DataTexture(new Uint8Array(d.buffer,d.byteOffset,d.byteLength),W,H,THREE.RGBAFormat);
+  t.colorSpace=THREE.SRGBColorSpace; t.wrapS=THREE.RepeatWrapping; t.magFilter=THREE.LinearFilter; t.minFilter=THREE.LinearMipmapLinearFilter; t.generateMipmaps=true;
+  t.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy()); t.needsUpdate=true; return t; }
+const HCC_MINNAERT={Mercury:0.62, Venus:0.80, Mars:0.72, Jupiter:0.92, Saturn:0.95, Uranus:1.0, Neptune:1.0};
+function hccPlanetMaterial(o,tex){ const name=o.p.name, [a,c]=hccPlanetShape(o.p), ringed=!!o.ringMesh; return new THREE.ShaderMaterial({
+    uniforms:{uMap:{value:tex}, uSunL:{value:new THREE.Vector3(1,0,0)}, uCamL:{value:new THREE.Vector3(0,0,5)}, uK:{value:HCC_MINNAERT[name]??0.8}, uNight:{value:0.012},
+      uRing:{value:ringed?1:0}, uRS:{value:60268/58232}, uShape:{value:new THREE.Vector2(a,c)}, uProf:{value:ringed?hccRingTexture():null}, uSpan:{value:new THREE.Vector2(HCC_RING.R0,HCC_RING.R1)}},
+    vertexShader:`varying vec2 vUv; varying vec3 vL;
+      #include <common>
+      #include <logdepthbuf_pars_vertex>
+      void main(){ vUv=uv; vL=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);
+        #include <logdepthbuf_vertex>
+      }`,
+    fragmentShader:`uniform sampler2D uMap; uniform sampler2D uProf; uniform vec2 uSpan; uniform vec3 uSunL; uniform vec3 uCamL; uniform float uK; uniform float uNight;
+      uniform float uRing; uniform float uRS; uniform vec2 uShape;
+      varying vec2 vUv; varying vec3 vL;
+      #include <logdepthbuf_pars_fragment>
+      ${HCC_RING_GLSL}
+      void main(){
+        #include <logdepthbuf_fragment>
+        /* the normal of the flattened globe, not of a sphere */
+        vec3 n=normalize(vL/vec3(uShape.x*uShape.x,uShape.y*uShape.y,uShape.x*uShape.x)), S=normalize(uSunL), V=normalize(uCamL-vL);
+        float mu0=dot(n,S), mu=max(dot(n,V),1e-3);
+        vec3 alb=texture2D(uMap,vUv).rgb;
+        /* Minnaert's law, I = mu0^k mu^(k-1): the limb darkening of the kind of surface */
+        float I=mu0>0.0?pow(mu0,uK)*pow(mu,uK-1.0):0.0, night=uNight;
+        /* Saturn: the rings' shadow across the globe — where the sunbeam to this point crosses the ring plane, and how much of the
+           ring it crosses (sampled outside any branch, so the profile's mip level is defined everywhere) */
+        float sy=abs(S.y)>1e-4?S.y:1e-4, t=-vL.y/sy; vec2 q=vL.xz+S.xz*t;
+        float tauR=ringTauAt(uProf,uSpan,length(q)/uRS);
+        if(uRing>0.5){
+          if(t>0.0) I*=exp(-tauR/abs(sy));
+          /* ringshine: the night side under the rings' lit face, in the sunlight they throw back */
+          float side=n.y*sign(sy); night+=0.035*clamp(abs(sy)*3.0,0.0,1.0)*smoothstep(0.0,0.25,side)*(1.0-smoothstep(0.55,0.9,side))*(1.0-smoothstep(-0.05,0.1,mu0));
+        }
+        /* the terminator is soft by a degree or so: the Sun is a disc, not a point */
+        I*=smoothstep(-0.02,0.03,mu0);
+        gl_FragColor=vec4(alb*(I+night),1.0);
+        /* to the screen's colour space (and tone curve) when drawn straight to it; nothing when drawn into the post chain */
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }`}); }
+/* per frame: a face is asked for when a planet first stands larger than a few pixels, and put on when it arrives; the light
+   comes from where the Sun is */
+const _surfQ=new THREE.Quaternion();
+function hccPlanetSurfaceTick(){ const S=HCC_SURF, H=renderer.domElement.clientHeight||innerHeight, f=H/2/Math.tan(camera.fov*DEG/2);
+  /* the main-thread fallback: a few milliseconds a frame */
+  if(S.jobs.size){ const t0=performance.now(); for(const [nm,J] of S.jobs){ while(J.row<J.H&&performance.now()-t0<4){ const e=Math.min(J.H,J.row+4); hccSurfFill(nm,J.W,J.H,J.d,J.row,e,J.q); J.row=e; }
+      if(J.row>=J.H){ S.jobs.delete(nm); S.ready.push(J); } break; } }
+  /* faces that have arrived: put on, or a sharper one swapped in for a smaller */
+  while(S.ready.length){ const R=S.ready.shift(), o=planetObjs.find(x=>x.p.name===R.name); if(!o||(S.level.get(R.name)||0)>=R.lvl) continue;
+    const tex=hccSurfTexture(R.W,R.H,R.d);
+    if(o.surfMat){ const old=o.surfMat.uniforms.uMap.value; o.surfMat.uniforms.uMap.value=tex; if(old&&old!==tex) old.dispose(); }
+    else { const m=hccPlanetMaterial(o,tex); o.surfMat=m; o.plainMat=o.mesh.material; o.mesh.material=m; }
+    S.tex.set(R.name,tex); S.level.set(R.name,R.lvl); }
+  for(const o of planetObjs){ const nm=o.p.name; if(nm==='Earth'||nm==='Pluto') continue; const mesh=o.mesh;
+    const d=Math.max(1e-12,mesh.position.distanceTo(camera.position)), px=mesh.scale.x/d*f; S.px.set(nm,px); if(px>6) S.want.add(nm);
+    if(o.surfMat||o.ringMesh){ _surfQ.copy(mesh.quaternion).invert(); const sunL=sunMesh.position.clone().sub(mesh.position).normalize().applyQuaternion(_surfQ), camL=mesh.worldToLocal(camera.position.clone());
+      if(o.surfMat){ o.surfMat.uniforms.uSunL.value.copy(sunL); o.surfMat.uniforms.uCamL.value.copy(camL); }
+      if(o.ringMesh){ const U=o.ringMesh.material.uniforms; U.uSunL.value.copy(sunL); U.uCamL.value.copy(camL); } } }
+  hccSurfDispatch(); }
 const planetObjs = [];
 PLANETS.forEach((p, idx)=>{
+  /* v4.437: every globe but the Earth's (which has its own) at 96 × 64 facets, the giants flattened as they are (hccPlanetGeometry) */
   const mesh = new THREE.Mesh(
-    new THREE.SphereGeometry(1, 36, 24),
+    p.name==='Earth'?new THREE.SphereGeometry(1, 36, 24):hccPlanetGeometry(p),
     new THREE.MeshStandardMaterial({color:p.col, roughness:.85, metalness:.05})
   );
   /* v4.437: the rings in Saturn's own equator, with their measured structure and the planet's shadow (hccSaturnRings) — they were
      tilted 26.7° out of it, the obliquity counted a second time on a planet already turned by its IAU pole */
   let ringMesh=null; if(p.rings){ ringMesh=hccSaturnRings(); mesh.add(ringMesh); }
   const atm = planetAtmosphere(p.name, p.r);
-  if(atm) mesh.add(atm);
+  if(atm){ const [ae,ap]=hccPlanetShape(p); atm.scale.set(ae,ap,ae); mesh.add(atm); }   /* the air shell as flat as the globe it wraps */
   const lab = mkLabel(p.name, p.dwarf?'label dim':'label', 'planet'+idx);
   mesh.add(lab);
   const spinCue=p.spinHours?spinReferenceCue(0x9fd8ff):null;
@@ -26002,173 +26322,6 @@ PLANETS.forEach((p, idx)=>{
     },
   });
 });
-/* ══ THE PLANETS AS THEY LOOK (v4.437) ════════════════════════════════════════════════════════════════════════════════════════
-   Asked: check the realism of the Solar System and take the immersion further than before. What was found, looking at each
-   planet close up: every planet but the Earth was a plain-coloured ball of 36 × 24 facets under a flat light — Jupiter a tan
-   sphere with no belts and no Red Spot — and SATURN'S RINGS WERE NOT IN SATURN'S EQUATOR: the planet is turned by its IAU pole
-   (RA 40.59°, Dec 83.54°), and the ring was then tilted by a further 26.7° of its own — the obliquity counted twice. With the ring
-   in the equator, the atlas's own ephemeris and the IAU pole give the ring's opening angle seen from the Earth as +0.01° on
-   2025-03-23 — the ring-plane crossing that was observed that day — and 27.0° in October 2017, the widest opening of the cycle.
-   Now:
-     · the RINGS have their measured structure, radius by radius (D, C, B, the Cassini Division, A with the Encke and Keeler gaps,
-       the F ring; Saturn radii of 60 268 km), their opacity follows the slant of the line of sight through them (1 − e^(−τ/μ)),
-       the face the Sun lights is bright and the other only glows where light gets through, and Saturn's SHADOW lies on them;
-     · the PLANETS wear their observed faces, drawn once on the first close approach: Jupiter's belts and zones at their
-       planetographic latitudes and the Great Red Spot at −22°; Saturn's paler bands and its north-polar hexagon at 78°; the dark
-       albedo regions of Mars at their longitudes, Hellas, and both polar caps; Venus's featureless cloud deck; grey Mercury;
-       pale Uranus; blue Neptune;
-     · each is lit by the Sun where the Sun is, with the limb darkening of its kind (Minnaert: k ≈ 0.9 for the gas giants, ~0.6
-       for bare rock), a night side that is dark — a hundredth of the day, enough to see the disc against the stars — and on
-       Saturn the RINGS' SHADOW across the globe;
-     · the globes are round at any distance (96 × 64 instead of 36 × 24).
-   What is drawn is the observed appearance in broad strokes, not a map: the belts drift and change, the Spot shrinks, and these
-   planets are oriented by their poles but not turned by their rotation. */
-function hccSaturnRings(){
-  /* Saturn equatorial radius 60 268 km; the mesh's unit is the planet's mean radius, 58 232 km */
-  const RS=60268/58232;
-  const Z=[[1.110,1.236,0.002,0.10],[1.239,1.527,0.09,0.30],[1.527,1.951,1.50,0.95],[1.951,2.027,0.12,0.24],[2.027,2.269,0.55,0.72]];
-  const geo=new THREE.RingGeometry(1.105*RS,2.34*RS,256,1);
-  const m=new THREE.Mesh(geo,new THREE.ShaderMaterial({transparent:true, depthWrite:false, side:THREE.DoubleSide,
-    uniforms:{uSunL:{value:new THREE.Vector3(1,0,0)}, uCamL:{value:new THREE.Vector3(0,1,0)}, uRS:{value:RS}},
-    vertexShader:`varying vec3 vP; varying vec3 vPP;
-      #include <common>
-      #include <logdepthbuf_pars_vertex>
-      void main(){ vP=position; vPP=vec3(position.x,0.0,-position.y);   /* the ring's plane turned into the planet's frame: (x, y, 0) → (x, 0, −y) */
-        gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);
-        #include <logdepthbuf_vertex>
-      }`,
-    fragmentShader:`uniform vec3 uSunL; uniform vec3 uCamL; uniform float uRS; varying vec3 vP; varying vec3 vPP;
-      #include <logdepthbuf_pars_fragment>
-      /* the measured structure: normal optical depth and lit-face reflectivity by radius (Saturn radii) */
-      void zone(float r, out float tau, out float refl, out vec3 col){
-        tau=0.0; refl=0.0; col=vec3(0.80,0.74,0.64);
-        if(r>1.110&&r<1.236){ tau=0.002; refl=0.10; col=vec3(0.55,0.52,0.50); }
-        else if(r>=1.239&&r<1.527){ tau=0.09+0.06*smoothstep(1.24,1.52,r); refl=0.30; col=vec3(0.62,0.58,0.54); }
-        else if(r>=1.527&&r<1.951){ tau=1.2+0.9*smoothstep(1.53,1.75,r)-0.4*smoothstep(1.85,1.95,r); refl=0.95; col=vec3(0.93,0.86,0.72); }
-        else if(r>=1.951&&r<2.027){ tau=0.12; refl=0.22; col=vec3(0.66,0.62,0.58); }
-        else if(r>=2.027&&r<2.269){ tau=0.55; refl=0.72; col=vec3(0.86,0.80,0.70);
-          if(abs(r-2.2166)<0.0027) tau=0.0;      /* the Encke Gap, 325 km */
-          if(abs(r-2.2650)<0.0004) tau=0.0; }    /* the Keeler Gap */
-        else if(abs(r-2.3259)<0.0025){ tau=0.4; refl=0.6; col=vec3(0.85,0.82,0.78); }   /* the F ring */
-        /* fine ringlets: the B ring is grooved at every scale */
-        tau*=0.85+0.15*sin(r*1900.0)*sin(r*610.0+1.3);
-      }
-      void main(){
-        #include <logdepthbuf_fragment>
-        float rr=length(vP.xy)/uRS; float tau, refl; vec3 col; zone(rr,tau,refl,col); if(tau<=0.0) discard;
-        vec3 S=normalize(uSunL), V=normalize(uCamL-vPP), n=vec3(0.0,1.0,0.0);
-        float muS=abs(dot(n,S)), muV=max(abs(dot(n,V)),0.02);
-        float a=1.0-exp(-tau/muV);                                  /* opacity along the slant of the sight line */
-        bool litFace=(dot(n,S)>0.0)==(dot(n,V)>0.0);
-        float I=litFace? refl*(1.0-exp(-tau/max(muS,0.02)))/max(1.0-exp(-tau/muV),1e-3)*min(1.0,muS*4.0+0.25)
-                       : refl*0.35*(1.0-exp(-tau/max(muS,0.02)))*exp(-tau/muV)/max(a,1e-3);   /* the unlit face: light that got through */
-        /* the planet's shadow: the sunbeam to this point crosses the globe */
-        vec3 P=vPP; float b=dot(P,S), c=dot(P,P)-1.0, h=b*b-c; if(h>0.0&&(-b-sqrt(h))>0.0) I*=0.04;
-        gl_FragColor=vec4(col*I, a);
-      }`}));
-  m.rotation.x=-Math.PI/2;   /* in the planet's own equatorial plane: the mesh is already turned by Saturn's IAU pole */
-  m.userData.saturnRings=true; m.userData.noGrade=true; m.renderOrder=2;
-  return m;
-}
-/* ── the faces, drawn once: a seamless sphere-sampled noise, the observed bands and features ── */
-const HCC_SURF={done:new Map(), jobs:new Map(), W:1024, H:512};
-function hccSurfHash(i,j,k){ let h=(i*374761393+j*668265263+k*2147483647)|0; h=(h^(h>>>13))*1274126177|0; return ((h^(h>>>16))>>>0)/4294967296; }
-function hccSurfNoise(x,y,z){ const xi=Math.floor(x), yi=Math.floor(y), zi=Math.floor(z), xf=x-xi, yf=y-yi, zf=z-zi, u=xf*xf*(3-2*xf), v=yf*yf*(3-2*yf), w=zf*zf*(3-2*zf);
-  const L=(a,b,t)=>a+(b-a)*t, H=hccSurfHash;
-  return L(L(L(H(xi,yi,zi),H(xi+1,yi,zi),u),L(H(xi,yi+1,zi),H(xi+1,yi+1,zi),u),v),L(L(H(xi,yi,zi+1),H(xi+1,yi,zi+1),u),L(H(xi,yi+1,zi+1),H(xi+1,yi+1,zi+1),u),v),w); }
-function hccSurfFbm(x,y,z,o){ let s=0, a=0.5, f=1; for(let k=0;k<(o||4);k++){ s+=a*hccSurfNoise(x*f,y*f,z*f); f*=2.03; a*=0.5; } return s; }
-/* bands from pole to pole: [planetographic latitude of the upper edge, r, g, b] (sRGB) — Jupiter after Rogers, The Giant Planet
-   Jupiter (1995), and the Juno/Hubble OPAL colours; Saturn from Cassini; the ice giants nearly featureless in visible light */
-const HCC_PLANET_BANDS={
-  Jupiter:[[-60,156,152,146],[-45,178,166,150],[-38,198,182,156],[-33,176,148,120],[-27,218,204,174],[-20,180,142,108],[-17,226,214,188],[-7,170,128,94],[7,232,222,200],[17,166,122,90],[24,224,210,180],[31,182,146,112],[35,214,198,166],[38,186,160,130],[48,200,186,160],[90,158,154,148]],
-  Saturn:[[-70,176,168,150],[-50,204,186,150],[-35,214,196,158],[-20,198,176,136],[-8,214,194,150],[8,234,216,172],[20,212,190,146],[35,198,176,136],[50,212,194,154],[70,190,184,164],[90,148,162,172]],
-  Uranus:[[-60,176,222,228],[-20,168,216,224],[20,166,214,222],[60,170,218,226],[90,180,224,230]],
-  Neptune:[[-60,78,112,206],[-30,70,104,200],[-15,84,120,214],[15,72,108,204],[45,80,116,210],[90,74,110,204]]};
-function hccSurfBand(name,lat){ const B=HCC_PLANET_BANDS[name]; let i=0; while(i<B.length-1&&lat>B[i][0]) i++;
-  const c=B[i], p=B[Math.max(0,i-1)], lo=i>0?p[0]:-90, t=Math.max(0,Math.min(1,(lat-(lo))/1.2));   /* a degree's blend at each edge */
-  return i>0&&lat-lo<1.2?[p[1]+(c[1]-p[1])*t,p[2]+(c[2]-p[2])*t,p[3]+(c[3]-p[3])*t]:[c[1],c[2],c[3]]; }
-function hccSurfPixel(name,lat,lon,x,y,z){   /* lat, lon in degrees (lon east, 0..360); x,y,z on the unit sphere */
-  const n1=hccSurfFbm(x*3,y*3,z*3,4), n2=hccSurfFbm(x*11+5,y*11,z*11,3);
-  if(name==='Jupiter'||name==='Saturn'){ const g=name==='Jupiter';
-    /* turbulent band edges and the streaks along the jets */
-    const latT=lat+(n1-0.5)*(g?3.4:1.8)+(hccSurfFbm(x*2,y*24,z*2,3)-0.5)*(g?1.8:0.8)+(g?1.1*Math.sin(lon*DEG*7+n1*6)*Math.exp(-Math.pow((Math.abs(lat)-18)/8,2)):0);
-    let c=hccSurfBand(name,latT); const streak=0.95+0.10*hccSurfFbm(x*40,y*3,z*40,3); c=c.map(v=>v*streak);
-    if(g){ /* the Great Red Spot, −22.4°, about 11.5° × 8.6° today; its pale collar */
-      const dl=((lon-60+540)%360)-180, e=Math.hypot(dl/5.8,(lat+22.4)/4.3);
-      if(e<1.35){ const k=Math.max(0,1-e); const red=[204,112,82], col=[236,226,206]; const w=e<1?Math.min(1,k*3):0, wc=e>=0.95?Math.max(0,1-Math.abs(e-1.12)/0.2):0;
-        c=c.map((v,i)=>v*(1-w-wc*0.6)+red[i]*w+col[i]*wc*0.6); }
-      /* the white ovals of the south temperate belt, the brown barges of the north */
-      for(const [lo,la,s,col] of [[150,-33,2.0,[232,224,210]],[230,-41,1.4,[230,222,206]],[300,17.5,1.6,[120,82,58]],[20,15,1.2,[118,80,56]]]){ const d2=Math.hypot((((lon-lo+540)%360)-180)/s,(lat-la)/(s*0.6)); if(d2<1) c=c.map((v,i)=>v+(col[i]-v)*(1-d2)); }
-      /* festoons: blue-grey plumes at the north edge of the equatorial zone */
-      if(lat>3&&lat<8){ const f=Math.max(0,Math.sin(lon*DEG*12+n2*4))*Math.max(0,1-Math.abs(lat-6)/2.5); c=c.map((v,i)=>v*(1-0.35*f)+[90,100,120][i]*0.35*f); } }
-    else { /* the hexagon around Saturn's north pole, 78° */
-      const th=lon*DEG, hexR=Math.cos(Math.PI/6)/Math.cos(((th%(Math.PI/3))+Math.PI/3)%(Math.PI/3)-Math.PI/6), colat=90-lat, edge=12.2*hexR;
-      if(lat>60&&Math.abs(colat-edge)<0.9) c=c.map(v=>v*0.82); }
-    return c.map(v=>v*(0.94+0.12*n2)); }
-  if(name==='Uranus'||name==='Neptune'){ let c=hccSurfBand(name,lat+(n1-0.5)*2); if(name==='Neptune'){ const cl=hccSurfFbm(x*9,y*30,z*9,3); if(cl>0.72&&Math.abs(lat+25)<12) c=c.map(v=>v+(250-v)*Math.min(1,(cl-0.72)*4)); }
-    return c.map(v=>v*(0.97+0.06*n2)); }
-  if(name==='Mars'){ let c=[188,108,66];
-    /* the classical dark albedo regions, by east longitude and latitude */
-    const dark=[[70,8,12,14],[325,47,18,8],[5,-3,14,5],[325,-25,22,12],[230,-25,30,10],[110,47,18,7],[180,-20,18,8]];
-    let d=0; for(const [lo,la,wl,wa] of dark){ const q=Math.hypot((((lon-lo+540)%360)-180)/wl,(lat-la)/wa); d=Math.max(d,Math.max(0,1-q)); }
-    d=Math.min(1,d*1.6)*(0.6+0.6*n1); c=c.map((v,i)=>v*(1-0.55*d)+[92,62,48][i]*0.55*d);
-    /* Hellas, bright: 42°S, 70°E */
-    { const q=Math.hypot((((lon-70+540)%360)-180)/14,(lat+42)/9); if(q<1) c=c.map((v,i)=>v+([226,182,140][i]-v)*(1-q)); }
-    /* Valles Marineris */
-    if(lat>-14&&lat<-4&&lon>265&&lon<320) c=c.map(v=>v*(1-0.35*Math.max(0,1-Math.abs(lat+9)/4)*n2*1.4));
-    /* the polar caps */
-    const cap=Math.max(0,Math.min(1,(Math.abs(lat)-(lat>0?80:82)+(n1-0.5)*4)/2.5)); c=c.map(v=>v+(246-v)*cap);
-    return c.map(v=>v*(0.88+0.24*n2)); }
-  if(name==='Venus'){ const v=0.94+0.06*hccSurfFbm(x*2,y*6,z*2,3); return [234*v,220*v,180*v]; }
-  if(name==='Mercury'){ const cr=hccSurfFbm(x*16,y*16,z*16,4), b=0.86+0.28*n1+(cr>0.68?0.25:0)-(cr<0.3?0.08:0); return [152*b,146*b,140*b]; }
-  return null; }
-function hccSurfJob(name){ const W=HCC_SURF.W, H=HCC_SURF.H, cv=document.createElement('canvas'); cv.width=W; cv.height=H; const ctx=cv.getContext('2d'), img=ctx.createImageData(W,H);
-  return {name, cv, ctx, img, row:0, W, H}; }
-/* a few rows a frame, so no frame waits for a planet's face */
-function hccSurfStep(J,rows){ const {W,H,img}=J, d=img.data; const end=Math.min(H,J.row+rows);
-  for(let y=J.row;y<end;y++){ const lat=90-180*(y+0.5)/H, la=lat*DEG, cl=Math.cos(la), sy=Math.sin(la);
-    for(let x=0;x<W;x++){ const lon=360*(x+0.5)/W, lo=lon*DEG, c=hccSurfPixel(J.name,lat,lon,cl*Math.cos(lo),sy,cl*Math.sin(lo)), o=4*(y*W+x);
-      d[o]=Math.max(0,Math.min(255,c[0])); d[o+1]=Math.max(0,Math.min(255,c[1])); d[o+2]=Math.max(0,Math.min(255,c[2])); d[o+3]=255; } }
-  J.row=end; if(J.row<H) return null; J.ctx.putImageData(img,0,0); const t=new THREE.CanvasTexture(J.cv); t.colorSpace=THREE.SRGBColorSpace; t.wrapS=THREE.RepeatWrapping;
-  t.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy()); return t; }
-const HCC_MINNAERT={Mercury:0.62, Venus:0.80, Mars:0.72, Jupiter:0.92, Saturn:0.95, Uranus:1.0, Neptune:1.0};
-function hccPlanetMaterial(name,tex){ return new THREE.ShaderMaterial({
-    uniforms:{uMap:{value:tex}, uSunL:{value:new THREE.Vector3(1,0,0)}, uCamL:{value:new THREE.Vector3(0,0,5)}, uK:{value:HCC_MINNAERT[name]??0.8}, uNight:{value:0.012},
-      uRing:{value:name==='Saturn'?1:0}, uRS:{value:60268/58232}},
-    vertexShader:`varying vec2 vUv; varying vec3 vL;
-      #include <common>
-      #include <logdepthbuf_pars_vertex>
-      void main(){ vUv=uv; vL=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);
-        #include <logdepthbuf_vertex>
-      }`,
-    fragmentShader:`uniform sampler2D uMap; uniform vec3 uSunL; uniform vec3 uCamL; uniform float uK; uniform float uNight; uniform float uRing; uniform float uRS;
-      varying vec2 vUv; varying vec3 vL;
-      #include <logdepthbuf_pars_fragment>
-      float ringTau(float r){ r/=uRS; if(r>1.239&&r<1.527) return 0.12; if(r>=1.527&&r<1.951) return 1.6; if(r>=1.951&&r<2.027) return 0.12; if(r>=2.027&&r<2.269) return 0.55; return 0.0; }
-      void main(){
-        #include <logdepthbuf_fragment>
-        vec3 n=normalize(vL), S=normalize(uSunL), V=normalize(uCamL-vL);
-        float mu0=dot(n,S), mu=max(dot(n,V),1e-3);
-        vec3 alb=texture2D(uMap,vUv).rgb;
-        /* Minnaert's law, I = mu0^k mu^(k-1): the limb darkening of the kind of surface */
-        float I=mu0>0.0?pow(mu0,uK)*pow(mu,uK-1.0):0.0;
-        /* Saturn: the rings' shadow across the globe */
-        if(uRing>0.5&&mu0>0.0&&abs(S.y)>1e-4){ float t=-n.y/S.y; if(t>0.0){ vec3 q=n+S*t; I*=exp(-ringTau(length(q.xz))/abs(S.y)); } }
-        /* the terminator is soft by a degree or so: the Sun is a disc, not a point */
-        I*=smoothstep(-0.02,0.03,mu0);
-        gl_FragColor=vec4(alb*(I+uNight),1.0);
-      }`}); }
-/* per frame: the faces are drawn when a planet first stands larger than a few pixels; the light comes from where the Sun is */
-const _surfQ=new THREE.Quaternion();
-function hccPlanetSurfaceTick(){ const H=renderer.domElement.clientHeight||innerHeight, f=H/2/Math.tan(camera.fov*DEG/2);
-  for(const o of planetObjs){ const nm=o.p.name; if(nm==='Earth'||nm==='Pluto') continue; const S=HCC_SURF; const mesh=o.mesh;
-    if(!S.done.has(nm)){ const d=Math.max(1e-12,mesh.position.distanceTo(camera.position)), px=mesh.scale.x/d*f;
-      if(px>6||S.jobs.has(nm)){ let J=S.jobs.get(nm); if(!J){ J=hccSurfJob(nm); S.jobs.set(nm,J); }
-        const tex=hccSurfStep(J,12); if(tex){ S.jobs.delete(nm); const m=hccPlanetMaterial(nm,tex); o.surfMat=m; o.plainMat=mesh.material; mesh.material=m;
-          if(!o.hiGeo){ o.hiGeo=new THREE.SphereGeometry(1,96,64); mesh.geometry=o.hiGeo; } S.done.set(nm,true); } } }
-    if(o.surfMat||o.ringMesh){ _surfQ.copy(mesh.quaternion).invert(); const sunL=sunMesh.position.clone().sub(mesh.position).normalize().applyQuaternion(_surfQ), camL=mesh.worldToLocal(camera.position.clone());
-      if(o.surfMat){ o.surfMat.uniforms.uSunL.value.copy(sunL); o.surfMat.uniforms.uCamL.value.copy(camL); }
-      if(o.ringMesh){ const U=o.ringMesh.material.uniforms; U.uSunL.value.copy(sunL); U.uCamL.value.copy(camL); } } } }
 let orbitGeometryT=0, orbitGeometryAcc=1, geoOrbitsBuilt=false, geoBuiltT=0;
 
 /* ══ THE EARTH AS IT LOOKS ═══════════════════════════════════════════════════════
@@ -135526,7 +135679,8 @@ function tickBody(now, frame){
           new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),(((o.p.spinW0+o.p.spinRateDegDay*eDaysB)%360+360)%360)*DEG));
         o.spinCue.visible=!!state.showSpinAxes&&state.vectorAxes!==false && (state.solarScaleLayer||'local')==='local';
       } else if(PLANET_POLE_Q[o.p.name]){
-        o.mesh.quaternion.copy(PLANET_POLE_Q[o.p.name]);   // IAU pole orientation for every planet
+        /* IAU pole orientation for every planet — and, v4.437, turned about that pole by its prime meridian W(d) on the atlas clock */
+        if(!hccPlanetSpinQ(o.p.name,eDaysB,o.mesh.quaternion)) o.mesh.quaternion.copy(PLANET_POLE_Q[o.p.name]);
       }
       // pick sphere: generous, distance-scaled click target
       o.pick.position.copy(o.mesh.position);
@@ -135744,7 +135898,8 @@ function tickBody(now, frame){
       const L = state.landed, B = bodyEntry(L.idx);
       const vR = B.visualR();
       const FG = skyHereFrame(L);
-      const surf = B.mesh.position.clone().add(L.dir.clone().multiplyScalar(vR*1.003));
+      /* v4.437: on a flattened giant the ground is nearer or farther than the mean radius — stand on the ellipsoid, not inside it */
+      const surf = B.mesh.position.clone().add(L.dir.clone().multiplyScalar(vR*1.003*hccSurfaceRadius(B.mesh,L.dir)));
       // tangent frame at the standing point
       const up = L.dir.clone();
       let east = new THREE.Vector3(0,1,0).cross(up);
@@ -137101,7 +137256,7 @@ const HCC_CTX={worldId:'solar', labId:null, inspectorTab:'controls',
 globalThis.HCC_CTX=HCC_CTX;
 globalThis.HCC_NAV={go:(w,l)=>hccGo({worldId:w,labId:l||null}),back:()=>navUnifiedBack(),
   /* select a registered object and fly the camera to it, as a double-click does (v4.437: agents and the release's own views) */
-  focus:k=>{ const s=SELECT.get(k); if(!s) return false; try{ selectKey(k); focusOn(s); }catch(e){ return false; } return true; },
+  focus:(k,o)=>{ const s=SELECT.get(k); if(!s) return false; try{ selectKey(k); focusOn(s); if(o&&focusAnim) hccFocusFrom(o); }catch(e){ return false; } return true; },
   route:()=>hccRoute(),
   scene:()=>{
     const multi=MV.on, tile=multi?MV.views[MV.active]:null;
@@ -138219,6 +138374,12 @@ function hccPostPasses(o){ ensureBloom(); const C=bloomComposer, P=C?C.passes:[]
   return P.map(p=>({pass:name(p), enabled:p.enabled!==false})); }
 globalThis.HCC_PERF=Object.freeze({ cost:o=>hccFrameCost(o), layers:n=>hccOverdrawLayers(n), bench:n=>hccBenchFrame(n), post:o=>hccPostPasses(o),
   draws:n=>hccDrawCensus(n),
+  /* v4.437: which planets wear their faces yet, and how far each face is drawn */
+  planets:()=>planetObjs.map(o=>({name:o.p.name, face:!!o.surfMat, level:HCC_SURF.level.get(o.p.name)||0, size:HCC_SURF.tex.has(o.p.name)?HCC_SURF.tex.get(o.p.name).image.width:0,
+    drawing:HCC_SURF.busy===o.p.name||HCC_SURF.jobs.has(o.p.name), px:+(HCC_SURF.px.get(o.p.name)||0).toFixed(1), rings:!!o.ringMesh,
+    radius:+o.mesh.scale.x.toPrecision(4), material:o.mesh.material&&o.mesh.material.type,
+    /* the Sun's direction and the eye in the planet's own frame (+Y its north pole), as its shaders receive them */
+    sun:o.surfMat?o.surfMat.uniforms.uSunL.value.toArray().map(v=>+v.toFixed(4)):null, eye:o.surfMat?o.surfMat.uniforms.uCamL.value.toArray().map(v=>+v.toFixed(3)):null})),
   split:reset=>{ const S=HCC_SPLIT, k=Math.max(1,S.n), o={frames:S.n, logic_ms:+(S.logic/k).toFixed(2), draw_ms:+(S.draw/k).toFixed(2), labels_ms:+(S.labels/k).toFixed(2), tail_ms:+(S.tail/k).toFixed(2)}; if(reset){ S.n=0; S.logic=S.draw=S.labels=S.tail=0; } return o; },
   pixelRatio:v=>{ if(v!==undefined&&v>0){ renderer.setPixelRatio(v); try{ syncRendererViewport(); }catch(e){ requestRendererResize(); } } return renderer.getPixelRatio(); }, wallCheck:()=>hccWallCheck(), oneWall:v=>{ if(v!==undefined) HCC_SHELL_ONE.on=!!v; return HCC_SHELL_ONE.on; }, pace:o=>{ if(o&&typeof o==='object') for(const k of ['on','force','cap','idleCap','idleAfter']) if(o[k]!==undefined) HCC_PACE[k]=k==='on'||k==='force'?!!o[k]:Math.max(k==='idleAfter'?0:10,+o[k]); const P=HCC_PACE; return {on:P.on, force:P.force, cap:P.cap, idleCap:P.idleCap, idleAfter:P.idleAfter, idle:P.idle, drawn:P.drawn, skipped:P.skipped}; }, governor:()=>({key:PERF_GOV.key, scale:PERF_GOV.scale, fps:PERF_GOV.fps, steps:PERF_GOV.steps, memory:{...PERF_GOV.mem}}), diet:v=>{ if(v!==undefined) HCC_DIET.on=!!v; return {on:HCC_DIET.on, faint:HCC_DIET.faint, tiny:HCC_DIET.tiny, single:HCC_DIET.single, frames:HCC_DIET.frames}; }, state:()=>({diet:{on:HCC_DIET.on, faint:HCC_DIET.faint, tiny:HCC_DIET.tiny, single:HCC_DIET.single}, fps:+PERF_GOV.fps.toFixed(1), scale:+PERF_GOV.scale.toFixed(3), pixelRatio:renderer.getPixelRatio(), base:PERF_GOV.base, steps:PERF_GOV.steps, on:PERF_GOV.on, automated:!!navigator.webdriver}),
   on:v=>{ PERF_GOV.on=!!v; return PERF_GOV.on; }, force:v=>{ PERF_GOV.force=!!v; return !!PERF_GOV.force; }, lite:v=>{ if(v!==undefined) hccLiteSet(v===null?'auto':v?'on':'off'); return {...HCC_LITE}; }, reset:()=>{ const G=PERF_GOV; if(G.base){ G.scale=1; try{ renderer.setPixelRatio(G.base); requestRendererResize(); }catch(e){} } return true; } });
