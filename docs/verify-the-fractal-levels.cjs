@@ -117,8 +117,11 @@ const lP = 1.616255e-35, PHI = (1 + Math.sqrt(5)) / 2, levelOf = L => Math.log(L
     && /if\(hccSeamCross\('s3'\)\) sxS3Steer\(E\.want,true\);/.test(oc) && !/SCALE_SEAMS\.obsS3OutGly\*1\.06/.test(oc)
     && /SX_STATE\.obsEdge=\{side:'below', want:N, t:performance\.now\(\), from:'s3'\};/.test(fn('sxS3Steer'))
     /* and a step may ask past the track's end (rung 300) where the world shows more — the door out was unreachable */
-    && /const sxTop=\(\)=>\(state\.mode==='obs'&&!DSC\.on\)\|\|sxS3Sec\(\)\?SX_NMAX\+12:SX_NMAX;/.test(SRC)
-    && /function sxScrubTo\(N,final\)\{ N=Math\.max\(0,Math\.min\(sxTop\(\),N\)\);/.test(SRC) && (SRC.match(/Math\.min\(sxTop\(\),N(?:\+d)?\)/g) || []).length >= 4,
+    /* v4.438: with the scale chain on, the strip itself runs to that top from every world and crosses instead of offering
+       a door (docs/verify-the-ladder-has-no-door.mjs); a key is now a step, so it clamps through step() */
+    && (/const sxTop=\(\)=>\(state\.mode==='obs'&&!DSC\.on\)\|\|sxS3Sec\(\)\?SX_NMAX\+12:SX_NMAX;/.test(SRC)
+      || /const sxTop=\(\)=>\(state\.mode==='obs'&&!DSC\.on\)\|\|sxS3Sec\(\)\|\|\(state\.scaleChain!==false&&state\.mode!=='fbs'\)\?SX_STRIP_TOP:SX_NMAX;/.test(SRC) && /const SX_STRIP_TOP=SX_NMAX\+12;/.test(SRC))
+    && /function sxScrubTo\(N,final\)\{ N=Math\.max\(0,Math\.min\(sxTop\(\),N\)\);/.test(SRC) && (SRC.match(/Math\.min\(sxTop\(\),N(?:\+d)?\)/g) || []).length >= 3,
     'drag, tap, step and rung card all reach the carrier\'s band and its door — a step past the track\'s end (rung 300) included, where the Observable world and the carrier show more than the track'); }
 
 /* 8 · and the page checks it at boot */
