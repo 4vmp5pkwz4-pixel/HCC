@@ -31,17 +31,17 @@ const has = list => list.filter(s => !src.includes(s));
     V.map(v => `${v.viewport}: largest ${(100 * v.max_hud_fraction).toFixed(1)} %`).join(' · ') + (miss.length ? ' · missing ' + miss.join(' | ') : '')); }
 
 { const i = src.indexOf('const PERF_GOV={'), j = src.indexOf('globalThis.HCC_PERF=', i);
-  const run = (fps, seconds, start, webdriver, xr) => { let ratio = start, resizes = 0;
-    const env = { document: { hidden: false }, navigator: { webdriver }, performance: { now: () => 0 }, requestRendererResize: () => { resizes++; },
+  /* v4.437: the rule is «sharp when still» — run as it stands in the page against a fake renderer and a fake clock */
+  const run = (steps, start, webdriver, xr) => { let ratio = start, resizes = 0, t = 0; const pace = { lastMove: -1e9 };
+    const env = { document: { hidden: false }, navigator: { webdriver }, performance: { now: () => t }, requestRendererResize: () => { resizes++; }, HCC_PACE: pace, state: { mode: 'solar' },
       renderer: { xr: { isPresenting: xr }, getPixelRatio: () => ratio, setPixelRatio: v => { ratio = v; } } };
     const tick = new Function(...Object.keys(env), src.slice(i, j) + '\nreturn [perfGovTick,PERF_GOV];')(...Object.values(env));
-    const trace = []; for (const [f, s] of [].concat(fps).map((f, k) => [f, [].concat(seconds)[k]])) { for (let t = 0; t < s * f; t++) tick[0](1 / f); trace.push(+ratio.toFixed(3)); }
+    const trace = []; for (const [f, s, moving] of steps) { for (let k = 0; k < s * f; k++) { t += 1000 / f; if (moving) pace.lastMove = t; tick[0](1 / f); } trace.push(+ratio.toFixed(3)); }
     return { ratio, trace, resizes, G: tick[1] }; };
-  const slow = run(10, 30, 2), slowish = run(20, 30, 2), mid = run(30, 30, 2), fast = run(60, 30, 2), back = run([10, 60], [30, 200], 2), auto = run(10, 30, 2, true), xr = run(10, 30, 2, false, true), low = run(20, 30, 0.5), crawl = run(1.5, 30, 2);
-  const ok = Math.abs(slow.ratio - 0.6) < 1e-9 && Math.abs(slowish.ratio - 0.75) < 1e-9 && mid.ratio === 2 && fast.ratio === 2 && back.trace[0] === 0.6 && Math.abs(back.trace[1] - 2) < 1e-9
-    && auto.ratio === 2 && xr.ratio === 2 && low.ratio === 0.5 && slow.resizes === slow.G.steps && slow.G.steps >= 4 && Math.abs(crawl.ratio - 0.6) < 1e-9;
-  check(ok, 'the resolution governor, run as it stands in the page against a fake renderer (rule of v4.436): at 20 frames a second it lowers the drawing buffer by 15 % every 1.5 s to 0.75 of a CSS pixel and stops; at 10 it cuts by 30 % and goes on to 0.6 (it was 0.55 and 0.42 — a planet looked blurred after the universe had been in view); at 1.5 frames a second the same; at 30 and at 60 it changes nothing; when the frame rate comes back it returns by half every three seconds to exactly what the quality preset gave; nothing in a headset, nothing in an automated browser, nothing to a buffer already at its floor',
-    `10 fps: 2 → ${slow.ratio.toFixed(2)} in ${slow.G.steps} steps · 20 fps: ${slowish.ratio.toFixed(2)} · 1.5 fps: ${crawl.ratio.toFixed(2)} · 30 fps: ${mid.ratio} · 60 fps: ${fast.ratio} · 10 then 60: ${back.trace.join(' → ')} · headset ${xr.ratio} · automated ${auto.ratio} · 20 fps from 0.5: ${low.ratio}`); }
+  const still = run([[10, 30, false]], 2), crawl = run([[1.5, 30, false]], 2), drag = run([[10, 4, true], [10, 0.3, false]], 2), drag60 = run([[60, 4, true]], 2), auto = run([[10, 4, true]], 2, true), xr = run([[10, 4, true]], 2, false, true), low = run([[10, 4, true]], 0.5);
+  const ok = still.ratio === 2 && crawl.ratio === 2 && drag.trace[0] >= 1 - 1e-9 && drag.trace[0] < 2 && drag.trace[1] === 2 && drag60.ratio === 2 && auto.ratio === 2 && xr.ratio === 2 && low.ratio >= 0.25 - 1e-9 && drag.resizes === drag.G.steps + drag.G.refines;
+  check(ok, 'the resolution governor, run as it stands in the page against a fake renderer (rule of v4.437, replacing the floors of v4.428–v4.436): a still view is never lowered — at 10 and even 1.5 frames a second it keeps the full drawing buffer; only while the reader moves the camera under 30 frames a second is it lowered, never below half the base, and it is given back whole as soon as the camera stops; a fast machine, an automated browser and a headset are never touched',
+    `still 10 fps: ${still.ratio} · 1.5 fps: ${crawl.ratio} · dragging 10 fps: ${drag.trace[0]} → stopped ${drag.trace[1]} (${drag.G.steps} steps, ${drag.G.refines} return) · 60 fps: ${drag60.ratio} · headset ${xr.ratio} · automated ${auto.ratio} · from 0.5: ${low.ratio}`); }
 
 const M = await import(path.join(ROOT, 'core/atlas/instruments.mjs'));
 const SDK = await import(path.join(ROOT, 'api/agent-client.mjs'));

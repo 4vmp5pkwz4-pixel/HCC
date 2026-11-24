@@ -54,10 +54,11 @@ ok('Field and Fractal explicitly keep clocks/model parameters local',
 
 ok('Time Machine visibly carries the passport without adding another panel',
   /const timePassport=hccTimePassport\(\);/.test(src)
-  && /el\.dataset\.timeDomain=timePassport\.domain/.test(src)
-  && /note\.textContent=timePassport\.compact/.test(src)
-  && /note\.title=timePassport\.detail/.test(src)
-  && /sub\.textContent=timePassport\.axisLabel\+' · J2000 '/.test(src)
+  /* v4.437: the time machine writes compare-first (hccData/hccTxt/hccTitle) — the same passport, no unchanged rewrites */
+  && /el\.dataset\.timeDomain=timePassport\.domain|hccData\(el,'timeDomain',timePassport\.domain\)/.test(src)
+  && /note\.textContent=timePassport\.compact|hccTxt\(note,timePassport\.compact\)/.test(src)
+  && /note\.title=timePassport\.detail|hccTitle\(note,timePassport\.detail\)/.test(src)
+  && /sub\.textContent=timePassport\.axisLabel\+' · J2000 '|let subT=timePassport\.axisLabel\+' · J2000 '/.test(src)
   && !/id="timePassport"|timePassportPanel/.test(src));
 
 ok('existing single-write time gateway remains intact',
