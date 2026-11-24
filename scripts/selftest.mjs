@@ -277,17 +277,35 @@ const READER_MIN_SHARE = 0.6;
   await page.waitForFunction(() => globalThis.HCC_API && document.documentElement.dataset.hccRender,
     null, { timeout: 30000 }).catch(() => { });
   await page.evaluate(async () => { await HCC_API.ready({ timeout: 15000 }); });
+  /* since v4.438 a reader's arrival runs the suite AFTER its first frame, a slice at a time, so
+     ready() — the core is up — comes before the suite has reported; done() is the suite's own
+     promise, and it is part of what is checked below: a reader arrival that never finishes, or
+     that ran the suite before the first frame, fails. */
+  const settled = await page.evaluate(async () => {
+    try { await HCC_API.selftest.done({ timeout: 240000 }); return true; } catch (e) { return String(e && e.message || e); } });
   const r = await page.evaluate(() => {
     const T = (globalThis.FBS3R_QA && globalThis.FBS3R_QA.selfTests()) || [];
     const c = HCC_API.selftest.cost();
     return { total: T.length, failed: T.filter(t => !t.pass).length, ms: c.ms, mode: c.mode,
-      deferred: c.deferred_blocks };
+      deferred: c.deferred_blocks, state: c.state, after: c.after_first_frame, slices: c.slices,
+      longest: c.longest_slice_ms, wall: c.wall_ms,
+      fails: T.filter(t => !t.pass).map(t => `${String(t.name).slice(0, 150)}\n         ${String(t.detail).slice(0, 300)}`) };
   });
   await page.close(); await browser2.close();
 
   const share = grand ? r.total / grand : 0;
   console.log(`· reader mode, nothing asked for … ${r.total}/${grand} assertions in ${r.ms} ms`
-    + ` · ${r.deferred} block(s) deferred to CI`);
+    + ` · ${r.deferred} block(s) deferred to CI · after the first frame in ${r.slices} slices,`
+    + ` the longest ${r.longest} ms, ${r.wall} ms from start to end`);
+  if (settled !== true || r.state !== 'done') {
+    console.error(`✗ the reader arrival's suite did not finish (${settled === true ? r.state : settled})`);
+    worst = 1;
+  }
+  if (r.after !== true) {
+    console.error('✗ the reader arrival ran its suite before the first frame — the reader waited for it');
+    worst = 1;
+  }
+  for (const f of r.fails) console.error(`  FAIL (reader mode) · ${f}`);
   if (r.mode !== 'reader') {
     console.error(`✗ the reader arrival reported mode "${r.mode}" — the gate is not reading the URL`);
     worst = 1;
