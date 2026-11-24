@@ -5,7 +5,7 @@
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
    declarations: 2553   ·   exported names: 2695
-   extracted physics, sha256 86c3b5b4d4a2ef902a1dc0f40b25e21f655deabbb9ff4c9d88db9c76ee89b350 */
+   extracted physics, sha256 78f506279ae3f66a159f26e2f156f05ccebb501571c05d7970e7dde5c11dfbbf */
 
 const HCC_VERSION='4.439.0';
 
@@ -12023,10 +12023,11 @@ const HCC_SI=Object.freeze({
   /* the hour, added for the reason the gigayear was: a transit duration is quoted in
      hours, this atlas computes it in hours, and the table could not convert it */
   'h':{kind:'time',f:3600},
-  /* the flagellar motor (v4.439) publishes in the units its field measures in: the proton-motive force in millivolts,
-     torque in piconewton-nanometres (10⁻²¹ J — the same dimension as energy, a different coordinate), the rotational
-     drag of a bead in pN·nm·s, the power a motor delivers in femtowatts, and protons crossing per second */
-  'mV':{kind:'voltage',f:1e-3}, 'pN nm':{kind:'torque',f:1e-21}, 'pN nm s':{kind:'rotational drag',f:1e-21},
+  /* the flagellar motor (v4.439) publishes in the units its field measures in: the proton-motive force in millivolts;
+     torque in piconewton-nanometres, 10⁻²¹ J — the unit biophysics also quotes k_BT in, and a torque is an energy per
+     radian, so it converts on the energy axis rather than founding a kind dimensions could not tell from energy; the
+     rotational drag of a bead in pN·nm·s, an action by dimension; femtowatts of power; protons crossing per second */
+  'mV':{kind:'voltage',f:1e-3}, 'pN nm':{kind:'energy',f:1e-21}, 'pN nm s':{kind:'action',f:1e-21},
   'fW':{kind:'power',f:1e-15}, '1/s':{kind:'inverse time',f:1}
 });
 
