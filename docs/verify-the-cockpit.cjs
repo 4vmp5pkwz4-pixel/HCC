@@ -62,7 +62,9 @@ const rule = sel => { const i = CSS.indexOf(sel + '{'); if (i < 0) return ''; re
   const more = /<i class="tmBreak" aria-hidden="true"><\/i>\s*<button class="tmBtn" id="tmMore" type="button" aria-expanded="false"[^>]*><svg viewBox="0 0 16 16" aria-hidden="true"><path [^>]*\/><\/svg><\/button>/.test(SRC)
     && /m\.onclick=\(\)=>\{ const on=!document\.documentElement\.classList\.contains\('tm-more'\); document\.documentElement\.classList\.toggle\('tm-more',on\);\s*m\.setAttribute\('aria-expanded',String\(on\)\);[^\n]*landscapeColumnLayout\(\);[^\n]*\n\s*try\{ HCC_STAGE\.at=0; \}catch\(e\)\{\} try\{ if\(MV\.on\) requestAnimationFrame/.test(SRC);
   const top = /html\.land body #topbar,[^{]*\{display:none!important\}/.test(CSS) && /#hccCrumb button\.crumbBack\{width:44px!important;height:44px!important/.test(CSS)
-    && /html\.land body #labBar\{top:calc\(4px \+ env\(safe-area-inset-top,0px\)\)!important;[^}]*height:44px!important/.test(CSS)
+    /* v4.438: the bar is 48 px so that its buttons, inside its 2-px padding, are the 44 px a touch target must be */
+    && /html\.land body #labBar\{top:calc\(4px \+ env\(safe-area-inset-top,0px\)\)!important;[^}]*height:48px!important/.test(CSS)
+    && /html\.land body #labBar \.lbBtn\{height:44px!important;min-width:44px!important;min-height:44px!important/.test(CSS)
     && /function syncTopbarH\(\)\{[\s\S]{0,400}?classList\.contains\('land'\) \? 52/.test(SRC)
     && /function labBarPlace\(b\)\{[\s\S]{0,300}?if\(document\.documentElement\.classList\.contains\('land'\)(\|\|document\.documentElement\.classList\.contains\('port'\))?\)\{/.test(SRC);
   ok('the chrome stands at the EDGES: the title bar put away and the top band one row — Back (44 × 44) and the laboratory bar; the time machine ONE row at the bottom that stops at the rail, with direction, Agora and the jumps one chevron away on a SECOND row that a full-width break keeps whole; the tab bar a rail down the right edge the FULL height of the screen, every tab with its word under its sign (a word wider than the rail set smaller, not cut)',

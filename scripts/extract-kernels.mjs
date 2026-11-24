@@ -801,7 +801,7 @@ export const ROOTS = [
   'webLogGamma', 'webWpH', 'webPairCounts', 'webWp', 'webPowerFit', 'webR0At', 'webMST', 'webPrune', 'webRandoms', 'KDV_STABLE_DTC', 'KDV_STABLE_DT',
   'TRI_ETA_CORE', 'TRI_ETA_STEP', 'TRI_ETA_MIN', 'triPoint', 'triHopf', 'triRotate', 'triProject', 'triGeodesic', 'triLayout', 'triFacts',
   'spin4C', 'spin4Scalar', 'spin4Shell',
-  'LSS_PRIM', 'LSS_C', 'lssTransfer', 'lssTopHat', 'lssSigma2Raw', 'LSS_A', 'lssPower', 'lssSigma', 'lssNonlinearR', 'lssGrowthRaw', 'LSS_D1', 'lssGrowth', 'lssGrowthRate', 'LSS_DINF',
+  'LSS_PRIM', 'LSS_C', 'lssTransfer', 'lssTopHat', 'lssSigma2Raw', 'LSS_A', 'lssPower', 'lssSigma', 'LSS_RNL', 'lssNonlinearR', 'lssGrowthRaw', 'LSS_D1', 'lssGrowth', 'lssGrowthRate', 'LSS_DINF',
   'LOCAL_WEB_META',
   'SG_GROUPS', 'sgChi', 'sgGroup', 'sgInvariantDim', 'sgSpectrum', 'sgFirstMode', 'sgThetaMin', 'sgCircles', 'sgOrbit', 'sgPosteriorBelow',
   'CSS_TRIG', 'cssTrig', 'cssBasis', 'cssCircle', 'cssMatch', 'cssDirections', 'cssGridSampler', 'cssGridSky', 'cssRasterize', 'cssRandomSky', 'cssInject', 'cssBestAt', 'cssRefine', 'cssExpected', 'cssSearchGrid', 'cssTopAt', 'cssSearch2', 'CSS_HP_DEG', 'cssMMin',

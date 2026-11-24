@@ -9,7 +9,8 @@
      4. frames are paced: at most 60 a second (one in two on a 120 Hz display), 30 after six seconds without input or camera
         motion, never in a headset or an automated browser — the gate, lifted, is run against simulated displays;
      5. the resolution governor keeps a resolution per scene, floors at 0.75 of a pixel (0.6 under 12 fps), recovers in three
-        seconds, and ignores frames held back on purpose;
+        seconds, and ignores frames held back on purpose — superseded in v4.437: the still picture is always sharp, and the
+        buffer softens only while the reader moves the camera;
      6. the belts' 27 000 Kepler solves are skipped when the belt is under three pixels or would move under a quarter pixel;
      7. measured in a headless browser: the frame cost before and after at three scales, and the frame drawn both ways read back.
    What is NOT measured here: the temperature or frame rate of any real device — the headless renderer is software; its costs
@@ -67,16 +68,16 @@ const THREE = { FrontSide: 0, BackSide: 1, DoubleSide: 2 };
   check(ok, 'frames are paced: a 60 Hz display keeps every frame while the reader is active and half after six idle seconds; a 120 Hz display draws one frame in two (60) and one in four when idle (30); 144 Hz at most 72 and 36; a camera the reader or a tour moves keeps 60, the atlas’s own idle drift runs at 30; an automated browser and a headset are never paced',
     `60 Hz: ${s60[2]} → ${s60[10]} · 120 Hz: ${s120[2]} → ${s120[10]} · 144 Hz: ${s144[2]} → ${s144[10]} · moving ${mv[10]} · drifting ${dr[10]} · automated ${wd[1]} · headset ${xr[1]}`); }
 
-{ /* the governor, per scene */
+{ /* the governor — v4.437: sharp when still, softer only while the reader moves the camera */
   const body = lift('const PERF_GOV={', 'globalThis.HCC_PERF=Object.freeze(');
-  const run = (steps, o = {}) => { let ratio = 2; const st = { mode: 'solar', solarScaleLayer: 'cosmic' }, pace = { idle: false };
-    const env = { document: { hidden: false }, navigator: { webdriver: false }, performance: { now: () => 0 }, requestRendererResize: () => {}, state: st, HCC_PACE: pace, renderer: { xr: { isPresenting: false }, getPixelRatio: () => ratio, setPixelRatio: v => { ratio = v; } } };
+  const run = (steps, o = {}) => { let ratio = 2, t = 0; const st = { mode: 'solar', solarScaleLayer: 'cosmic' }, pace = { idle: false, lastMove: -1e9 };
+    const env = { document: { hidden: false }, navigator: { webdriver: !!o.webdriver }, performance: { now: () => t }, requestRendererResize: () => {}, state: st, HCC_PACE: pace, renderer: { xr: { isPresenting: !!o.xr }, getPixelRatio: () => ratio, setPixelRatio: v => { ratio = v; } } };
     const F = new Function(...Object.keys(env), body + ';return {perfGovTick, PERF_GOV};')(...Object.values(env)); const trace = [];
-    for (const [fps, sec, layer, idle] of steps) { st.solarScaleLayer = layer; pace.idle = !!idle; for (let k = 0; k < fps * sec; k++) F.perfGovTick(1 / fps); trace.push(+ratio.toFixed(3)); } return trace; };
-  const t = run([[10, 20, 'cosmic'], [60, 1, 'local'], [10, 1, 'cosmic'], [30, 20, 'cosmic', true], [60, 12, 'cosmic']]), slowish = run([[20, 30, 'cosmic']]);
-  const ok = Math.abs(t[0] - 0.6) < 1e-9 && t[1] === 2 && Math.abs(t[2] - 0.6) < 1e-9 && Math.abs(t[3] - 0.6) < 1e-9 && t[4] === 2 && Math.abs(slowish[0] - 0.75) < 1e-9;
-  check(ok, 'the resolution follows the scene: at 10 frames a second in the cosmic layer the buffer goes down to 0.6 of a pixel (0.75 at 20 — no longer 0.42 and 0.55); leaving for the Solar System restores full resolution at once, returning to the cosmic layer restores the 0.6 it had; frames held back by the idle pace change nothing; and at 60 frames a second full resolution is back within twelve seconds',
-    `cosmic @10 → ${t[0]} · local → ${t[1]} · cosmic again → ${t[2]} · idle 30 fps → ${t[3]} · @60 → ${t[4]} · @20 → ${slowish[0]}`); }
+    for (const [fps, sec, moving] of steps) { for (let k = 0; k < fps * sec; k++) { t += 1000 / fps; if (moving) pace.lastMove = t; F.perfGovTick(1 / fps); } trace.push(+ratio.toFixed(3)); } return trace; };
+  const still = run([[10, 20, false]]), drag = run([[10, 3, true], [10, 0.25, false]]), drag20 = run([[20, 4, true]]), fast = run([[60, 4, true]]), auto = run([[10, 4, true]], { webdriver: true }), xr = run([[10, 4, true]], { xr: true });
+  const ok = still[0] === 2 && drag[0] < 2 && drag[0] >= 1 - 1e-9 && drag[1] === 2 && drag20[0] < 2 && drag20[0] >= 1 - 1e-9 && fast[0] === 2 && auto[0] === 2 && xr[0] === 2;
+  check(ok, 'the picture the reader looks at is drawn sharp (v4.437, replacing the per-scene floors of v4.436): a camera held still at 10 frames a second keeps full resolution for twenty seconds — the blur of 0.6 is gone; only while the reader moves it and the motion runs under 30 frames a second is the buffer lowered, never below half a pixel, and a quarter of a second after it stops it is full again; a fast machine moving at 60, an automated browser and a headset are never touched',
+    `still @10: ${still[0]} · dragging @10: ${drag[0]} → stopped: ${drag[1]} · dragging @20: ${drag20[0]} · @60: ${fast[0]} · automated ${auto[0]} · headset ${xr[0]}`); }
 
 { /* the belts */
   const body = lift('function kepSwarmTick(P){', 'let solarBeltPoints=null');
