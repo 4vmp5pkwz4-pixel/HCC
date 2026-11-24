@@ -7,8 +7,8 @@
         picture stood still. The post chain is never lowered now and the glass stays (the governor itself, sharp when still and
         softer only under a moving camera, is run in verify-the-cool-frame.mjs);
      2. on an old machine the processor sets the pace, and the labels were half of a frame's script time. The label pass, lifted,
-        is run on a scene of labels next to three.js's own CSS2DRenderer: the same labels shown, at the same places to a tenth of
-        a pixel, in the same order — and a frame in which nothing moved writes nothing;
+        is run on a scene of labels against the perspective projection in closed form: the labels in front of the eye shown, each
+        where it must stand to a twentieth of a pixel, nearest on top — and a frame in which nothing moved writes nothing;
      3. the forced layouts of every frame (the hierarchy locator, the time bar) are measured on a timer and an observer, and the
         Buddhabrot (minutes of work at boot) is built when a reader first opens it;
      4. SATURN'S RINGS stand in its equator: their opening angle seen from the Earth, from the atlas's own ephemeris and the IAU
@@ -31,9 +31,75 @@
     14. the crossing to the universe: shaders compiled while idle; glass that changes no pixel folded into the veil.
    What is NOT checked here: what a particular GPU draws or how fast — the headless renderer is software. */
 import fs from 'node:fs'; import path from 'node:path'; import vm from 'node:vm';
-import * as THREE from 'three';
-import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 const ROOT = path.join(path.dirname(new URL(import.meta.url).pathname), '..');
+/* THE PART OF three.js THESE CHECKS NEED, written out here: the pull-request gate runs with no npm install, so a verifier on it
+   imports nothing. Vector3, Quaternion and Matrix4 follow three.js r160's own formulas (applyQuaternion, setFromRotationMatrix,
+   compose, makePerspective); the scene objects, the sphere and the textures carry only the fields the lifted code reads. */
+function miniThree() {
+  let ID = 0;
+  class Vector3 { constructor(x = 0, y = 0, z = 0) { this.x = x; this.y = y; this.z = z; }
+    set(x, y, z) { this.x = x; this.y = y; this.z = z; return this; } copy(v) { this.x = v.x; this.y = v.y; this.z = v.z; return this; } clone() { return new Vector3(this.x, this.y, this.z); }
+    add(v) { this.x += v.x; this.y += v.y; this.z += v.z; return this; } sub(v) { this.x -= v.x; this.y -= v.y; this.z -= v.z; return this; }
+    multiplyScalar(k) { this.x *= k; this.y *= k; this.z *= k; return this; } addScaledVector(v, k) { this.x += v.x * k; this.y += v.y * k; this.z += v.z * k; return this; }
+    dot(v) { return this.x * v.x + this.y * v.y + this.z * v.z; } lengthSq() { return this.dot(this); } length() { return Math.sqrt(this.lengthSq()); }
+    normalize() { return this.multiplyScalar(1 / (this.length() || 1)); } negate() { return this.multiplyScalar(-1); }
+    crossVectors(a, b) { const ax = a.x, ay = a.y, az = a.z, bx = b.x, by = b.y, bz = b.z; this.x = ay * bz - az * by; this.y = az * bx - ax * bz; this.z = ax * by - ay * bx; return this; }
+    angleTo(v) { const d = Math.sqrt(this.lengthSq() * v.lengthSq()); return d === 0 ? Math.PI / 2 : Math.acos(Math.min(1, Math.max(-1, this.dot(v) / d))); }
+    distanceTo(v) { return Math.hypot(this.x - v.x, this.y - v.y, this.z - v.z); }
+    applyQuaternion(q) { const vx = this.x, vy = this.y, vz = this.z, qx = q.x, qy = q.y, qz = q.z, qw = q.w, tx = 2 * (qy * vz - qz * vy), ty = 2 * (qz * vx - qx * vz), tz = 2 * (qx * vy - qy * vx);
+      this.x = vx + qw * tx + qy * tz - qz * ty; this.y = vy + qw * ty + qz * tx - qx * tz; this.z = vz + qw * tz + qx * ty - qy * tx; return this; }
+    applyMatrix4(m) { const x = this.x, y = this.y, z = this.z, e = m.elements, w = 1 / (e[3] * x + e[7] * y + e[11] * z + e[15]);
+      this.x = (e[0] * x + e[4] * y + e[8] * z + e[12]) * w; this.y = (e[1] * x + e[5] * y + e[9] * z + e[13]) * w; this.z = (e[2] * x + e[6] * y + e[10] * z + e[14]) * w; return this; }
+    setFromMatrixPosition(m) { const e = m.elements; this.x = e[12]; this.y = e[13]; this.z = e[14]; return this; } toArray() { return [this.x, this.y, this.z]; } }
+  class Quaternion { constructor(x = 0, y = 0, z = 0, w = 1) { this.x = x; this.y = y; this.z = z; this.w = w; }
+    copy(q) { this.x = q.x; this.y = q.y; this.z = q.z; this.w = q.w; return this; } invert() { this.x = -this.x; this.y = -this.y; this.z = -this.z; return this; }
+    setFromAxisAngle(a, t) { const s = Math.sin(t / 2); this.x = a.x * s; this.y = a.y * s; this.z = a.z * s; this.w = Math.cos(t / 2); return this; }
+    setFromRotationMatrix(m) { const te = m.elements, m11 = te[0], m12 = te[4], m13 = te[8], m21 = te[1], m22 = te[5], m23 = te[9], m31 = te[2], m32 = te[6], m33 = te[10], tr = m11 + m22 + m33;
+      if (tr > 0) { const s = 0.5 / Math.sqrt(tr + 1); this.w = 0.25 / s; this.x = (m32 - m23) * s; this.y = (m13 - m31) * s; this.z = (m21 - m12) * s; }
+      else if (m11 > m22 && m11 > m33) { const s = 2 * Math.sqrt(1 + m11 - m22 - m33); this.w = (m32 - m23) / s; this.x = 0.25 * s; this.y = (m12 + m21) / s; this.z = (m13 + m31) / s; }
+      else if (m22 > m33) { const s = 2 * Math.sqrt(1 + m22 - m11 - m33); this.w = (m13 - m31) / s; this.x = (m12 + m21) / s; this.y = 0.25 * s; this.z = (m23 + m32) / s; }
+      else { const s = 2 * Math.sqrt(1 + m33 - m11 - m22); this.w = (m21 - m12) / s; this.x = (m13 + m31) / s; this.y = (m23 + m32) / s; this.z = 0.25 * s; } return this; } }
+  class Matrix4 { constructor() { this.elements = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]; }
+    copy(m) { this.elements = m.elements.slice(); return this; }
+    makeBasis(x, y, z) { this.elements = [x.x, x.y, x.z, 0, y.x, y.y, y.z, 0, z.x, z.y, z.z, 0, 0, 0, 0, 1]; return this; }
+    multiplyMatrices(a, b) { const ae = a.elements, be = b.elements, r = new Array(16); for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) { let t = 0; for (let k = 0; k < 4; k++) t += ae[k * 4 + i] * be[j * 4 + k]; r[j * 4 + i] = t; } this.elements = r; return this; }
+    compose(p, q, s) { const x = q.x, y = q.y, z = q.z, w = q.w, x2 = x + x, y2 = y + y, z2 = z + z, xx = x * x2, xy = x * y2, xz = x * z2, yy = y * y2, yz = y * z2, zz = z * z2, wx = w * x2, wy = w * y2, wz = w * z2;
+      this.elements = [(1 - (yy + zz)) * s.x, (xy + wz) * s.x, (xz - wy) * s.x, 0, (xy - wz) * s.y, (1 - (xx + zz)) * s.y, (yz + wx) * s.y, 0, (xz + wy) * s.z, (yz - wx) * s.z, (1 - (xx + yy)) * s.z, 0, p.x, p.y, p.z, 1]; return this; } }
+  class Object3D { constructor() { this.id = ++ID; this.type = 'Object3D'; this.name = ''; this.parent = null; this.children = []; this.visible = true; this.renderOrder = 0; this.userData = {}; this.frustumCulled = true;
+      this.position = new Vector3(); this.quaternion = new Quaternion(); this.scale = new Vector3(1, 1, 1); this.matrix = new Matrix4(); this.matrixWorld = new Matrix4(); this.matrixWorldAutoUpdate = true; this.layers = { test: () => true }; }
+    add(...o) { for (const c of o) { c.parent = this; this.children.push(c); } return this; } traverse(cb) { cb(this); for (const c of this.children) c.traverse(cb); }
+    updateMatrixWorld() { this.matrix.compose(this.position, this.quaternion, this.scale); if (this.parent) this.matrixWorld.multiplyMatrices(this.parent.matrixWorld, this.matrix); else this.matrixWorld.copy(this.matrix); for (const c of this.children) c.updateMatrixWorld(); }
+    onBeforeRender() {} onAfterRender() {} }
+  class Group extends Object3D { constructor() { super(); this.type = 'Group'; this.isGroup = true; } }
+  class Scene extends Object3D { constructor() { super(); this.type = 'Scene'; this.isScene = true; } }
+  class Mesh extends Object3D { constructor(g, m) { super(); this.type = 'Mesh'; this.isMesh = true; this.geometry = g; this.material = m; } }
+  class Points extends Object3D { constructor(g, m) { super(); this.type = 'Points'; this.isPoints = true; this.geometry = g; this.material = m; } }
+  class PerspectiveCamera extends Object3D { constructor(fov, aspect, near, far) { super(); this.type = 'PerspectiveCamera'; this.fov = fov; this.aspect = aspect; this.near = near; this.far = far;
+      const top = near * Math.tan(fov * Math.PI / 360), h = 2 * top, w = aspect * h, left = -0.5 * w; this.projectionMatrix = new Matrix4();
+      const x = 2 * near / w, y = 2 * near / h, a = (2 * left + w) / w, b = 0, c = -(far + near) / (far - near), d = -2 * far * near / (far - near);
+      this.projectionMatrix.elements = [x, 0, 0, 0, 0, y, 0, 0, a, b, c, -1, 0, 0, d, 0]; this.matrixWorldInverse = new Matrix4(); }
+    updateMatrixWorld() { super.updateMatrixWorld(); const p = this.position; this.matrixWorldInverse.elements = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, -p.x, -p.y, -p.z, 1]; } }   /* an unrotated camera only */
+  class BufferAttribute { constructor(array, itemSize) { this.array = array; this.itemSize = itemSize; this.count = array.length / itemSize; }
+    getX(i) { return this.array[i * this.itemSize]; } getY(i) { return this.array[i * this.itemSize + 1]; } getZ(i) { return this.array[i * this.itemSize + 2]; }
+    setXYZ(i, x, y, z) { const k = i * this.itemSize; this.array[k] = x; this.array[k + 1] = y; this.array[k + 2] = z; return this; } }
+  class Float32BufferAttribute extends BufferAttribute { constructor(a, n) { super(new Float32Array(a), n); } }
+  class BufferGeometry { constructor() { this.type = 'BufferGeometry'; this.attributes = {}; this.morphAttributes = {}; this.userData = {}; this.parameters = {}; }
+    setAttribute(n, a) { this.attributes[n] = a; return this; } computeBoundingSphere() { const P = this.attributes.position; let r = 0; if (P) for (let i = 0; i < P.count; i++) r = Math.max(r, Math.hypot(P.getX(i), P.getY(i), P.getZ(i))); this.boundingSphere = { center: new Vector3(), radius: r }; } }
+  class SphereGeometry extends BufferGeometry { constructor(radius = 1, ws = 32, hs = 16) { super(); this.type = 'SphereGeometry'; this.parameters = { radius, widthSegments: ws, heightSegments: hs }; const P = [], N = [];
+      for (let iy = 0; iy <= hs; iy++) { const v = iy / hs; for (let ix = 0; ix <= ws; ix++) { const u = ix / ws, x = -radius * Math.cos(u * 2 * Math.PI) * Math.sin(v * Math.PI), y = radius * Math.cos(v * Math.PI), z = radius * Math.sin(u * 2 * Math.PI) * Math.sin(v * Math.PI), l = Math.hypot(x, y, z) || 1;
+        P.push(x, y, z); N.push(x / l, y / l, z / l); } }
+      this.setAttribute('position', new Float32BufferAttribute(P, 3)); this.setAttribute('normal', new Float32BufferAttribute(N, 3)); } }
+  class PlaneGeometry extends BufferGeometry { constructor() { super(); this.type = 'PlaneGeometry'; } }
+  class Material { constructor(p) { this.id = ++ID; Object.assign(this, p || {}); } }
+  class ShaderMaterial extends Material { constructor(p) { super(p); this.type = 'ShaderMaterial'; this.isShaderMaterial = true; this.uniforms = (p && p.uniforms) || {}; } }
+  class MeshBasicMaterial extends Material { constructor(p) { super(p); this.type = 'MeshBasicMaterial'; } }
+  class PointsMaterial extends Material { constructor(p) { super(p); this.type = 'PointsMaterial'; } }
+  class Color { constructor(r = 1, g = 1, b = 1) { this.r = r; this.g = g; this.b = b; } setRGB(r, g, b) { this.r = r; this.g = g; this.b = b; return this; } }
+  class DataTexture { constructor(data, width, height, format) { this.image = { data, width, height }; this.format = format; this.magFilter = 1003; this.minFilter = 1003; this.generateMipmaps = false; this.needsUpdate = false; } }
+  return { Vector3, Quaternion, Matrix4, Object3D, Group, Scene, Mesh, Points, PerspectiveCamera, BufferGeometry, BufferAttribute, Float32BufferAttribute, SphereGeometry, PlaneGeometry,
+    ShaderMaterial, MeshBasicMaterial, PointsMaterial, Color, DataTexture, NearestFilter: 1003, LinearFilter: 1006, LinearMipmapLinearFilter: 1008, RGBAFormat: 1023, RepeatWrapping: 1000,
+    SRGBColorSpace: 'srgb', FrontSide: 0, BackSide: 1, DoubleSide: 2 }; }
+const THREE = miniThree();
 const src = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 let pass = 0, fail = 0;
 const check = (ok, claim, nums) => { if (ok) pass++; else fail++; console.log(`${ok ? 'PASS' : 'FAIL'} — ${claim} :: ${nums}`); };
@@ -59,36 +125,40 @@ const DEG = Math.PI / 180, rng = (() => { let s = 437; return () => (s = (s * 16
   check(ok, 'the picture keeps its quality on an old machine: sixty seconds at five frames a second never lower the post chain (it was stepped down to 0.78 of a pixel); a budget lowered by a lost context is given back after three calm seconds; a two-core, two-gigabyte device keeps the glass — only a reader who asks the system for less transparency loses it — and a slow frame rate no longer takes it away',
     `5 fps × 60 s: ${slow.calls.length} changes, quality ${slow.q()} · after a lost context: ${lost.calls.map(c => c.join(' ')).join(', ')} · old device: lite ${g0[0]} · reduced transparency: lite ${g1[0]} · slow frames: ${L0.hccLiteAuto(4)}`); }
 
-{ /* 2. the label pass against three.js's own CSS2DRenderer */
+{ /* 2. the label pass, against the perspective projection written out in closed form */
   let writes = 0; const counted = new Set(), byKey = {};
-  const mkEl = track => { const el = { parentNode: null, kids: [], setAttribute() {}, appendChild(c) { c.parentNode = el; el.kids.push(c); }, removeChild(c) { c.parentNode = null; } };
-    el.style = track ? new Proxy({}, { set(t, k, v) { writes++; counted.add(el); byKey[k] = (byKey[k] || 0) + 1; t[k] = v; return true; } }) : {}; return el; };
-  globalThis.document = { createElement: () => mkEl(false) };
-  const W = 1200, H = 800;
-  const build = track => { const r = (() => { let s = 77; return () => (s = (s * 16807) % 2147483647) / 2147483647; })(), sc = new THREE.Scene(), labs = [], groups = [];
-    for (let g = 0; g < 6; g++) { const G = new THREE.Group(); G.position.set((r() - 0.5) * 6, (r() - 0.5) * 4, (r() - 0.5) * 6); sc.add(G); groups.push(G);
-      for (let k = 0; k < 12; k++) { const o = new CSS2DObject(mkEl(track)); o.position.set((r() - 0.5) * 8, (r() - 0.5) * 6, (r() - 0.5) * 30); if (k % 5 === 0) o.renderOrder = 1; if (k % 7 === 3) o.center.set(0, 0.5); G.add(o); labs.push(o); } }
-    const cam = new THREE.PerspectiveCamera(55, W / H, 0.1, 1000); cam.position.set(0, 0, 12); cam.lookAt(0, 0, 0); cam.updateMatrixWorld(); return { sc, cam, labs, groups }; };
-  const A = build(true), B = build(false);
-  const lr = { domElement: mkEl(false), getSize: () => ({ width: W, height: H }) };
+  const mkEl = () => { const el = { parentNode: null, kids: [], appendChild(c) { c.parentNode = el; el.kids.push(c); } };
+    el.style = new Proxy({}, { set(t, k, v) { writes++; counted.add(el); byKey[k] = (byKey[k] || 0) + 1; t[k] = v; return true; } }); return el; };
+  const W = 1200, H = 800, FOV = 55, NEAR = 0.1, FAR = 1000, CAMZ = 12;
+  const r = (() => { let s = 77; return () => (s = (s * 16807) % 2147483647) / 2147483647; })(), sc = new THREE.Scene(), labs = [], groups = [];
+  for (let g = 0; g < 6; g++) { const G = new THREE.Group(); G.position.set((r() - 0.5) * 6, (r() - 0.5) * 4, (r() - 0.5) * 6); sc.add(G); groups.push(G);
+    for (let k = 0; k < 12; k++) { const o = new THREE.Object3D(); o.isCSS2DObject = true; o.element = mkEl(); o.center = { x: 0.5, y: 0.5 };
+      o.position.set((r() - 0.5) * 8, (r() - 0.5) * 6, (r() - 0.5) * 30); if (k % 5 === 0) o.renderOrder = 1; if (k % 7 === 3) o.center = { x: 0, y: 0.5 }; G.add(o); labs.push(o); } }
+  const cam = new THREE.PerspectiveCamera(FOV, W / H, NEAR, FAR); cam.position.set(0, 0, CAMZ); cam.updateMatrixWorld();
+  const lr = { domElement: mkEl(), getSize: () => ({ width: W, height: H }) };
   const FR = new Function('THREE', 'labelRenderer', 'premiumDeclutterLabels', lift('const HCC_LABEL_FRAME=', '/* Label intelligence:') + ';return HCC_LABEL_FRAME;')(THREE, lr, () => {});
-  const ref = new CSS2DRenderer(); ref.setSize(W, H);
-  const frame = () => { A.sc.updateMatrixWorld(); FR.fresh = true; writes = 0; counted.clear(); for (const k in byKey) delete byKey[k]; lr.render(A.sc, A.cam); return writes; };
-  const w1 = frame(); ref.render(B.sc, B.cam);
+  /* where each label must stand: world = group + label (no rotations), eye at (0, 0, 12) looking down −z, a pinhole of 55° */
+  const ref = () => { const t = Math.tan(FOV * Math.PI / 360), out = [];
+    for (const o of labs) { if (!o.parent.visible) { out.push(null); continue; } const x = o.parent.position.x + o.position.x, y = o.parent.position.y + o.position.y, z = o.parent.position.z + o.position.z - CAMZ, depth = -z;
+      if (!(depth >= NEAR && depth <= FAR)) { out.push(null); continue; }
+      out.push({ px: (x / (depth * t * W / H)) * W / 2 + W / 2, py: H / 2 - (y / (depth * t)) * H / 2, d2: x * x + y * y + z * z, order: o.renderOrder }); } return out; };
+  const frame = () => { sc.updateMatrixWorld(); FR.fresh = true; writes = 0; counted.clear(); for (const k in byKey) delete byKey[k]; lr.render(sc, cam); return writes; };
   const xy = el => { const m = /translate\(([-\d.e]+)px,([-\d.e]+)px\)/.exec(el.style.transform || ''); return m ? [+m[1], +m[2]] : null; };
-  let shownA = 0, sameShown = true, worstPx = 0, sameCentre = true;
-  for (let i = 0; i < A.labs.length; i++) { const a = A.labs[i].element, b = B.labs[i].element, sa = a.style.display !== 'none' && a.style.display !== undefined, sb = b.style.display !== 'none';
-    if (sa !== sb) sameShown = false; if (!sa) continue; shownA++; const pa = xy(a), pb = xy(b); worstPx = Math.max(worstPx, Math.abs(pa[0] - pb[0]), Math.abs(pa[1] - pb[1]));
-    if (a.style.transform.split(')translate(')[0] !== b.style.transform.split(')translate(')[0]) sameCentre = false; }
-  const order = S => S.labs.map((o, i) => [i, o.element]).filter(([, e]) => e.style.display === '').sort((p, q) => +q[1].style.zIndex - +p[1].style.zIndex).map(([i]) => i).join(',');
-  const sameOrder = order(A) === order(B);
+  const compare = () => { const R = ref(); let shown = 0, same = true, worst = 0, anchor = true;
+    labs.forEach((o, i) => { const e = o.element, s = e.style.display === '', want = !!R[i]; if (s !== want) same = false; if (!s || !want) return; shown++;
+      const p = xy(e); worst = Math.max(worst, Math.abs(p[0] - R[i].px), Math.abs(p[1] - R[i].py)); if (!e.style.transform.startsWith(`translate(${-100 * o.center.x}%,${-100 * o.center.y}%)`)) anchor = false; });
+    const mine = labs.map((o, i) => [i, o.element]).filter(([, e]) => e.style.display === '').sort((p, q) => +q[1].style.zIndex - +p[1].style.zIndex).map(([i]) => i).join(',');
+    const theirs = R.map((x, i) => [i, x]).filter(([, x]) => x).sort((p, q) => (q[1].order - p[1].order) || (p[1].d2 - q[1].d2)).map(([i]) => i).join(',');
+    return { shown, same, worst, anchor, order: mine === theirs }; };
+  const w1 = frame(), c1 = compare();
   const w2 = frame();                                                     /* nothing moved */
-  const mover = A.labs.find(o => o.element.style.display === ''); mover.position.x += 0.3; const w3 = frame(), moved = counted.size, onlyMover = counted.size <= 3 && counted.has(mover.element);
-  const hidden = A.groups[2], hiddenLabs = hidden.children.filter(o => o.element.style.display === '').length; hidden.visible = false; const w4 = frame(), hid = byKey.display || 0, shifted = byKey.transform || 0, ranks = byKey.zIndex || 0;
-  const allHidden = hidden.children.every(o => o.element.style.display === 'none'), walked = FR.walked, orderAfter = order(A) === (() => { B.groups[2].visible = false; ref.render(B.sc, B.cam); return B.labs.map((o, i) => [i, o]).filter(([, o]) => !o.parent || o.parent.visible).map(([i, o]) => [i, o.element]).filter(([, e]) => e.style.display === '').sort((p, q) => +q[1].style.zIndex - +p[1].style.zIndex).map(([i]) => i).join(','); })();
-  const ok = sameShown && shownA > 20 && shownA < A.labs.length && worstPx <= 0.05 + 1e-9 && sameCentre && sameOrder && w1 >= 3 * shownA && w2 === 0 && w3 >= 1 && onlyMover && hid === hiddenLabs && shifted === 0 && allHidden && orderAfter && walked < 1 + A.groups.length + A.labs.length - hidden.children.length + 1;
-  check(ok, 'labels at the cost of what moved: lifted and run beside three.js’s own CSS2DRenderer on 72 labels in six groups, the pass shows the same labels, at the same places to a twentieth of a pixel, with the same anchor and the same front-to-back order; a frame in which nothing moved writes NOTHING (three.js rewrites every label every frame); a moved label rewrites only itself; a hidden group is not entered, its labels are hidden once and the others keep their places and their order',
-    `${shownA}/${A.labs.length} shown in both · worst offset ${worstPx.toFixed(3)} px · order ${sameOrder ? 'identical' : 'DIFFERENT'} · writes: first frame ${w1}, still frame ${w2}, one label moved ${w3} (${moved} element) · group hidden: ${hid} hidden of ${hiddenLabs} shown, ${shifted} moved, ${ranks} re-ranked, order ${orderAfter ? 'still identical' : 'DIFFERENT'}, ${walked} objects walked`); }
+  const mover = labs.find(o => o.element.style.display === ''); mover.position.x += 0.3; const w3 = frame(), moved = counted.size, onlyMover = counted.size <= 3 && counted.has(mover.element), c3 = compare();
+  const hidden = groups[2], hiddenLabs = hidden.children.filter(o => o.element.style.display === '').length; hidden.visible = false; const w4 = frame(), hid = byKey.display || 0, shifted = byKey.transform || 0, ranks = byKey.zIndex || 0;
+  const allHidden = hidden.children.every(o => o.element.style.display === 'none'), walked = FR.walked, c4 = compare();
+  const ok = c1.same && c1.shown > 20 && c1.shown < labs.length && c1.worst <= 0.05 + 1e-9 && c1.anchor && c1.order && w1 >= 3 * c1.shown && w2 === 0 && w3 >= 1 && onlyMover && c3.same && c3.worst <= 0.05 + 1e-9 &&
+    hid === hiddenLabs && shifted === 0 && allHidden && c4.same && c4.order && walked < 1 + groups.length + labs.length - hidden.children.length + 1;
+  check(ok, 'labels at the cost of what moved: lifted and run on 72 labels in six groups, the pass shows exactly the labels in front of the eye, each where the perspective projection written out in closed form puts it to a twentieth of a pixel, on its own anchor, nearest on top; a frame in which nothing moved writes NOTHING (three.js’s own renderer rewrites every label every frame); a moved label rewrites only itself; a hidden group is not entered, its labels are hidden once and the others keep their places and their order',
+    `${c1.shown}/${labs.length} shown · worst offset ${c1.worst.toFixed(3)} px · anchors ${c1.anchor} · order ${c1.order ? 'nearest on top' : 'WRONG'} · writes: first frame ${w1}, still frame ${w2}, one label moved ${w3} (${moved} element) · group hidden: ${hid} hidden of ${hiddenLabs} shown, ${shifted} moved, ${ranks} re-ranked, order ${c4.order ? 'kept' : 'WRONG'}, ${walked} objects walked`); }
 
 { /* 3. the forced layouts and the boot-time Buddhabrot */
   const loc = fn('hccLocatorBox'), tm = fn('hccTmMeasure'), rl = fn('renderHierarchyLocator');
@@ -111,9 +181,11 @@ const SP = new Function('THREE', 'DEG', 'raDecDir', 'PLANET_POLES', lift('const 
 
 { /* 4. Saturn's rings in Saturn's equator */
   const sat = EPH.PLANETS.find(p => p.name === 'Saturn'), earth = EPH.PLANETS.find(p => p.name === 'Earth');
+  /* the ring geometry lies in its own x–y plane (normal +z); the mesh turns it by rotation.x = −π/2 inside the planet, which the
+     planet's quaternion turns into the sky: the ring's normal is the planet's quaternion applied to that turned +z */
+  const ringTurn = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2);
   const B = iso => { const T = (jdOf(iso) - 2451545) / 36525, d = jdOf(iso) - 2451545, q = new THREE.Quaternion(); SP.hccPlanetSpinQ('Saturn', d, q);
-    const planet = new THREE.Object3D(); planet.quaternion.copy(q); const ring = new THREE.Object3D(); ring.rotation.x = -Math.PI / 2; planet.add(ring); planet.updateMatrixWorld(true);
-    const nrm = new THREE.Vector3(0, 0, 1).transformDirection(ring.matrixWorld), u = scenePos(earth, T).sub(scenePos(sat, T)).normalize();
+    const nrm = new THREE.Vector3(0, 0, 1).applyQuaternion(ringTurn).applyQuaternion(q).normalize(), u = scenePos(earth, T).sub(scenePos(sat, T)).normalize();
     return Math.asin(u.dot(nrm)) / DEG; };
   const ringFn = fn('hccSaturnRings'), inEquator = /m\.rotation\.x=-Math\.PI\/2;/.test(ringFn) && !/26\.7/.test(ringFn.replace(/\/\*[\s\S]*?\*\//g, '')) && /mesh\.add\(ringMesh\)/.test(src);
   const b25 = B('2025-03-23T00:00:00Z'), b17 = B('2017-10-16T00:00:00Z'), b24 = B('2024-06-01T00:00:00Z'), b27 = B('2027-06-01T00:00:00Z');
