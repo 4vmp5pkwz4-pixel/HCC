@@ -92,7 +92,13 @@ ok('the width of the band at each longitude is a consequence of the same integra
 
 /* ── what the page draws ─────────────────────────────────────────────────────── */
 ok('every texel of the panorama reads that integral rather than a blob — weighted by the observed isophotes, never by a random one',
-  /const t=Math\.pow\(Math\.max\(0,hccGalacticBrightness\(l,b\)\),0\.62\)\*\(ISO\?\(0\.28\+0\.72\*isoAt\(l,b\)\):1\);/.test(src)
+  /* v4.438: the row's and the column's halves of the two bilinear reads are hoisted out of the texel loop, so the texel reads
+     the grid HCC_GAL_FIELD itself (gB) and the isophotes (iso) with the expressions of hccGalacticBrightness and isoAt —
+     docs/verify-the-reader-does-not-wait.mjs rebuilds the panorama both ways and finds every byte the same */
+  (/const t=Math\.pow\(Math\.max\(0,hccGalacticBrightness\(l,b\)\),0\.62\)\*\(ISO\?\(0\.28\+0\.72\*isoAt\(l,b\)\):1\);/.test(src)
+    || (/const t=Math\.pow\(Math\.max\(0,gB\),0\.62\)\*\(ISO\?\(0\.28\+0\.72\*iso\):1\);/.test(src)
+      && /const F=HCC_GAL_FIELD, FD=F\.data, FNL=F\.NL, FNB=F\.NB;/.test(src)
+      && /const gB=\(FD\[r0\+i0\]\*\(1-fu\)\+FD\[r0\+i1\]\*fu\)\*\(1-fv\) \+ \(FD\[r1\+i0\]\*\(1-fu\)\+FD\[r1\+i1\]\*fu\)\*fv;/.test(src)))
   && !/dense stellar speckle/.test(src)
   && !/const bulge=Math\.exp\(-\(\(u-W\/2\)\*\*2\)\/\(2\*\(W\*0\.15\)\*\*2\)\);/.test(src),
   'the fifteen hundred Gaussians at H*0.034 with a bulge at W*0.15 are gone, and the numbers that replaced them were all measured by somebody');

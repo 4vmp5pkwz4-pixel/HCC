@@ -121,7 +121,7 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
   const selMap = [['sun', 'sun'], ['planet4', 'planet_Jupiter'], ['hip_27989', 'hip_27989'], ['sky3d_star_32349', 'hip_32349'], ['zod3d_star_91262', 'hip_91262'], ['dso_12', 'gal_12'], ['qso_3', 'qso_3']];
   const fk = (() => { try { const src = SRC.match(/function feedKeyForSel\(key\)\{[\s\S]*?\n  return null; \}/)[0]; return new Function('PLANETS', 'DSO3D_GAL_NAMES', src + ';return feedKeyForSel;')([{ name: 'Mercury' }, { name: 'Venus' }, { name: 'Earth' }, { name: 'Mars' }, { name: 'Jupiter' }], {}); } catch (e) { return null; } })();
   const wired = /acts\.push\(\[`⧉ \$\{TT\('In the laboratories','В лабораториях','In den Laboren'\)\} · \$\{n\}`,\(\)=>feedPickerOpen\(fk\)\]\)/.test(SRC)
-    && /if\(opts\.load\)\{ const o=feedObjects\(\)\.find\(x=>x\.key===opts\.load\);/.test(SRC);
+    && /if\(opts\.load\)\{ const o=(?:feedObjects\(\)\.find\(x=>x\.key===opts\.load\)|feedObjectByKey\(opts\.load\));/.test(SRC);
   ok('a selected object of the 3D atlas opens in the laboratories with its own numbers: the Sun, a planet, a star under any of its three keys, a galaxy, a quasar',
     fk && selMap.every(([k, v]) => fk(k) === v) && wired, fk ? selMap.map(([k]) => `${k} → ${fk(k)}`).join(' · ') : 'feedKeyForSel not found');
   /* ◭ the surface as an object of the 3D atlas: the same grid, contours and catalogue, built as
