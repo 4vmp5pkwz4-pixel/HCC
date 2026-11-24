@@ -85,7 +85,7 @@ const base = { n: 2, kon: 8840, zi: 0.0093, T: 23 };
 
 { const M = await import(path.join(ROOT, 'core/atlas/instruments.mjs')), miss = ["{id:'flagmotor', category:'dyn'", "id:'flagmotor', world:'s3', lab:'flagmotor'", "flmGroup.visible = (v==='flagmotor');", "if(v==='flagmotor'&&!flmObjs){ flmSetup(); }", "else if(V==='flagmotor') body = flmPanelHTML();",
     "if(V==='flagmotor'){ flmBind(ctl); }", "} else if(state.s3view==='flagmotor'){", "flagmotor:{speed:['flmDil',0.02], pause:['flmPaused','p']},", "['flmAtlas','flagmotor',flmGroup,", "()=>goLab('s3','flagmotor')", "globalThis.HCC_FLAGMOTOR=Object.freeze({", "{id:'flagmotor439', kind:'tested'",
-    "['flagmotor','pxp','analogy'", "['flagmotor','diamond','contrast'", "v==='flagmotor'?["].filter(x => !src.includes(x));
+    "['flagmotor','pxp','analogy'", "v==='flagmotor'?["].filter(x => !src.includes(x));
   const meta = M.INSTRUMENT_META && M.INSTRUMENT_META.flagmotor, defs = meta ? Object.fromEntries(meta.inputs.map(i => [i.name, i.default])) : null, r = defs ? M.INSTRUMENTS.flagmotor(defs) : {};
   const P = { dpsi: -120, dpH: 0.6, T: 23, n: 2, kon: 8840, zi: 0.0093 }, z = page.flmLoadZeta('bead', 0.5, page.flmEta(23, 1)), o = page.flmOperating({ ...page.flmModel(P), N: 11 }, z);
   const ok = !miss.length && !!meta && Math.abs(r.flagmotor_pmf + 155.2575) < 1e-3 && Math.abs(r.flagmotor_speed - o.hz) < 1e-9 && Math.abs(r.flagmotor_cw_bias - page.flmRingCW(3, page.FLM_RING)) < 1e-15 && r.flagmotor_efficiency <= 1 && Math.abs(r.flagmotor_zero_load_speed - 320) < 1;

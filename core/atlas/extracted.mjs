@@ -5,7 +5,7 @@
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
    declarations: 2553   ·   exported names: 2695
-   extracted physics, sha256 29c762e2a811fd297de5b4668f57067811a87b0204e4fa84d83764e1e578b307 */
+   extracted physics, sha256 86c3b5b4d4a2ef902a1dc0f40b25e21f655deabbb9ff4c9d88db9c76ee89b350 */
 
 const HCC_VERSION='4.439.0';
 
@@ -8078,7 +8078,7 @@ const DISCOVERIES=Object.freeze([
    en:'On a desktop the dock covered the caption', ru:'На компьютере док закрывал подпись', de:'Am Desktop verdeckte das Dock die Bildunterschrift',
    claim:'The laboratory dock of v4.422 stands in a strip reserved above the laboratory bar, centred; on a desktop the central caption is centred above the same bar, and the dock covered most of the caption’s last line in every laboratory that has a dock. The caption now rises by the dock’s own height while the dock is up; the scene does not move, and the overlap measured at 1440 × 900 in four laboratories is 0.',
    numbers:{overlapAfterPx2:0, laboratoriesMeasured:4}},
-  {id:'flagmotor439', kind:'tested', domain:'flow', v:'4.439.0', labs:['flagmotor','pxp','diamond'], verifier:'docs/verify-the-flagellar-motor.mjs',
+  {id:'flagmotor439', kind:'tested', domain:'flow', v:'4.439.0', labs:['flagmotor','pxp'], verifier:'docs/verify-the-flagellar-motor.mjs',
    en:'The bacterial flagellar motor from two calibrated laws: its torque–speed curve, its proton flux and its switch computed, simulated stator by stator, and checked against measurement', ru:'Бактериальный жгутиковый мотор из двух откалиброванных законов: кривая момент–скорость, поток протонов и переключатель вычислены, смоделированы статор за статором и проверены по измерениям', de:'Der bakterielle Geißelmotor aus zwei geeichten Gesetzen: Drehmoment–Drehzahl-Kurve, Protonenfluss und Schalter berechnet, Stator für Stator simuliert und an Messungen geprüft',
    claim:'A stator law (n = 2 protons per 1/26 step, waited for at a rate ∝ |Δp|, then a stroke at the thermodynamic torque n·e·|Δp|/δ against an internal drag) with two constants fitted at −150 mV and 23 °C — a = 8840 s⁻¹, ζ_i = 0.0093 pN·nm·s — gives a zero-load speed of 309 Hz for every number of stators (Yuan & Berg 2008 measured it independent of N), the knee at 170 Hz and 90 % of stall (Chen & Berg 2000) and a stall of 198.9 pN·nm per stator; a switch ring of 34 protomers with J = 6 k_BT and CheY-P binding integrated out has, exactly by transfer matrix, K½ = 3.10 µM and Hill coefficient 10.27 (Cluzel, Surette & Leibler 2000: 3.1 µM, 10.3 ± 1.1). Checked: the PMF and the stall by independent thermodynamics, efficiency ≤ 1 everywhere, the Q10 scaling of the speed and the temperature-independence of the stall, the water viscosity against reference values, the transfer matrix against brute-force enumeration of small rings, the Glauber Monte Carlo against the exact curve, detailed balance of every flip. New, from the stochastic model with elastic linkages of 100 pN·nm/rad: one stator matches the mean-field law at every load, eleven match it at high load and run ≈ 5 % slower near zero load — their phases spread against the linkages, which the mean field cannot see. A catch bond (binding 0.03 s⁻¹, release 0.07 s⁻¹·e^{−τ/59 pN·nm}) holds ≈ 11 stators under a 0.5 µm bead and ≈ 3.7 near zero load, as remodelling experiments report qualitatively (Lele et al. 2013; Wadhwa et al. 2019). Not claimed: a molecular mechanism; the 26-step / 34-FliG mismatch is left open.',
    numbers:{zeroLoadHz:309.1, kneeHz:170, kneeFractionOfStall:0.9, stallPerStator:198.9, halfBiasuM:3.1, hill:10.27, coupledDeficit:0.05, catchHighLoad:11.09, catchLowLoad:3.66, pmfDefault:-155.26}},
@@ -12022,7 +12022,12 @@ const HCC_SI=Object.freeze({
   'km s^-1':{kind:'speed',f:1e3},
   /* the hour, added for the reason the gigayear was: a transit duration is quoted in
      hours, this atlas computes it in hours, and the table could not convert it */
-  'h':{kind:'time',f:3600}
+  'h':{kind:'time',f:3600},
+  /* the flagellar motor (v4.439) publishes in the units its field measures in: the proton-motive force in millivolts,
+     torque in piconewton-nanometres (10⁻²¹ J — the same dimension as energy, a different coordinate), the rotational
+     drag of a bead in pN·nm·s, the power a motor delivers in femtowatts, and protons crossing per second */
+  'mV':{kind:'voltage',f:1e-3}, 'pN nm':{kind:'torque',f:1e-21}, 'pN nm s':{kind:'rotational drag',f:1e-21},
+  'fW':{kind:'power',f:1e-15}, '1/s':{kind:'inverse time',f:1}
 });
 
 const HCC_GLY_M=HCC_SI['Gly'].f;
@@ -14097,7 +14102,6 @@ const NEXUS_RELATIONS=[
   ['s3sky','lens','contrast','two ways to see a thing twice','A lens makes two images by bending light with mass in a nearly flat space; a closed space makes two with no mass at all, by letting straight light arrive both ways round.','concept-contrast'],
   ['s3sky','cosmo','limit','the distance that turns back','The transverse distance sin χ/√|Ω_K| used there for a closed model is the same sin χ that sets the apparent size here; at small χ both reduce to the flat law.','established'],
   ['flagmotor','pxp','analogy','one 2 × 2 transfer matrix, two rings','The switch’s equilibrium is a trace of a 2 × 2 transfer matrix to the 34th power — one CW or CCW protomer and its neighbour; the Fibonacci cube counts the blockaded states of a Rydberg ring as a trace of [[1, 1], [1, 0]] to the N-th — the Lucas numbers. One method, two rings: here a coupling of 6 k_BT between neighbours becomes a Hill coefficient of 10.3, there a constraint becomes the golden ratio.','structural-analogy'],
-  ['flagmotor','diamond','contrast','two generators: a classical Markov one, a quantum GKSL one','The stator’s steps and the switch’s flips are classical Markov jumps with nonnegative rates in detailed balance with the proton free energy and k_BT: noise only blurs the steps and the efficiency stays at most one. The dark diamond is a GKSL generator whose coherent paths cancel, and there noise is the only way in.','concept-contrast'],
   ['diamond','fibreach','exact','one Lean development, two results','The sharp envelope there and the activation bound here are kernel-checked in the same Lean development of Preece & Batenin (21 November 2026) — the finite-matrix GKSL equation with Hermitian controls and lowering jumps there, the finite diagonal-channel exponential here — each within its stated scope; neither proof covers a parser, a calibration or a time-dependent device.','machine-checked'],
   ['diamond','pxp','analogy','two dark events, both opened at t⁵','A blockaded chain hides an event the same way: the five-state Fibonacci chain of the reachability laboratory is dark by its constraint and an end dephasing opens it with μ₅ = 3γΩ⁴; here two coherent paths of length two cancel and differential dephasing opens the event with m₅ = 4S. In both the event lies two coherent steps from the start and one noise step breaks the cancellation — fifth order, 2·2 + 1.','exact'],
   ['diamond','metalaws','representation','claim classes for every tie','The authors’ claims ledger sorts each statement by what stands behind it — a kernel-checked proof, a written proof, an exact computation, a numerical check, open, false — and keeps the scope it holds in. The meta-laws now do the same for the ties they find: each carries its class, and each bridge is re-tested with the other inputs moved, so a tie that holds only at the shipped defaults says so.','method-transfer'],
