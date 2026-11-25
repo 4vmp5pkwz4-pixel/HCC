@@ -23,6 +23,10 @@ if (i0 < 0 || i1 < i0) throw new Error('the registry block is missing');
 const REG = src.slice(i0, i1);
 const { HCC_CONSTANTS: C, HCC_K: K } = new Function(REG + ';return {HCC_CONSTANTS, HCC_K};')();
 const rel = (a, b) => Math.abs(a - b) / Math.abs(b);
+/* the NIST listings in the repository (data/codata/, parsed from physics.nist.gov): earlier editions are read from them, never
+   retyped — verify-codata-2022.mjs forbids a superseded value as a literal anywhere, and it is right to */
+const NIST = y => JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'codata', `codata-${y}.json`), 'utf8')).constants;
+const c22 = NIST(2022), c18 = NIST(2018), c14 = NIST(2014);
 
 /* 1 — the independent table */
 const TABLE = {
@@ -31,8 +35,11 @@ const TABLE = {
   mu: [1.66053906892e-27, 0.00000000052e-27], alpha: [7.2973525643e-3, 0.0000000011e-3],
   GMsun: [1.3271244e20, 0], Rsun: [6.957e8, 0], au: [1.495978707e11, 0]};
 { const bad = Object.entries(TABLE).filter(([k, [v, u]]) => !C[k] || C[k].v !== v || Math.abs(C[k].u - u) > 1e-6 * Math.max(u, 1e-300));
-  check(bad.length === 0, 'every registry value and its standard uncertainty equal the SI 2019 / CODATA 2022 / IAU table typed here independently',
-    `${Object.keys(TABLE).length} constants compared${bad.length ? ' · DIFFER: ' + bad.map(b => b[0]).join(', ') : ''} · edition "${C.version}"`); }
+  const nistKey = { c: 'speed of light in vacuum', h: 'Planck constant', e: 'elementary charge', kB: 'Boltzmann constant', G: 'Newtonian constant of gravitation', me: 'electron mass', mp: 'proton mass', mu: 'atomic mass constant', alpha: 'fine-structure constant' };
+  const badNist = Object.entries(nistKey).filter(([k, n]) => !c22[n] || c22[n].value !== C[k].v || Math.abs((c22[n].uncertainty || 0) - C[k].u) > 1e-6 * Math.max(C[k].u, 1e-300));
+  bad.push(...badNist.map(([k]) => [k + ' vs NIST 2022']));
+  check(bad.length === 0, 'every registry value and its standard uncertainty equal the SI 2019 / CODATA 2022 / IAU table typed here independently, and the NIST CODATA 2022 listing in the repository',
+    `${Object.keys(TABLE).length} constants against the typed table, ${Object.keys(nistKey).length} against NIST 2022${bad.length ? ' · DIFFER: ' + bad.map(b => b[0]).join(', ') : ''} · edition "${C.version}"`); }
 
 /* 2 — derived values */
 { const d = [['ħ = h/2π', rel(C.hbar.v, C.h.v / (2 * Math.PI)), 1e-9],
@@ -92,9 +99,9 @@ const CONFLICT_CEILING = { c: 4, G: 2, mp: 1, au: 6, pc: 6, ly: 4, Msun: 30 };
     list.map(x => `${x.k}=${x.t}×${x.n}`).join(' · ') + ` · 1.98892e30 implies G = ${Gimplied.toExponential(5)}, ${z.toFixed(0)} CODATA-2022 σ from today's G — a stale edition carried in ${scan.find(s => s.k === 'Msun').near['1.98892e30'] || 0} places, every one of them a debt to retire`); }
 
 /* 8 — an edition update is not a contradiction (audit item 6) */
-{ const me18 = 9.1093837015e-31, me22 = C.me.v, a18 = 7.2973525693e-3, a22 = C.alpha.v, R18 = 10973731.568160, R22 = 10973731.568157;
+{ const me18 = c18['electron mass'].value, me22 = C.me.v, a18 = c18['fine-structure constant'].value, a22 = C.alpha.v, R18 = c18['Rydberg constant'].value, R22 = c22['Rydberg constant'].value;
   const shift = me22 / me18 - 1, predicted = (a18 / a22) ** 2 * (R22 / R18) - 1, inSigma = (me22 - me18) / C.me.u;
-  const Mo14 = C.GMsun.v / 6.67408e-11, sunShift = rel(Mo14, K.Msun);
+  const Mo14 = C.GMsun.v / c14['Newtonian constant of gravitation'].value, sunShift = rel(Mo14, K.Msun);
   check(Math.abs(shift - predicted) < 2e-11 && Math.abs(rel(Mo14, 1.98847e30)) < 3e-6,
     'item 6: the electron mass moved from CODATA 2018 to 2022 because α moved — m_e = 2hR∞/(cα²) predicts the shift to the digits printed. That is a new adjustment of shared data, not a measurement the atlas contradicted; "4.4σ" is the shift in units of one edition\'s σ, not a significance. Likewise the old M☉, 1.98847·10³⁰ kg, is GM☉ over the 2014 G: an internal-consistency fix',
     `Δm_e/m_e = ${shift.toExponential(3)} · from α and R∞ ${predicted.toExponential(3)} · shift/u(2022) = ${inSigma.toFixed(1)} · GM☉/G(2014) = ${Mo14.toExponential(6)} kg · its distance from GM☉/G(2022) ${sunShift.toExponential(2)} = ${(sunShift / (C.G.u / C.G.v)).toFixed(1)} u(G)`); }
