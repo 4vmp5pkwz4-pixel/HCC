@@ -32,7 +32,7 @@
 | 26 | Scale Dynamics Observatory: M(R), local p_eff, invariants, family transitions | **DONE** | laboratory `scaledyn` |
 | 27 | Independent homogeneous populations | **DONE**, with one limit (below) | `data/scale-nexus/scale-dynamics.json` |
 | 28 | Measured, model, identity and hypothetical kept apart | **DONE** — tagged everywhere | `docs/verify-the-scale-dynamics.mjs` check 8 |
-| 29 | Integration with Invariant Nexus, FBS3R, Scale Nexus, Multiview and the typed bus | **DONE** | check 9 |
+| 29 | Integration with Invariant Nexus, FBS3R, Scale Nexus, Multiview and the typed bus | **DONE** — one Nexus relation, to the Scale Nexus (two more left out: they moved the atlas's verified spectral seam); outputs on the bus, read by FBS3R; deliberately not wired into the Scale Nexus's mass and radius | check 9 |
 | 30 | Machine-readable export: data, uncertainties, sources, covariances, certificates | **DONE** | `HCC_SCALE_DYNAMICS.exportJSON()`, the JSON |
 
 ### Items 26–27 in numbers
@@ -63,9 +63,9 @@
 
 | Check | Result |
 |---|---|
-| Full release chain (pipeline → invariants → uniqueness → reach → extract → bindu → api → metalaws → extract --check → demo agent → pipeline --if-needed → api) | see `RELEASE_NOTES.md` (Frontier II) |
-| `npm run test:source` (every verifier) | see `RELEASE_NOTES.md` |
-| `node scripts/selftest.mjs --list` | see `RELEASE_NOTES.md` |
+| Full release chain (pipeline → invariants → uniqueness → reach → extract → bindu → api → metalaws → extract --check → demo agent → pipeline --if-needed → api) | every step exit 0; fast chain re-run after the last source change: FAST-DONE |
+| `npm run test:source` (every verifier) | **GREEN** — 260 verifiers, 0 failed |
+| `node scripts/selftest.mjs --list` | **1209/1209**, 0 failures |
 | Registry audit | `verify-the-constants-registry.mjs` 8/8 |
 | Lean–kernel parity | 60 exact fixtures, worst 3.8·10⁻¹⁵; the Frontier II identities numerically in the page kernel |
 | Regression | No existing verifier's assertions were weakened. Two that cut code from the page now also cut the registry it reads. The Scale Nexus Lean check was raised from 29 to 42. |

@@ -5,7 +5,7 @@
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
    declarations: 2555   ·   exported names: 2697
-   extracted physics, sha256 cc78b5915bd28e31fd8294dea8cade18a337ceb65ab7015a7c294c662e68397e */
+   extracted physics, sha256 c2b7f45903a6e62fe2ae4c25767ae4c3dbcdbbc2ea7cbf54fa474c5c20281a56 */
 
 const HCC_VERSION='4.442.0';
 
@@ -14152,8 +14152,11 @@ const NEXUS_RELATIONS=[
   ['s3sky','lens','contrast','two ways to see a thing twice','A lens makes two images by bending light with mass in a nearly flat space; a closed space makes two with no mass at all, by letting straight light arrive both ways round.','concept-contrast'],
   ['s3sky','cosmo','limit','the distance that turns back','The transverse distance sin χ/√|Ω_K| used there for a closed model is the same sin χ that sets the apparent size here; at small χ both reduce to the flat law.','established'],
   ['scaledyn','scalenexus','invariant','one invariant along a family, measured against a theorem','The Scale Nexus proves that C^{p+1}Q^{p−1} does not change under (M, R) ↦ (s^p M, sR) (Lean: dilation_invariant); the observatory fits S = 1/p family by family and reports the scatter of I_S = (1+S) log C + (1−S) log Q — how far each measured family is from a single power law. The theorem is exact; the families are not.','model-invariant'],
-  ['scaledyn','wd','contrast','a measured slope beside a model curve','The planets\u2019 and hosts\u2019 slopes are fitted to data; the white-dwarf curve is Nauenberg\u2019s model, S → −1/3 at low mass and −∞ at the Chandrasekhar mass. Three white dwarfs with dynamical masses are shown on it, not fitted: they test the curve, they do not make a slope.','model-contrast'],
-  ['scaledyn','ladmeas','contrast','rungs are coordinates, families are data','The golden ladder\u2019s measures are exact statements about φ; the observatory\u2019s families are where real populations bend. Nothing here places a family on a rung, and no break found here bears on the golden lattice.','concept-contrast'],
+  /* The observatory is related to the Scale Nexus only. Two more relations were written — a measured slope beside the
+     white-dwarf model curve (wd, contrast) and "rungs are coordinates, families are data" (ladmeas, contrast) — and left out:
+     any two relations through this one node bridge the observed sky and the sphere, and the atlas's own spectral seam between
+     them (docs/verify-the-atlas-knows-its-own-shape.cjs, a finding about this graph) moves. Whether the seam should move is a
+     curation question for review, not something to settle by adding edges in a release. The laboratory's buttons still go there. */
   ['scalenexus','ladmeas','contrast','the golden lattice: a coordinate here, a hypothesis there','The Scale Nexus puts every catalogue entry on rungs of any base, and a base is a relabelling of the same length; the golden ladder’s measures compute what φ does exactly (a dimension, an energy gap). Whether nature prefers φ is neither: it is a hypothesis, preregistered and tested on an independent population (docs/scale-nexus/PREREGISTRATION.md), and the curated catalogue gets no p-value.','concept-contrast'],
   ['ladmeas','aesphere','representation','the golden spiral, measured against a proved optimum','The sphere’s AI records start every search from the golden-angle spiral; here that spiral is measured against the optimum that family 090 of the AI catalogue now proves — its logarithmic energy stays ≈ 0.011 per point above C_BHS = 2 ln 2 + ½ ln ⅔ + 3 ln(√π/Γ(⅓)), and its local lattice goes square on the rings where the nearest Fibonacci differences change, which is where a descent has the most to gain.','theorem-context'],
   ['flagmotor','pxp','analogy','one 2 × 2 transfer matrix, two rings','The switch’s equilibrium is a trace of a 2 × 2 transfer matrix to the 34th power — one CW or CCW protomer and its neighbour; the Fibonacci cube counts the blockaded states of a Rydberg ring as a trace of [[1, 1], [1, 0]] to the N-th — the Lucas numbers. One method, two rings: here a coupling of 6 k_BT between neighbours becomes a Hill coefficient of 10.3, there a constraint becomes the golden ratio.','structural-analogy'],
