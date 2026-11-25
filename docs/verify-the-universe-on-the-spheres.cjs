@@ -32,7 +32,7 @@ const i0 = SRC.indexOf('const UC_K='), i1 = SRC.indexOf('/* ── THE MAP OF AL
 if (i0 < 0 || i1 < i0) throw new Error('catalogue block not found');
 const LN_PHI = Math.log((1 + Math.sqrt(5)) / 2);
 const WHEEL = grab(/const UC_WHEEL=\{[\s\S]*?const ucWheelSpan=[^\n]*\n/, 'the wheel');
-const U = new Function('TT', 'LN_PHI', 'fmtLen', 'fmtDur', SRC.slice(i0, i1) + WHEEL +
+const U = new Function('TT', 'LN_PHI', 'fmtLen', 'fmtDur', SRC.slice(SRC.indexOf('const HCC_CONSTANTS='), SRC.indexOf('/* the SI values the reference implementation uses')) + SRC.slice(i0, i1) + WHEEL +
   '\nreturn {UC_K,UC_DOM,UCAT,UC_KIND,ucatRungs,ucatMain,ucatPlane,ucatTraits,ucAllowed,UC_LOGPHI2,ucN,ucAt,UC_WHEEL,ucWheelAngle,ucWheelPos,ucWheelSpan};')(
   (en) => en, LN_PHI, L => L.toExponential(3) + ' m', s => s + ' s');
 const K = U.UC_K, lv = L => Math.log(L / K.lP) / LN_PHI, rel = (a, b) => Math.abs(a - b) / Math.abs(b);

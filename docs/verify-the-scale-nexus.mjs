@@ -22,7 +22,8 @@ let pass = 0, fail = 0, cases = 0;
 const check = (ok, claim, nums) => { if (ok) pass++; else fail++; console.log(`${ok ? 'PASS' : 'FAIL'} — ${claim} :: ${nums}`); };
 const block = (a, b) => { const i = src.indexOf(a), j = src.indexOf(b); if (i < 0 || j < i) throw new Error('missing block ' + a); return src.slice(i, j); };
 const ucat = src.slice(src.indexOf('const UC_K=(()=>'), src.indexOf('/* how far it stands from the two walls')).replace(/const UC_DOM=/, 'var UC_DOM=');
-const P = new Function('const LN_PHI=Math.log((1+Math.sqrt(5))/2);' + ucat + block('/* ═══ SNX-MATH-BEGIN', '/* ═══ SNX-MATH-END') + block('/* ═══ SNX-AUDIT-BEGIN', '/* ═══ SNX-AUDIT-END') +
+const REG = src.slice(src.indexOf('const HCC_CONSTANTS='), src.indexOf('/* the SI values the reference implementation uses'));
+const P = new Function('const LN_PHI=Math.log((1+Math.sqrt(5))/2);' + REG + ucat + block('/* ═══ SNX-MATH-BEGIN', '/* ═══ SNX-MATH-END') + block('/* ═══ SNX-AUDIT-BEGIN', '/* ═══ SNX-AUDIT-END') +
   ';return {UC_K, UCAT, ucatPlane, UC_LOGPHI2, snxAnchors, snxCoords, snxCoordsLog, snxInverse, snxLevel, snxRadius, snxDilate, snxTracks, snxSigma, snxS3Cap, snxS3Branches, snxFLRW, snxPhoton, snxPhase, snxAudit, SNX_G_REL};')();
 const K = P.UC_K, K1 = { hb: 1, G: 1, c: 1, h: 2 * Math.PI }, PHI = (1 + Math.sqrt(5)) / 2, frac = s => { const [n, d] = s.split('/'); return Number(BigInt(n)) / Number(BigInt(d)); };
 const rel = (x, y) => Math.abs(x - y) / Math.max(Math.abs(x), Math.abs(y), 1e-300);
