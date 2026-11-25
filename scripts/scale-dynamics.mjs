@@ -28,6 +28,8 @@ function parseCSV(text) { const lines = text.trim().split(/\r?\n/), head = lines
   const out = [], re = /("([^"]|"")*"|[^,]*)(,|$)/g; let m; while ((m = re.exec(l)) && out.length < head.length) { let v = m[1]; if (v.startsWith('"')) v = v.slice(1, -1).replace(/""/g, '"'); out.push(v); if (m[3] === '') break; }
   return Object.fromEntries(head.map((h, i) => [h, out[i] ?? ''])); }); }
 const num = x => { const v = parseFloat(x); return Number.isFinite(v) ? v : null; };
+/* every log value is rounded to 10⁻⁴ dex once, here, so that the page (which embeds them at that precision) fits exactly the same numbers */
+const r4 = x => +(+x).toFixed(4);
 /* asymmetric errors to log10: σ+ = log10(1 + e1/x), σ− = −log10(1 + e2/x); the symmetric σ is their mean */
 function logErr(x, e1, e2) { const up = Math.log10(1 + Math.abs(e1) / x), dn = 1 + (-Math.abs(e2)) / x > 0 ? -Math.log10(1 - Math.abs(e2) / x) : null;
   return { up, dn, sym: dn == null ? up : (up + dn) / 2, crossesZero: dn == null }; }
@@ -39,12 +41,12 @@ for (const r of pscomp) {
   const R = num(r.pl_rade), Re1 = num(r.pl_radeerr1), Re2 = num(r.pl_radeerr2), M = num(r.pl_bmasse), Me1 = num(r.pl_bmasseerr1), Me2 = num(r.pl_bmasseerr2);
   if (r.pl_bmassprov === 'Mass' && R > 0 && M > 0 && Re1 != null && Re2 != null && Me1 != null && Me2 != null && (r.pl_radelim === '0' || r.pl_radelim === '') && (r.pl_bmasselim === '0' || r.pl_bmasselim === '')) {
     const eM = logErr(M, Me1, Me2), eR = logErr(R, Re1, Re2);
-    planets.push({ id: r.pl_name, block: r.hostname, lm: Math.log10(M * M_EARTH), lr: Math.log10(R * R_EARTH), sM: eM.sym, sR: eR.sym, sMup: eM.up, sMdn: eM.dn, sRup: eR.up, sRdn: eR.dn,
+    planets.push({ id: r.pl_name, block: r.hostname, lm: r4(Math.log10(M * M_EARTH)), lr: r4(Math.log10(R * R_EARTH)), sM: r4(eM.sym), sR: r4(eR.sym), sMup: eM.up, sMdn: eM.dn, sRup: eR.up, sRdn: eR.dn,
       flag: eM.crossesZero || eR.crossesZero ? 'lower error bar reaches zero' : null, facility: r.disc_facility, method: r.discoverymethod }); }
   const sm = num(r.st_mass), sm1 = num(r.st_masserr1), sm2 = num(r.st_masserr2), sr = num(r.st_rad), sr1 = num(r.st_raderr1), sr2 = num(r.st_raderr2);
   if (sm > 0 && sr > 0 && sm1 != null && sm2 != null && sr1 != null && sr2 != null && !hostSeen.has(r.hostname)) {
     const eM = logErr(sm, sm1, sm2), eR = logErr(sr, sr1, sr2);
-    hostSeen.set(r.hostname, { id: r.hostname, block: r.hostname, lm: Math.log10(sm * K.Msun), lr: Math.log10(sr * K.Rsun), sM: eM.sym, sR: eR.sym, sMup: eM.up, sMdn: eM.dn, sRup: eR.up, sRdn: eR.dn,
+    hostSeen.set(r.hostname, { id: r.hostname, block: r.hostname, lm: r4(Math.log10(sm * K.Msun)), lr: r4(Math.log10(sr * K.Rsun)), sM: r4(eM.sym), sR: r4(eR.sym), sMup: eM.up, sMdn: eM.dn, sRup: eR.up, sRdn: eR.dn,
       flag: eM.crossesZero || eR.crossesZero ? 'lower error bar reaches zero' : null, teff: num(r.st_teff) }); }
 }
 /* main-sequence hosts only for the stellar relation: giants and subgiants sit on another branch. A star is kept if its
@@ -66,24 +68,31 @@ const NS = [ /* NICER pulse-profile inferences, 68 % intervals; the two analyses
     sRup: Math.log10(1 + n.Rup / n.R), sRdn: -Math.log10(1 - n.Rdn / n.R), src: n.src, mrCorrelation: null }))
   .map(n => ({ ...n, sM: (n.sMup + n.sMdn) / 2, sR: (n.sRup + n.sRdn) / 2 }));
 
-/* ── effective-variance regression y = a + S x with intrinsic scatter τ (Orear 1982; τ by χ²/ν = 1) ── */
+/* ── effective-variance regression y = a + S x with intrinsic scatter τ ──
+   χ²(a, S; τ) = Σ (y − a − S x)² / (σ_y² + τ² + S² σ_x²) is minimised over S itself — the slope sits in the denominator,
+   which is what removes the attenuation that errors in x cause (re-weighting at a fixed S, as a first version of this
+   file did, does not: with equal σ_x it is ordinary least squares, and the verifier caught it). a is profiled exactly;
+   S by a scan and golden-section search; τ by χ²/ν = 1 at the minimum. The page runs the same code (sdoEvFit). */
+function evProfile(pts, xk, yk, sx, sy, tau, S) { let W = 0, Wx = 0, Wy = 0;
+  for (const p of pts) { const w = 1 / (p[sy] * p[sy] + tau * tau + S * S * p[sx] * p[sx]); W += w; Wx += w * p[xk]; Wy += w * p[yk]; }
+  const a = (Wy - S * Wx) / W; let chi = 0; for (const p of pts) { const r = p[yk] - a - S * p[xk]; chi += r * r / (p[sy] * p[sy] + tau * tau + S * S * p[sx] * p[sx]); } return { a, chi }; }
+function evMinS(pts, xk, yk, sx, sy, tau, S0, half) { let best = S0, bc = Infinity;
+  for (let k = -20; k <= 20; k++) { const S = S0 + half * k / 20, c = evProfile(pts, xk, yk, sx, sy, tau, S).chi; if (c < bc) { bc = c; best = S; } }
+  let lo = best - half / 20, hi = best + half / 20; const g = (Math.sqrt(5) - 1) / 2; let c1 = hi - g * (hi - lo), c2 = lo + g * (hi - lo), f1 = evProfile(pts, xk, yk, sx, sy, tau, c1).chi, f2 = evProfile(pts, xk, yk, sx, sy, tau, c2).chi;
+  for (let it = 0; it < 40; it++) { if (f1 < f2) { hi = c2; c2 = c1; f2 = f1; c1 = hi - g * (hi - lo); f1 = evProfile(pts, xk, yk, sx, sy, tau, c1).chi; } else { lo = c1; c1 = c2; f1 = f2; c2 = lo + g * (hi - lo); f2 = evProfile(pts, xk, yk, sx, sy, tau, c2).chi; } }
+  const S = (lo + hi) / 2, P = evProfile(pts, xk, yk, sx, sy, tau, S); return { S, a: P.a, chi: P.chi }; }
 function evFit(pts, xk, yk, sx, sy) {
   const n = pts.length; if (n < 3) return null;
-  let S = 0, a = 0, tau = 0;
-  { let mx = 0, my = 0; for (const p of pts) { mx += p[xk]; my += p[yk]; } mx /= n; my /= n; let sxy = 0, sxx = 0; for (const p of pts) { sxy += (p[xk] - mx) * (p[yk] - my); sxx += (p[xk] - mx) ** 2; } S = sxx > 0 ? sxy / sxx : 0; a = my - S * mx; }
-  let cov = null;
-  for (let it = 0; it < 25; it++) {
-    let W = 0, Wx = 0, Wy = 0, Wxx = 0, Wxy = 0, chi = 0;
-    for (const p of pts) { const w = 1 / (p[sy] ** 2 + S * S * p[sx] ** 2 + tau * tau); W += w; Wx += w * p[xk]; Wy += w * p[yk]; Wxx += w * p[xk] ** 2; Wxy += w * p[xk] * p[yk]; }
-    const D = W * Wxx - Wx * Wx; if (!(D > 0)) return null;
-    const S2 = (W * Wxy - Wx * Wy) / D, a2 = (Wy * Wxx - Wx * Wxy) / D; cov = [[Wxx / D, -Wx / D], [-Wx / D, W / D]];
-    for (const p of pts) chi += (p[yk] - a2 - S2 * p[xk]) ** 2 / (p[sy] ** 2 + S2 * S2 * p[sx] ** 2 + tau * tau);
-    const red = chi / (n - 2);
-    /* τ up or down until χ²/ν = 1 (bisection on τ², bounded) */
-    if (red > 1.0001) { let lo = tau, hi = Math.max(0.01, tau * 2); const f = t => pts.reduce((s, p) => s + (p[yk] - a2 - S2 * p[xk]) ** 2 / (p[sy] ** 2 + S2 * S2 * p[sx] ** 2 + t * t), 0) / (n - 2);
-      while (f(hi) > 1) hi *= 2; for (let k = 0; k < 30; k++) { const m = (lo + hi) / 2; if (f(m) > 1) lo = m; else hi = m; } tau = (lo + hi) / 2; }
-    const done = Math.abs(S2 - S) < 1e-10 && Math.abs(a2 - a) < 1e-10; S = S2; a = a2; if (done) break; }
-  return { a, S, tau, n, covFisher: cov };
+  let mx = 0, my = 0; for (const p of pts) { mx += p[xk]; my += p[yk]; } mx /= n; my /= n; let sxy = 0, sxx = 0; for (const p of pts) { sxy += (p[xk] - mx) * (p[yk] - my); sxx += (p[xk] - mx) ** 2; }
+  const S0 = sxx > 0 ? sxy / sxx : 0; let m = evMinS(pts, xk, yk, sx, sy, 0, S0, 2), tau = 0;
+  if (m.chi / (n - 2) > 1) { let lo = 0, hi = 0.05; const red = t => (m = evMinS(pts, xk, yk, sx, sy, t, m.S, 0.5)).chi / (n - 2);
+    while (red(hi) > 1 && hi < 10) hi *= 2; for (let k = 0; k < 30; k++) { const t = (lo + hi) / 2; if (red(t) > 1) lo = t; else hi = t; } tau = (lo + hi) / 2; m = evMinS(pts, xk, yk, sx, sy, tau, m.S, 0.5); }
+  /* the curvature of χ² at the minimum gives the Fisher covariance of (a, S): cov = 2 H⁻¹ */
+  const f = (a, S) => { let c = 0; for (const p of pts) { const r = p[yk] - a - S * p[xk]; c += r * r / (p[sy] * p[sy] + tau * tau + S * S * p[sx] * p[sx]); } return c; };
+  const ha = 1e-4, hs = 1e-4, faa = (f(m.a + ha, m.S) - 2 * f(m.a, m.S) + f(m.a - ha, m.S)) / (ha * ha), fss = (f(m.a, m.S + hs) - 2 * f(m.a, m.S) + f(m.a, m.S - hs)) / (hs * hs),
+    fas = (f(m.a + ha, m.S + hs) - f(m.a + ha, m.S - hs) - f(m.a - ha, m.S + hs) + f(m.a - ha, m.S - hs)) / (4 * ha * hs), det = faa * fss - fas * fas;
+  const covFisher = det > 0 ? [[2 * fss / det, -2 * fas / det], [-2 * fas / det, 2 * faa / det]] : [[NaN, NaN], [NaN, NaN]];
+  return { a: m.a, S: m.S, tau, n, covFisher, chi: m.chi };
 }
 function blockBootstrap(pts, fit, B, seed) {
   const r = rng(seed), blocks = new Map(); for (const p of pts) { if (!blocks.has(p.block)) blocks.set(p.block, []); blocks.get(p.block).push(p); }
@@ -98,7 +107,7 @@ const covOf = (xs, ys) => { const mx = xs.reduce((s, x) => s + x, 0) / xs.length
 /* ── local slopes in windows of log M (x = log M, y = log R; S = d log R / d log M) ── */
 function localSlopes(pts, { width, step, minN, B, seed }) {
   const xs = pts.map(p => p.lm), lo = Math.min(...xs), hi = Math.max(...xs), out = [];
-  for (let c = lo + width / 2; c <= hi - width / 2 + 1e-9; c += step) {
+  for (let k = 0; lo + width / 2 + k * step <= hi - width / 2 + 1e-9; k++) { const c = r4(lo + width / 2 + k * step);   /* the centre the page will use, to 10⁻⁴ */
     const w = pts.filter(p => Math.abs(p.lm - c) <= width / 2).map(p => ({ ...p, x: p.lm - c }));
     if (w.length < minN) continue;
     const f = evFit(w, 'x', 'lr', 'sM', 'sR'); if (!f) continue;
@@ -137,6 +146,29 @@ function hingeFit(pts, breaks, iters = 12) {
   return { breaks, beta, tau, ll, k, bic: -2 * ll + k * Math.log(n), aic: -2 * ll + 2 * k, cov,
     slopes: [beta[1], ...breaks.map((b, i) => beta[1] + beta.slice(2, 3 + i).reduce((s, v) => s + v, 0))] };
 }
+/* the breaks are located with the re-weighted fit above (fast, enough to place a knee); the coefficients of the chosen
+   breaks are then fitted properly — χ² with each point's own segment slope in its denominator, minimised over β by
+   Nelder–Mead, τ by χ²/ν = 1, alternated to convergence — so that errors in mass do not flatten the slopes */
+function nmMin(f, x0, step, maxEval) { const n = x0.length; let S = [x0.slice()]; for (let i = 0; i < n; i++) { const y = x0.slice(); y[i] += step[i]; S.push(y); } let F = S.map(f), ev = n + 1;
+  while (ev < maxEval) { const o = F.map((v, i) => [v, i]).sort((a, b) => a[0] - b[0]); S = o.map(([, i]) => S[i]); F = o.map(([v]) => v); const c = new Array(n).fill(0); for (let i = 0; i < n; i++) for (let k = 0; k < n; k++) c[k] += S[i][k] / n;
+    const rf = c.map((v, k) => v + (v - S[n][k])), fr = f(rf); ev++;
+    if (fr < F[0]) { const ex = c.map((v, k) => v + 2 * (v - S[n][k])), fe = f(ex); ev++; if (fe < fr) { S[n] = ex; F[n] = fe; } else { S[n] = rf; F[n] = fr; } }
+    else if (fr < F[n - 1]) { S[n] = rf; F[n] = fr; }
+    else { const co = c.map((v, k) => v + 0.5 * (S[n][k] - v)), fc = f(co); ev++; if (fc < F[n]) { S[n] = co; F[n] = fc; } else { for (let i = 1; i <= n; i++) { S[i] = S[i].map((v, k) => S[0][k] + 0.5 * (v - S[0][k])); F[i] = f(S[i]); ev++; } } } }
+  const i0 = F.indexOf(Math.min(...F)); return { x: S[i0], f: F[i0] }; }
+function hingeRefine(pts, f0) {
+  if (!f0) return null; const breaks = f0.breaks, n = pts.length, P = 2 + breaks.length;
+  const rows = pts.map(p => [1, p.m, ...breaks.map(b => Math.max(0, p.m - b))]), seg = pts.map(p => breaks.reduce((k, b) => p.m > b ? k + 1 : k, 0));
+  const slopeOf = (i, be) => { let s = be[1]; for (let k = 0; k < seg[i]; k++) s += be[2 + k]; return s; };
+  const chi = (be, t) => { let c = 0; for (let i = 0; i < n; i++) { const r = rows[i]; let mu = 0; for (let a = 0; a < P; a++) mu += r[a] * be[a]; const sl = slopeOf(i, be), d = pts[i].lrE - mu; c += d * d / (pts[i].sR ** 2 + t * t + sl * sl * pts[i].sM ** 2); } return c; };
+  let beta = f0.beta.slice(), tau = f0.tau;
+  for (let cyc = 0; cyc < 6; cyc++) { const r = nmMin(be => chi(be, tau), beta, beta.map(() => 0.02), 120 * P); const moved = r.x.some((v, i) => Math.abs(v - beta[i]) > 1e-6); beta = r.x;
+    const red = t => chi(beta, t) / (n - P); let t2 = 0; if (red(0) > 1) { let lo = 0, hi = 0.05; while (red(hi) > 1) hi *= 2; for (let k = 0; k < 30; k++) { const m = (lo + hi) / 2; if (red(m) > 1) lo = m; else hi = m; } t2 = (lo + hi) / 2; }
+    const tMoved = Math.abs(t2 - tau) > 1e-6; tau = t2; if (!moved && !tMoved) break; }
+  let ll = 0; for (let i = 0; i < n; i++) { const r = rows[i]; let mu = 0; for (let a = 0; a < P; a++) mu += r[a] * beta[a]; const sl = slopeOf(i, beta), v = pts[i].sR ** 2 + tau * tau + sl * sl * pts[i].sM ** 2; ll += -0.5 * ((pts[i].lrE - mu) ** 2 / v + Math.log(2 * Math.PI * v)); }
+  const k = P + breaks.length + 1;
+  return { breaks, beta, tau, ll, k, bic: -2 * ll + k * Math.log(n), aic: -2 * ll + 2 * k, slopes: [beta[1], ...breaks.map((b, i) => beta[1] + beta.slice(2, 3 + i).reduce((x, v) => x + v, 0))], located: 're-weighted search', fitted: 'χ² with slope in the denominator' };
+}
 function invert(A) { const n = A.length, M = A.map((r, i) => [...r, ...Array.from({ length: n }, (_, j) => i === j ? 1 : 0)]);
   for (let c = 0; c < n; c++) { let p = c; for (let r = c + 1; r < n; r++) if (Math.abs(M[r][c]) > Math.abs(M[p][c])) p = r; if (Math.abs(M[p][c]) < 1e-300) return null; [M[c], M[p]] = [M[p], M[c]];
     const d = M[c][c]; for (let j = 0; j < 2 * n; j++) M[c][j] /= d; for (let r = 0; r < n; r++) if (r !== c) { const f = M[r][c]; for (let j = 0; j < 2 * n; j++) M[r][j] -= f * M[c][j]; } }
@@ -155,14 +187,17 @@ function bestHinge(pts, nBreaks, grid, refine = true) {
   return best;
 }
 
-/* ── run ── */
+/* ── run (only when called as a script; the verifier imports the functions) ── */
+export { evFit, hingeFit, hingeRefine, bestHinge, localSlopes, logErr, blockBootstrap, rng, invert };
+if (import.meta.url === `file://${process.argv[1]}`) main();
+function main() {
 const lmE = Math.log10(M_EARTH), lrE = Math.log10(R_EARTH);
 const P2 = planets.map(p => ({ ...p, m: p.lm - lmE, lrE: p.lr - lrE }));
 const grid = []; for (let m = -0.5; m <= 3.6 + 1e-9; m += 0.2) grid.push(+m.toFixed(2));
-const fits = [0, 1, 2, 3].map(k => bestHinge(P2, k, grid));
+const fits = [0, 1, 2, 3].map(k => hingeRefine(P2, bestHinge(P2, k, grid)));
 const bestK = fits.reduce((b, f, i) => f.bic < fits[b].bic ? i : b, 0);
 /* bootstrap the chosen model's breaks over host blocks (a coarser grid inside, to keep the run short) */
-const bsBreaks = blockBootstrap(P2, s => bestHinge(s, bestK, grid, true), 100, 4412).map(f => ({ breaks: f.breaks, slopes: f.slopes }));
+const bsBreaks = blockBootstrap(P2, s => hingeRefine(s, bestHinge(s, bestK, grid, true)), 100, 4412).map(f => ({ breaks: f.breaks, slopes: f.slopes }));
 const CK = { src: 'Chen & Kipping 2017, ApJ 834, 17 (transcribed: verify against the paper)', c0: 1.008, transitionsMearth: [2.04, 0.414 * 317.83, 0.0800 * 332946.0], slopes: [0.279, 0.589, -0.044, 0.881],
   families: ['Terran', 'Neptunian', 'Jovian', 'Stellar'] };
 
@@ -194,8 +229,8 @@ const out = {
     identity: ['C = 1 (R = 2GM/c²) and Q = 1 (R = ħ/(Mc)): definitions, not data', 'I_S = (1+S) log C + (1−S) log Q is constant along R ∝ M^S: a theorem (Lean: dilation_invariant, p = 1/S), not a finding', 'the allowed band C ≤ 1 ∧ Q ≤ 1 (Lean: allowed_masses, allowed_nonempty)'],
     hypothetical: ['extrapolating any fitted slope outside its window', 'dilation trajectories M ∝ R^p drawn through a point', 'FBS3R rung lines: coordinates, not layers'] },
   populations: {
-    planets: { n: planets.length, blocks: new Set(planets.map(p => p.block)).size, selection: 'pl_bmassprov = "Mass", finite radius and mass with both errors, no limit flags', mr_covariance: 'not provided by the archive: ρ(M, R) = 0 assumed', rows: planets.map(p => [p.id, +p.lm.toFixed(5), +p.lr.toFixed(5), +p.sMup.toFixed(5), p.sMdn == null ? null : +p.sMdn.toFixed(5), +p.sRup.toFixed(5), p.sRdn == null ? null : +p.sRdn.toFixed(5)]), columns: ['name', 'lm', 'lr', 'sigma_lm_up', 'sigma_lm_down', 'sigma_lr_up', 'sigma_lr_down'] },
-    hosts: { n: hosts.length, n_all: hostsAll.length, selection: 'unique hosts with st_mass, st_rad and both errors; main-sequence cut 1/1.6 < R/M^0.8 < 1.6 (solar units)', caveat: 'mostly model-derived, not dynamical', rows: hosts.map(p => [p.id, +p.lm.toFixed(5), +p.lr.toFixed(5), +p.sMup.toFixed(5), p.sMdn == null ? null : +p.sMdn.toFixed(5), +p.sRup.toFixed(5), p.sRdn == null ? null : +p.sRdn.toFixed(5)]) },
+    planets: { n: planets.length, blocks: new Set(planets.map(p => p.block)).size, selection: 'pl_bmassprov = "Mass", finite radius and mass with both errors, no limit flags', mr_covariance: 'not provided by the archive: ρ(M, R) = 0 assumed', rows: planets.map(p => [p.id, p.lm, p.lr, +p.sMup.toFixed(5), p.sMdn == null ? null : +p.sMdn.toFixed(5), +p.sRup.toFixed(5), p.sRdn == null ? null : +p.sRdn.toFixed(5), p.sM, p.sR]), columns: ['name', 'lm', 'lr', 'sigma_lm_up', 'sigma_lm_down', 'sigma_lr_up', 'sigma_lr_down', 'sigma_lm_fit', 'sigma_lr_fit'] },
+    hosts: { n: hosts.length, n_all: hostsAll.length, selection: 'unique hosts with st_mass, st_rad and both errors; main-sequence cut 1/1.6 < R/M^0.8 < 1.6 (solar units)', caveat: 'mostly model-derived, not dynamical', rows: hosts.map(p => [p.id, p.lm, p.lr, +p.sMup.toFixed(5), p.sMdn == null ? null : +p.sMdn.toFixed(5), +p.sRup.toFixed(5), p.sRdn == null ? null : +p.sRdn.toFixed(5), p.sM, p.sR]) },
     white_dwarfs: { n: WD.length, rows: WD.map(w => ({ id: w.id, lm: +w.lm.toFixed(5), lr: +w.lr.toFixed(5), sigma_lm: +w.sM.toFixed(5), sigma_lr: +w.sR.toFixed(5), src: w.src })), caveat: 'transcribed from the papers named; three stars do not constrain a slope' },
     neutron_stars: { n: NS.length, rows: NS.map(n => ({ id: n.id, group: n.block, lm: +n.lm.toFixed(5), lr: +n.lr.toFixed(5), sigma_lm: [+n.sMdn.toFixed(5), +n.sMup.toFixed(5)], sigma_lr: [+n.sRdn.toFixed(5), +n.sRup.toFixed(5)], mr_correlation: null, src: n.src })),
       caveat: 'the M–R posteriors are correlated and not summarised by two intervals; two analyses of one pulsar share data. Three pulsars do not constrain a slope.' } },
@@ -213,3 +248,4 @@ const out = {
   not_claimed: ['no slope here is a law of nature: each summarises this sample with its selection', 'the host-star relation inherits the stellar models used to derive it', 'nothing here bears on the golden lattice or on FBS3R rungs'] };
 fs.writeFileSync(path.join(ROOT, 'data/scale-nexus/scale-dynamics.json'), JSON.stringify(out));
 console.log(JSON.stringify({ planets: planets.length, hosts: hosts.length, hostsAll: hostsAll.length, bic: fits.map(f => +f.bic.toFixed(1)), chosen: bestK, breaks: fits[bestK].breaks, slopes: fits[bestK].slopes.map(v => +v.toFixed(3)), ci: out.planets_broken_power_law.breaks_bootstrap.ci95, families: planetFamilies, hostsS: out.hosts_global, nLocal: [sPlanets.length, sHosts.length], wd: wdSlope.slice(0, 3).concat(wdSlope.slice(-3)) }, null, 0));
+}

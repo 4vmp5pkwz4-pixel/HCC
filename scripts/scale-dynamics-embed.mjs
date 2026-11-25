@@ -7,7 +7,7 @@ const ROOT = path.join(path.dirname(new URL(import.meta.url).pathname), '..');
 const J = JSON.parse(fs.readFileSync(path.join(ROOT, 'data/scale-nexus/scale-dynamics.json'), 'utf8'));
 const r4 = x => x == null ? null : +(+x).toFixed(4);
 const cols = rows => { const o = { lm: [], lr: [], sM: [], sR: [] };
-  for (const [, lm, lr, mu, md, ru, rdn] of rows) { o.lm.push(r4(lm)); o.lr.push(r4(lr)); o.sM.push(r4(md == null ? mu : (mu + md) / 2)); o.sR.push(r4(rdn == null ? ru : (ru + rdn) / 2)); } return o; };
+  for (const [, lm, lr, , , , , sM, sR] of rows) { o.lm.push(lm); o.lr.push(lr); o.sM.push(sM); o.sR.push(sR); } return o; };
 const B = J.planets_broken_power_law, chosen = B.models[B.chosen_by_bic];
 /* the chosen model's coefficients (β0, β1, Δ…) are recomputed from its breaks and slopes: the intercept is stored too */
 const D = {
