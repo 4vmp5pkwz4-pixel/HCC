@@ -16,6 +16,10 @@
 - **`docs/verify-the-scale-nexus.mjs`:** 11 checks, 26 915 cases.
 - **Reports** `REPORT.md`, `GATES.md`, `LINEAGE.json`, `MANUSCRIPT.md`; the handoff kept in `docs/scale-nexus/handoff/`.
 
+- **FBS3R.** Scale Nexus shells (R_A, A, the entry, its dilation end) in the 3D scene. A panel section links the two worlds both ways, with shared H₀ and Ω_K.
+- **Catalogue cards.** Every card carries its typed audit row.
+- **Typed bus coupling** `rungs.hubble_constant_early → scalenexus.scalenexus_hubble`, plus routable publications of the Scale Nexus outputs.
+
 ## Changed
 - **Sun's mass:** now GM☉(IAU 2015)/G(CODATA 2022) = 1.988410·10³⁰ kg. It was 1.98847·10³⁰, which used the 2014 G.
 - **Electron mass:** now 0.51099895069 MeV (CODATA 2022). It was 0.51099895.

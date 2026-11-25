@@ -12,7 +12,8 @@
      8. Lean: the build log, the axiom audit of all 29 theorems, and the hashes of what was built;
      9. parity with the handoff's reference kernel, and its own test;
     10. the preregistered golden-lattice test: its recorded result recomputed from the data;
-    11. the wiring and the instrument, which runs without a browser.
+    11. the typed bus both ways and the integration into FBS3R and the catalogue cards;
+    12. the wiring and the instrument, which runs without a browser.
    NOT checked here: physics. The kernel is coordinates; the S³ and FLRW parts are conditional on their models. */
 import fs from 'node:fs'; import path from 'node:path'; import crypto from 'node:crypto'; import { createRequire } from 'node:module';
 const ROOT = path.join(path.dirname(new URL(import.meta.url).pathname), '..');
@@ -118,6 +119,21 @@ const rel = (x, y) => Math.abs(x - y) / Math.max(Math.abs(x), Math.abs(y), 1e-30
   check(res.holdout.n === hold.length && Math.abs(res.holdout.R - z.R) < 1e-12 && res.holdout.pPrimary > 0.05 && res.holdout.rankOfPhi > 1 && /no evidence/.test(res.holdout.verdict) && res.prerequisites.power['0.1'] >= 0.8 && res.prerequisites.calibrationKS < 0.1 && /before/i.test(prereg) && res.sha256 === pop.sha256,
     'the golden lattice, as preregistered: on the holdout of the NASA Exoplanet Archive transit radii (2384 planets in 1812 systems) the φ statistic recomputed here matches the recorded R̄; its p is above 0.05 and φ ranks far from first among 241 bases — no evidence for a golden lattice in this population; the null was calibrated and the test had full power at a 10 % injected lattice; the scan’s maximum elsewhere (b ≈ 2.24) is reported, with a post-hoc sensitivity analysis, as the multimodal radius distribution',
     `n ${hold.length} · R̄_φ ${z.R.toFixed(4)} · p ${res.holdout.pPrimary.toFixed(3)} · φ rank ${res.holdout.rankOfPhi}/${res.holdout.of} · scan best b ${res.holdout.scanBestBase.toFixed(3)} (corrected p ${res.holdout.pScanCorrected.toFixed(4)}) · power at 10 % ${res.prerequisites.power['0.1']}`); }
+
+{ /* the typed bus, both directions: a declared coupling INTO the Scale Nexus, refusals by quantity kind, and its outputs routable OUT */
+  const man = JSON.parse(rd('api/manifest.json')), specs = new Map(man.instruments.map(i => [i.id, i])), fnSrc = n => { const i = src.indexOf('function ' + n + '('), j = src.indexOf('\n}', i); return src.slice(i, j + 2); };
+  const Q = new Function('HCC_API_SPECS', fnSrc('hccQuantityCompatible') + fnSrc('hccQuantityRefusal') + ';return {hccQuantityRefusal};')(specs);
+  const link = man.bus.links.find(l => l.from === 'rungs.hubble_constant_early' && l.to === 'scalenexus.scalenexus_hubble');
+  const accepted = Q.hccQuantityRefusal('rungs.hubble_constant_early', 'scalenexus.scalenexus_hubble') === null;
+  const refusedMass = /quantity kind mismatch/.test(Q.hccQuantityRefusal('scales.planck_mass', 'scalenexus.scalenexus_mass') || '');
+  const refusedLen = /quantity kind mismatch/.test(Q.hccQuantityRefusal('ns.radius_km', 'scalenexus.scalenexus_radius') || '');
+  const noMassLink = !man.bus.links.some(l => /scalenexus\.scalenexus_(mass|radius)$/.test(l.to));
+  const outs = specs.get('scalenexus').outputs, pubs = [['scalenexus_log_compactness', '1'], ['scalenexus_log_quantum', '1'], ['scalenexus_rung', '1'], ['scalenexus_apparent_horizon', 'm'], ['scalenexus_log_density', '1']];
+  const routable = pubs.every(([n, u]) => outs.some(o => o.name === n && o.unit === u) && src.includes(`ATLAS_BUS.pub('scalenexus.${n}'`));
+  const fbs = ["try{ fbsSnxTick(dt,D); }", "    ${fbsSnxPanelHTML()}", "try{ fbsSnxBind(ctl); }catch(e){}", "rows.push(...snxCardRows(e));", "data-fbssnxsel=", "data-snxgo=\"nearest\""].filter(x => !src.includes(x));
+  check(!!link && link.quantity_kind === 'hubble_rate' && accepted && refusedMass && refusedLen && noMassLink && routable && !fbs.length,
+    'the typed bus and FBS3R, both ways: the distance ladder’s CMB-calibrated H₀ drives the FLRW slice of the Scale Nexus (same quantity kind, same unit, declared in api/manifest.json); a mass of unspecified kind (the Planck mass) and a radius declared as a path length are REFUSED as the mass and the radius of an entry — matching units are not the same quantity; the selected entry’s log C, log Q, rung, density and the apparent horizon are published under the instrument’s own output names and units, so any laboratory can route them; in FBS3R the shells of the apparent horizon, the curvature radius, the entry and its dilation track are drawn, the entries of the rung in view are picked from the panel into the Scale Nexus and the Scale Nexus flies FBS3R to its entry; every catalogue card carries its typed row',
+    `link ${link ? link.from + ' → ' + link.to + ' (' + link.quantity_kind + ')' : 'missing'} · refusals: mass ${refusedMass}, radius ${refusedLen} · routable outputs ${routable}${fbs.length ? ' · missing ' + fbs.join(' | ') : ''}`); }
 
 { const M = await import(path.join(ROOT, 'core/atlas/instruments.mjs')), miss = ["{id:'scalenexus', category:'inv'", "id:'scalenexus', world:'s3', lab:'scalenexus'", "snxGroup.visible = (v==='scalenexus');", "if(v==='scalenexus'&&!snxObjs){ snxSetup(); }", "else if(V==='scalenexus') body = snxPanelHTML();",
     "if(V==='scalenexus'){ snxBind(ctl); }", "} else if(state.s3view==='scalenexus'){", "scalenexus:{pause:['snxPaused','p']},", "['snxAtlas','scalenexus',snxGroup,", "()=>goLab('s3','scalenexus')", "globalThis.HCC_SCALE_NEXUS=Object.freeze({", "{id:'scalenexus441', kind:'tested'",

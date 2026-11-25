@@ -128,6 +128,30 @@ This is a representation, not a law.
 
 **Artifacts:** `build.log`, `axioms.txt`, `toolchain.txt`, `SHA256SUMS`, all in `lean/scale-nexus/`.
 
+## 4b. Across the atlas (G4, G5)
+
+**In the FBS3R world (3D).**
+- Four shells live off the Scale Nexus state:
+  - the FLRW apparent horizon R_A;
+  - the curvature radius A = R_H/√(−Ω_K) that Friedmann and Ω_K imply. It is drawn **beside** the published S³ preset, not in place of it.
+  - the selected catalogue entry;
+  - the end of that entry's dilation track.
+- The panel section "HCC Scale Nexus on the shells" shows, for the rung in view:
+  - the rung in three bases;
+  - the masses that rung's length can hold — one segment of the C–Q plane, or none below the crossing at N = 0.72;
+  - the typed catalogue entries within one rung.
+
+**Linking, both ways.**
+- Picking an entry in FBS3R selects it in the Scale Nexus.
+- The Scale Nexus flies FBS3R to its entry, and selects the entry nearest the FBS3R rung.
+- H₀ and Ω_K are the same sliders in both places.
+
+**The typed bus.**
+- The distance ladder's CMB-calibrated H₀ drives the Scale Nexus FLRW slice (`rungs.hubble_constant_early → scalenexus.scalenexus_hubble`, `hubble_rate`).
+- The Scale Nexus publishes its outputs for anyone to route. The bus refuses the Planck mass (kind unspecified) as an entry's mass.
+
+**Everywhere the catalogue is shown** — the matter map and the FBS3R matter wheel — each card now carries its typed audit row and (log C, log Q).
+
 ## 5. S³ and FLRW (A, B)
 
 **S³ lengths.** On a round S³ of curvature radius A, the geodesic D = Aχ, the areal R = A sin χ and the volume-equivalent radius (3V/4π)^{1/3} are three different lengths.
