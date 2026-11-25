@@ -14,7 +14,7 @@
         131.6 M⊕, the lower one's does not contain their 2.04 M⊕;
      8. the four layers are tagged everywhere they are shown, white dwarfs and neutron stars are not fitted, and the
         export carries data, uncertainties, covariances, sources and certificates;
-     9. the wiring: declared, registered, runnable without a browser, typed bus links into the Scale Nexus, routable
+     9. the wiring: declared, registered, runnable without a browser, NOT linked into the Scale Nexus's mass and radius, routable
         publications, read back by FBS3R, Nexus relations, Multiview, map census, trips, translations.
    NOT checked: that any slope is a law of nature. Each summarises a sample with its selection. */
 import fs from 'node:fs'; import path from 'node:path'; import crypto from 'node:crypto';
@@ -125,7 +125,8 @@ const gauss = r => { let u = 0, v = 0; while (!u) u = r(); while (!v) v = r(); r
   const pubs = [...src.matchAll(/ATLAS_BUS\.pub\('scaledyn\.(scaledyn_\w+)',[^;]*?,'([^']+)'\)/g)].map(m => [m[1], m[2]]);
   const routable = pubs.length >= 6 && pubs.every(([n, u]) => outs.some(([o, ou]) => o === n && ou === u));
   const reads = pubs.every(([n]) => src.includes(`g('scaledyn.${n}')`));
-  const links = src.includes("L('scaledyn.scaledyn_mass_center','scalenexus.scalenexus_mass');") && src.includes("L('scaledyn.scaledyn_radius','scalenexus.scalenexus_radius');");
+  /* a population fit at a window centre is not a body: it must not drive the Scale Nexus's mass or radius (that verifier's invariant) */
+  const links = !/L\('scaledyn\.[a-z_]+','scalenexus\.scalenexus_(mass|radius)'\)/.test(src) && /THE OBSERVATORY IS NOT WIRED INTO THE SCALE NEXUS/.test(src);
   const wired = [/\{id:'scaledyn', category:'inv'/, /\n  scaledyn:\{\n    native_space:/, /\{id:'scaledyn442', kind:'found'/, /v==='scaledyn'\?\[/, /sdoGroup\.visible = \(v==='scaledyn'\);/, /if\(v==='scaledyn'&&!sdoObjs\)\{ sdoSetup\(\); \}/,
     /scaledyn:\{pause:\['sdoPaused','p'\]/, /else if\(V==='scaledyn'\) body = sdoPanelHTML\(\);/, /if\(V==='scaledyn'\)\{ sdoBind\(ctl\); \}/, /state\.s3view==='scaledyn'\)\{\n      fbsAnimT\+=labDt; updateSdo\(labDt\);/,
     /\['sdoAtlas','scaledyn',sdoGroup,/, /\n  scaledyn:'как масса/, /\n  scaledyn:'wie Masse/, /hccGo\(\{worldId:'s3',labId:'scaledyn'\}\)/, /goLab\('s3','scaledyn'\)/, /scaledyn:\{_:'world:fbs'\}/,
@@ -133,8 +134,8 @@ const gauss = r => { let u = 0, v = 0; while (!u) u = r(); while (!v) v = r(); r
   const ja = fs.readdirSync(path.join(ROOT, 'data/i18n/ja')).some(f => /scale-dynamics/.test(f) && rd('data/i18n/ja/' + f).includes('The Scale Dynamics Observatory'));
   const quick = rd('scripts/run-quick-verifiers.mjs').split('docs/verify-the-scale-dynamics.mjs').length - 1 === 2;
   check(out && Number.isFinite(out.scaledyn_slope) && out.scaledyn_count > 100 && routable && reads && links && wired.every(Boolean) && ja && quick,
-    'the wiring: declared, described, recorded in the ledger, set up, ticked, given a panel and a view, listed among the laboratories and the trips, related in the Nexus, classified on the map; its instrument runs without a browser; every publication is a declared output with its unit and is read back by FBS3R; its fitted point is routed by type into the Scale Nexus; translated; and run by the quick verifier suite',
-    `instrument at 5 M⊕: S ${out ? out.scaledyn_slope.toFixed(4) : '—'}, n ${out ? out.scaledyn_count : '—'} · publications ${pubs.length}, routable ${routable}, read by FBS3R ${reads} · links ${links} · wiring ${wired.filter(Boolean).length}/${wired.length} · ja ${ja} · quick suite ${quick}`); }
+    'the wiring: declared, described, recorded in the ledger, set up, ticked, given a panel and a view, listed among the laboratories and the trips, related in the Nexus, classified on the map; its instrument runs without a browser; every publication is a declared output with its unit and is read back by FBS3R; its fitted point is deliberately not routed into the Scale Nexus’s mass and radius (a fit is not a typed body); translated; and run by the quick verifier suite',
+    `instrument at 5 M⊕: S ${out ? out.scaledyn_slope.toFixed(4) : '—'}, n ${out ? out.scaledyn_count : '—'} · publications ${pubs.length}, routable ${routable}, read by FBS3R ${reads} · no link into the Scale Nexus mass/radius ${links} · wiring ${wired.filter(Boolean).length}/${wired.length} · ja ${ja} · quick suite ${quick}`); }
 
 console.log(`\n${pass} passed, ${fail} failed · ${cases} deterministic cases`);
 process.exit(fail ? 1 : 0);
