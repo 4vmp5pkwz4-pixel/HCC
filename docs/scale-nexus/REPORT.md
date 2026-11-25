@@ -193,11 +193,11 @@ This is a representation, not a law.
 | Verdict | **no evidence for a golden lattice in this population** |
 
 **Prerequisites, met on the exploration half only:**
-- The null is calibrated: Kolmogorov–Smirnov 0.056 at n = 200.
-- Power is 1.0 at a 10 % injected lattice, so the test could have found one.
+- The null is calibrated: Kolmogorov–Smirnov 0.056 at n = 200. *(Frontier II: calibrated against draws from its own generator only. On independent synthetic populations the primary test holds — false-positive rate 0–8 % — but the scan does not; see `STATISTICAL_REPLICATION.md` §1.)*
+- Power is 1.0 at a 10 % injected lattice, so the test could have found one. *(Frontier II: that is the primary test. The full registered criterion has power 0.22 at 10 % and 0.03–0.45 over 5–30 %.)*
 
 **The base scan.**
-- The scan's maximum is at b = 2.236, with Z = 50 and corrected p = 0.0005, and it recurs in the exploration half at b = 2.26.
+- The scan's maximum is at b = 2.236, with Z = 50 and corrected p = 0.0005, and it recurs in the exploration half at b = 2.26. *(Frontier II: the scan's false-positive rate is 92–100 % on non-log-normal populations, so this p is withdrawn as evidence. The √5 replication on independent TESS candidates was **not replicated** under preregistration II.)*
 - A post-hoc sensitivity analysis, **not preregistered**, is in `golden-lattice-sensitivity.json`:
   - the maximum survives a 1 % jitter, so it is not catalogue rounding;
   - it survives a null that keeps structure down to 0.08 dex.
@@ -223,3 +223,26 @@ This is a representation, not a law.
 | Lean fixtures | in `lean/scale-nexus`: `lake env lean Fixtures.lean` |
 | Golden-lattice test | `node scripts/golden-lattice-test.mjs --prereq --holdout` — about 3 minutes; seed 4410 |
 | The handoff's own test | in `docs/scale-nexus/handoff`: `node tests/kernel.test.js` — 15 079 assertions |
+
+## Frontier II (v4.442) — the independent audit and research frontier
+
+This report is kept as released, with the corrections marked in place. The Frontier II results are in four reports:
+
+| Report | Covers |
+|---|---|
+| `SCIENTIFIC_AUDIT.md` | items 1–12: the statistics corrected; the constants registry; edition updates, not contradictions; the erratum BLOCKED; the strict C ≤ 1 ∧ Q ≤ 1 condition; R_H, R_A, A and D apart; both branches; what C means per entry |
+| `FORMAL_VERIFICATION.md` | items 13–19: 42 Lean theorems, the clean rebuild, axiom audit and hashes |
+| `STATISTICAL_REPLICATION.md` | items 20–25: preregistration II on independent TESS candidates — φ and √5 **not replicated**; post-hoc diagnostics place √5 on a broad, known, non-periodic structure |
+| `PUBLICATION_READINESS.md` | items 26–30 and VI: the Scale Dynamics Observatory; acceptance; what still blocks publication |
+
+**How to reproduce the Frontier II results**
+
+| What | Command |
+|---|---|
+| Frontier II verifiers | `node docs/verify-the-constants-registry.mjs`, `node docs/verify-the-scale-nexus.mjs` (13 checks), `node docs/verify-the-scale-dynamics.mjs` |
+| v2 of the first test and the statistical audit | `node scripts/golden-lattice-audit.mjs --v2`, `node scripts/golden-lattice-audit.mjs --audit` |
+| Replication II | `node scripts/golden-lattice-replication.mjs` |
+| Post-hoc diagnostics | `node scripts/golden-lattice-exploration-sel.mjs --B=200`, `node scripts/golden-lattice-exploration-valley.mjs` |
+| The observatory's fits, then their embed in the page | `node scripts/scale-dynamics.mjs`, then `node scripts/scale-dynamics-embed.mjs` |
+| The Lean build and audit | in `lean/scale-nexus`: `lake update && lake exe cache get && lake build && lake env lean Audit.lean` |
+
