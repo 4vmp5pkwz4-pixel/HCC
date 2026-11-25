@@ -14,6 +14,8 @@
     10. the preregistered golden-lattice test: its recorded result recomputed from the data;
     11. the typed bus both ways and the integration into FBS3R and the catalogue cards;
     12. the wiring and the instrument, which runs without a browser.
+    13. Frontier II, physical rigour: the strict C ≤ 1 ∧ Q ≤ 1 interval and its nonemptiness, R_A < A, R_H as an areal
+        radius only for Ω_K ≥ −1, both χ branches, and what C means for every catalogue entry.
    NOT checked here: physics. The kernel is coordinates; the S³ and FLRW parts are conditional on their models. */
 import fs from 'node:fs'; import path from 'node:path'; import crypto from 'node:crypto'; import { createRequire } from 'node:module';
 const ROOT = path.join(path.dirname(new URL(import.meta.url).pathname), '..');
@@ -143,6 +145,27 @@ const rel = (x, y) => Math.abs(x - y) / Math.max(Math.abs(x), Math.abs(y), 1e-30
   const ok = !miss.length && !!meta && Math.abs(r.scalenexus_log_compactness - c.a) < 1e-12 && Math.abs(r.scalenexus_rung - c.N) < 1e-9 && Math.abs(r.scalenexus_proper_over_misner_sharp - 1) < 1e-3 && r.scalenexus_proper_over_misner_sharp > 1;
   check(ok, 'the laboratory is in the page and its instrument runs without a browser: declared, registered, shown, set up, given a panel, ticked, listed among the laboratories and the trips, related in the graph, entered in the ledger, with an agent handle that exports and re-imports; at its defaults — the Sun, base φ, H₀ = 67.4, Ω_K = −0.001, χ = 0.01π — the instrument returns the kernel’s own numbers',
     `log C ${r.scalenexus_log_compactness != null ? r.scalenexus_log_compactness.toFixed(6) : '—'} · N ${r.scalenexus_rung != null ? r.scalenexus_rung.toFixed(4) : '—'} · proper/MS ${r.scalenexus_proper_over_misner_sharp != null ? r.scalenexus_proper_over_misner_sharp.toFixed(6) : '—'}${miss.length ? ' · missing ' + miss.join(' | ') : ''}`); }
+
+/* 13 — Frontier II: physical rigour (items 9–12) */
+{ let n = 0, worst = 0, wrongSide = 0; const lP = Math.sqrt(K.hb * K.G / K.c ** 3);
+  for (let i = 0; i < 4000; i++) { const R = lP * Math.pow(10, -1 + 61 * i / 3999), lo = K.hb / (R * K.c), hi = R * K.c * K.c / (2 * K.G); n++;
+    const Cq = M => [2 * K.G * M / (R * K.c * K.c), K.hb / (M * R * K.c)], [c1, q1] = Cq(lo), [c2, q2] = Cq(hi);
+    worst = Math.max(worst, Math.abs(q1 - 1), Math.abs(c2 - 1)); if ((lo <= hi) !== (R >= Math.SQRT2 * lP * (1 - 1e-12))) wrongSide++;
+    if (lo <= hi && (c1 > 1 + 1e-12 || q2 > 1 + 1e-12)) wrongSide++; }
+  let flrw = 0, bad = 0;
+  for (const H0 of [45, 67.4, 73]) for (const ok of [-3, -1.5, -1, -0.999, -0.5, -0.01, -1e-4]) { const F = P.snxFLRW(H0 * 1e3 / K.pc / 1e6, ok, K); flrw++;
+    if (!(F.RAoverA < 1)) bad++; if (F.RHrealizable !== (ok >= -1)) bad++;
+    const b = F.branchesRA; if (!b || !(b.Dnear < b.Dfar) || Math.abs(Math.sin(b.chiNear) - F.RA / F.A) > 1e-12 || Math.abs(Math.sin(b.chiFar) - F.RA / F.A) > 1e-12) bad++;
+    if (ok < -1 && F.branchesRH !== null) bad++; }
+  const A = P.snxAudit(P.UCAT, P.ucatPlane), rows = A.rows, noMeaning = rows.filter(r => typeof r.cMeaning !== 'string' || r.cMeaning.length < 8);
+  const hz = rows.filter(r => r.layer === 'horizon' || ['hubble', 'dS', 'obs'].includes(r.id)), hzOk = hz.every(r => /^definitional|^conditional/.test(r.cMeaning)) && rows.filter(r => r.layer === 'point' || r.layer === 'photon' || r.layer === 'scale' || r.layer === 'bits').every(r => /^formal coordinate/.test(r.cMeaning));
+  const kinds = rows.reduce((m, r) => { const k = r.cMeaning.split(':')[0].split(' ').slice(0, 2).join(' '); m[k] = (m[k] || 0) + 1; return m; }, {});
+  const fbsText = src.slice(src.indexOf('function fbsSnxOutHTML'), src.indexOf('function fbsSnxBusHTML'));
+  const wording = !/no mass can be held/.test(src) && /allowed_nonempty/.test(fbsText) && /C ≤ 1 and Q ≤ 1/.test(fbsText);
+  cases += n + flrw;
+  check(wrongSide === 0 && worst < 1e-12 && bad === 0 && noMeaning.length === 0 && hzOk && wording,
+    'Frontier II rigour: at every radius the masses with C ≤ 1 and Q ≤ 1 are exactly [ħ/(Rc), Rc²/(2G)], nonempty iff R ≥ √2 ℓ_P (Lean: allowed_masses, allowed_nonempty) — FBS3R states this condition, not "no mass can be held"; R_A/A < 1 for every Ω_K < 0, the Hubble length is an areal radius only for Ω_K ≥ −1, every areal radius below A is met at χ and π − χ with D_near < D_far; every catalogue entry says whether its C is physical, conditional, definitional or a formal ratio',
+    `${n} radii over 61 decades · endpoint error ${worst.toExponential(1)} · ${flrw} FLRW cases · ${bad} FLRW violations · C meaning: ${Object.entries(kinds).map(([k, v]) => k + ' ' + v).join(' · ')} · horizons and FRW spheres ${hz.length}, all definitional or conditional, every particle/photon/scale/bit entry a formal ratio: ${hzOk}`); }
 
 console.log(`\n${pass} passed, ${fail} failed · ${cases} deterministic cases`);
 process.exit(fail ? 1 : 0);
