@@ -89,13 +89,16 @@ This is a representation, not a law.
 
 | Value | Was | Now | Reason |
 |---|---|---|---|
-| M☉ | 1.98847·10³⁰ kg | GM☉(IAU 2015)/G(CODATA 2022) = 1.988410·10³⁰ kg | The old value carried the 2014 G. The difference, 3.0·10⁻⁵, exceeds G's 2.2·10⁻⁵. |
-| Electron | 0.51099895 MeV | 0.51099895069 MeV (CODATA 2022) | Δ = 1.35·10⁻⁹, i.e. 4.4σ. |
+| M☉ | 1.98847·10³⁰ kg | GM☉(IAU 2015)/G(CODATA 2022) = 1.988410·10³⁰ kg | An internal-consistency fix: the old value is GM☉ over the 2014 G, while the atlas uses the 2022 G. The shift, 3.3·10⁻⁵ (1.5 u(G)), is an edition difference, not a measurement in tension. *(First wording, withdrawn in Frontier II: "exceeds G's 2.2·10⁻⁵".)* |
+| Electron | 0.51099895 MeV | 0.51099895069 MeV (CODATA 2022) | A precision update between editions. The old value is the CODATA 2018 value itself, correct for its edition. It moved because α moved: m_e = 2hR∞/(cα²) reproduces Δm/m = 1.36·10⁻⁹ from the two editions' α and R∞. Two adjustments of largely shared data are not independent measurements, so the shift divided by one edition's σ (4.4) is **not** a significance. *(First wording, withdrawn in Frontier II: "Δ = 1.35·10⁻⁹, i.e. 4.4σ".)* |
 
 **Not changed, and recorded here:**
-- A second solar mass constant, 1.98847·10³⁰ at `index.html` line 4355, belongs to another module that other labs depend on. It should be revised in a separate release, with those labs re-verified.
+- A second solar mass constant, 1.98847·10³⁰ at `index.html` line 4355, belongs to another module that other labs depend on. It should be revised in a separate release, with those labs re-verified. **Frontier II:** done — that module (`HCC_S3C`) now reads the registry `HCC_CONSTANTS`, and its verifiers pass. Another 26 copies of 1.98892·10³⁰ kg (GM☉ over the 1986 G) remain in other modules. They are listed by name and capped in `docs/verify-the-constants-registry.mjs`.
 - The `PHI_ATLAS` length table has no masses. It is placed by length only and covered by the ladder's own tests; it was not given the typed mass–radius fields.
 - **Lineweaver & Patel (2023) and its 2024 erratum: NOT RUN.** The erratum's full text was not obtained. No statement here depends on it.
+  - **Frontier II, item 8: BLOCKED.** The erratum's metadata was verified with Crossref: "Erratum: 'All objects and some questions' [Am. J. Phys. 91, 819–825 (2023)]", Am. J. Phys. 92, 240 (2024), doi:10.1119/5.0198864, issued 2024-03-01. It corrects doi:10.1119/5.0150209.
+  - The full text is behind the publisher's access control: automated requests get HTTP 403, and no open copy is listed by Unpaywall. It was not bypassed.
+  - **What would unblock it:** a copy supplied by someone with access. Until then, no line of the atlas is compared with the erratum, and none depends on it.
 
 ## 4. Lean (G3)
 

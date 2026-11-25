@@ -56,7 +56,7 @@ Each areal radius has a near and a far branch. With the Friedmann equation taken
 |---|---|
 | Catalogue entries typed | 98/98 |
 | Entries for which a density may be formed | 39 |
-| Values revised to their cited sources | 2: the Sun's mass, 3.0·10⁻⁵, beyond G's uncertainty; the electron, 4.4σ |
+| Values revised to their cited sources | 2 edition updates, neither a statistical contradiction: the Sun's mass (GM☉ over the 2022 G instead of the 2014 G, 3.3·10⁻⁵); the electron (CODATA 2018 → 2022, Δm/m = 1.36·10⁻⁹, driven by the revised α) |
 | Lean theorems | 29/29, standard axioms only |
 | Kernel vs. Lean fixtures, worst relative difference | 3.8·10⁻¹⁵ |
 | Golden lattice, holdout (n = 2384, 1812 systems), R̄_φ | 0.025 (95 % CI 0.007–0.056) |

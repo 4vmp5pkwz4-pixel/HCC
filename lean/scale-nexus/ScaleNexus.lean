@@ -6,8 +6,8 @@ import Mathlib
 What is proved here is mathematics about the coordinates the atlas uses: identities, inverses, covariance laws,
 the geometry of a round 3-sphere and one algebraic identity of the Friedmann equations. Nothing here proves a
 physical model: general relativity is not formalised, and the Friedmann relation enters only as a hypothesis
-(`hρ` below). Every exported statement is followed by `#print axioms`; the build log is audited for anything
-beyond `propext`, `Classical.choice`, `Quot.sound`.
+(`hρ` below). Every exported statement is listed with `#print axioms` in `Audit.lean`; its output is audited for
+anything beyond `propext`, `Classical.choice`, `Quot.sound`.
 -/
 
 noncomputable section
@@ -304,32 +304,3 @@ end HCC.ScaleNexus
 
 end
 
-#print axioms HCC.ScaleNexus.product
-#print axioms HCC.ScaleNexus.ratio
-#print axioms HCC.ScaleNexus.si_bridge
-#print axioms HCC.ScaleNexus.left_u
-#print axioms HCC.ScaleNexus.left_v
-#print axioms HCC.ScaleNexus.right_a
-#print axioms HCC.ScaleNexus.right_b
-#print axioms HCC.ScaleNexus.product_log
-#print axioms HCC.ScaleNexus.ratio_log
-#print axioms HCC.ScaleNexus.log_coordinates
-#print axioms HCC.ScaleNexus.density_line
-#print axioms HCC.ScaleNexus.radius_level
-#print axioms HCC.ScaleNexus.level_radius
-#print axioms HCC.ScaleNexus.relabel
-#print axioms HCC.ScaleNexus.golden_log_bridge
-#print axioms HCC.ScaleNexus.horizon_normalized
-#print axioms HCC.ScaleNexus.crossing_squared
-#print axioms HCC.ScaleNexus.crossing
-#print axioms HCC.ScaleNexus.dilation
-#print axioms HCC.ScaleNexus.areal_symmetric
-#print axioms HCC.ScaleNexus.cap_complement
-#print axioms HCC.ScaleNexus.areal_le_geodesic
-#print axioms HCC.ScaleNexus.capVolume_deriv
-#print axioms HCC.ScaleNexus.capVolume_integral
-#print axioms HCC.ScaleNexus.cap_le_ball
-#print axioms HCC.ScaleNexus.ball_sub_le_cap
-#print axioms HCC.ScaleNexus.apparent_horizon
-#print axioms HCC.ScaleNexus.apparent_horizon_omega
-#print axioms HCC.ScaleNexus.photon_on_compton_line

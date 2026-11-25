@@ -22,7 +22,7 @@
 
 ## Changed
 - **Sun's mass:** now GM☉(IAU 2015)/G(CODATA 2022) = 1.988410·10³⁰ kg. It was 1.98847·10³⁰, which used the 2014 G.
-- **Electron mass:** now 0.51099895069 MeV (CODATA 2022). It was 0.51099895.
+- **Electron mass:** now 0.51099895069 MeV (CODATA 2022). It was 0.51099895, the CODATA 2018 value. This is an edition update, not a contradiction (Frontier II, item 6).
 
 ## Not changed, recorded
 - The solar-mass constant of another module (`index.html` line 4355).

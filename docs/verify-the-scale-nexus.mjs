@@ -9,7 +9,7 @@
      5. the round S³: complements, branches, the antipode, the series switch, and the two-sided flat-limit bound Lean proves;
      6. FLRW: the apparent-horizon identity, the Ω_K form, realizability, and agreement with the S³ cap;
      7. the audit: 98 of 98 catalogue entries typed, densities only where mass and radius are of one region, the two revised values;
-     8. Lean: the build log, the axiom audit of all 29 theorems, and the hashes of what was built;
+     8. Lean: the clean-rebuild log, the axiom audit of all 42 theorems (Audit.lean), and the hashes of what was built;
      9. parity with the handoff's reference kernel, and its own test;
     10. the preregistered golden-lattice test: its recorded result recomputed from the data;
     11. the typed bus both ways and the integration into FBS3R and the catalogue cards;
@@ -100,13 +100,19 @@ const rel = (x, y) => Math.abs(x - y) / Math.max(Math.abs(x), Math.abs(y), 1e-30
     'the audit, 98 of 98 catalogue entries: every one has its source, epoch, frame, status and placing formula, its mass and radius kinds or the reason it is not on the plane, and an uncertainty or the reason it is missing — none set to zero; a density only for bodies, never for the Milky Way (stars and disc are different regions), Laniakea, the Hubble, de Sitter and observable spheres or the Planck units; photons as energy equivalents, bits as information equivalents, neutrinos as bounds, light quarks as running masses; the Sun’s mass revised to GM☉/G (IAU 2015, CODATA 2022) and the electron to CODATA 2022',
     `${A.count} entries · ${A.onPlane} on the plane · ${JSON.stringify(A.byLayer)} · density ${A.densityAllowed} · uncertainty stated ${A.withUncertainty} · M☉ = ${K.Msun.toExponential(6)} kg`); }
 
-{ const dir = 'lean/scale-nexus', log = rd(dir + '/build.log'), ax = rd(dir + '/axioms.txt').trim().split('\n'), lean = rd(dir + '/ScaleNexus.lean'), thms = [...lean.matchAll(/^theorem (\w+)/gm)].map(m => m[1]);
+{ const dir = 'lean/scale-nexus', log = rd(dir + '/build.log'), ax = rd(dir + '/axioms.txt').trim().split('\n');
+  const files = ['ScaleNexus.lean', 'Frontier.lean'], lean = files.map(f => rd(dir + '/' + f)).join('\n'), audit = rd(dir + '/Audit.lean');
+  const thms = [...lean.matchAll(/^theorem (\w+)/gm)].map(m => m[1]), printed = [...audit.matchAll(/^#print axioms HCC\.ScaleNexus\.(\w+)/gm)].map(m => m[1]);
   const clean = ax.every(l => /depends on axioms: \[propext, Classical\.choice, Quot\.sound\]$/.test(l)), named = thms.every(t => ax.some(l => l.includes(`'HCC.ScaleNexus.${t}'`)));
-  const noSorry = !/\bsorry\b|\badmit\b|^axiom\s/m.test(lean.replace(/--.*$/gm, '').replace(/\/-[\s\S]*?-\//g, ''));
+  const allPrinted = thms.length === printed.length && thms.every(t => printed.includes(t));
+  const noSorry = !/\bsorry\b|\badmit\b|^axiom\s/m.test((lean + audit).replace(/--.*$/gm, '').replace(/\/-[\s\S]*?-\//g, ''));
   const sums = rd(dir + '/SHA256SUMS').trim().split('\n').map(l => l.split(/\s+/)), hashOK = sums.every(([h, f]) => crypto.createHash('sha256').update(fs.readFileSync(path.join(ROOT, dir, f))).digest('hex') === h);
-  check(/EXIT 0\s*$/.test(log) && !/error/i.test(log) && thms.length === 29 && ax.length === 29 && clean && named && noSorry && hashOK && /v4\.19\.0/.test(rd(dir + '/lean-toolchain')),
-    'Lean, audited: ScaleNexus.lean builds with Lean 4.19.0 and Mathlib v4.19.0 (exit 0, no error); all 29 theorems — the SI bridge, the log and rpow inverses, relabelling, the crossing, dilation, the S³ complement, dV/dχ and its integral, the two-sided flat limit, the apparent-horizon identity — depend on propext, Classical.choice and Quot.sound only; no sorry, admit or axiom in the source; every file of the build matches its recorded hash',
-    `${thms.length} theorems · ${ax.length} axiom lines, all standard: ${clean} · hashes ${hashOK}`); }
+  const built = /Built ScaleNexus/.test(log) && /Built Frontier/.test(log) && /Build completed successfully/.test(log) && /audit exit 0/.test(log) && /fixtures exit 0/.test(log);
+  const olean = [...log.matchAll(/([0-9a-f]{64})\s+\S*\/(\w+)\.olean/g)].map(m => m[2] + ' ' + m[1].slice(0, 12));
+  const roots = /roots\s*=\s*\["ScaleNexus",\s*"Frontier"\]/.test(rd(dir + '/lakefile.toml'));
+  check(built && !/error/i.test(log) && thms.length === 42 && ax.length === 42 && clean && named && allPrinted && noSorry && hashOK && roots && olean.length === 2 && /v4\.19\.0/.test(rd(dir + '/lean-toolchain')),
+    'Lean, audited after a clean rebuild: ScaleNexus.lean and Frontier.lean build with Lean 4.19.0 and Mathlib v4.19.0; all 42 theorems are printed by Audit.lean and depend on propext, Classical.choice and Quot.sound only. They comprise the 29 of the first release plus Frontier II: the allowed masses and their nonemptiness, the unique crossing, the dilation group and its invariant, both S³ branches and the monotone cap volume, R_A < A, and covariance propagation. No sorry, admit or axiom; every file matches its recorded hash; the olean hashes are recorded',
+    `${thms.length} theorems · ${printed.length} printed · ${ax.length} axiom lines, all standard: ${clean} · hashes ${hashOK} · olean ${olean.join(' · ')}`); }
 
 { const require = createRequire(import.meta.url), H = require(path.join(ROOT, 'docs/scale-nexus/handoff/kernel.js')); let worst = 0, n = 0;
   for (let i = 0; i < 400; i++) { const M = Math.pow(10, -40 + 90 * i / 399), R = Math.pow(10, -30 + 55 * ((i * 61) % 400) / 399), a = H.coordinates(M, R), b = P.snxCoords(M, R, K); worst = Math.max(worst, Math.abs(a.a - b.a), Math.abs(a.b - b.b), Math.abs(a.N - b.N) * 1e-2); n++; }
